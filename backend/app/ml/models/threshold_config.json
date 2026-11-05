@@ -1,0 +1,18 @@
+{
+  "global_threshold": 0.5,
+  "domain_thresholds": {},
+  "last_updated": "2026-09-16T19:39:44.508140+00:00",
+  "feedback_samples_used": 0,
+  "false_positive_rate": 0.0,
+  "false_negative_rate": 0.0,
+  "adjustment_history": [
+    {
+      "timestamp": "2026-09-16T19:39:44.508148+00:00",
+      "old_threshold": 0.5,
+      "new_threshold": 0.6,
+      "domain": null,
+      "reason": "Test",
+      "manual": true
+    }
+  ]
+}

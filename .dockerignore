@@ -1,0 +1,54 @@
+# CyberGuard AI - root .dockerignore
+# Applies to the Compose project root build context. Each service also has
+# its own .dockerignore (backend/.dockerignore, frontend/.dockerignore) that
+# applies to that service's own build context (./backend, ./frontend).
+
+# Git
+.git/
+.gitignore
+
+# Secrets - never send to any build context
+.env
+.env.local
+.env.*.local
+**/serviceAccountKey.json
+
+# Editor / OS
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Claude Code / assistant session files
+.claude/
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.temp
+
+# Root-level docs and reports (not needed inside any image)
+*.md
+docs/
+postman/
+
+# Full application subdirectories already have their own build context and
+# their own .dockerignore - excluding them here keeps an accidental
+# `docker build .` from the root from pulling in both trees at once.
+backend/venv/
+backend/__pycache__/
+backend/.pytest_cache/
+backend/.mypy_cache/
+backend/.ruff_cache/
+frontend/node_modules/
+frontend/dist/

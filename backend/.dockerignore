@@ -1,0 +1,102 @@
+# CyberGuard AI - backend/.dockerignore
+# Applies to the backend build context (docker-compose.yml: context: ./backend).
+# Keep in sync with backend/.gitignore where both are relevant; this file is
+# intentionally more conservative since the Dockerfile does `COPY . .`.
+
+# Git
+.git/
+.gitignore
+
+# Secrets - must never enter the image build context
+.env
+.env.local
+.env.*.local
+serviceAccountKey.json
+**/serviceAccountKey.json
+
+# Python virtual environment (image builds its own via requirements.txt)
+venv/
+ENV/
+env/
+.venv/
+
+# Python bytecode / caches
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Packaging artifacts
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Test / lint / type-check caches
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.ruff_cache/
+
+# Editor / OS
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Claude Code / assistant session files
+.claude/
+.postman/
+
+# Logs and local databases
+*.log
+logs/
+*.db
+*.sqlite3
+
+# Documentation and standalone reports (not needed at runtime)
+*.md
+docs/
+
+# Local-only test/debug scripts kept at backend root (not part of the
+# installed app package, not imported by app.main)
+test_ml_email_agent.py
+test_ml_legitimate.py
+verify_all_tools.py
+
+# NOTE: the following are intentionally NOT excluded because the running
+# application needs them inside the image:
+#   - app/                 (application package)
+#   - app/ml/models/*.joblib   (production email-classifier artifacts,
+#                               loaded at runtime by app/ml/classifier.py)
+#   - ml_models/            (phishing_model*.pkl - currently unreferenced by
+#                             app/, kept rather than guessed-removed; see
+#                             BACKEND_CAPABILITY_AUDIT.md)
+#   - migrations/           (migration source files; no alembic.ini/env.py
+#                             was found wiring these up - see audit doc -
+#                             but excluding the directory would not fix that
+#                             and risks hiding the gap, so it stays)
+#   - requirements.txt, scripts/, tests/
+#   - .env.example           (placeholder only, no real secrets)

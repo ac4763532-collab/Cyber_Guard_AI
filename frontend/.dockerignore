@@ -1,0 +1,58 @@
+# CyberGuard AI - frontend/.dockerignore
+# Applies to the frontend build context (docker-compose.yml: context: ./frontend).
+# The Dockerfile's builder stage does `COPY package.json package-lock.json* ./`
+# then `RUN npm ci` then `COPY . .` then `RUN npm run build` - node_modules
+# and dist must come from inside the image, not the host.
+
+# Git
+.git/
+.gitignore
+
+# Secrets / local env overrides - never send to the image build context.
+# VITE_FIREBASE_* values here are already public client config (shipped in
+# the built JS bundle regardless), but these files may also carry
+# VITE_API_URL or other local-only overrides not meant for the built image,
+# which already gets its runtime values from docker-compose.yml instead.
+.env
+.env.local
+.env.*.local
+
+# Dependencies (image installs its own via npm ci)
+node_modules/
+
+# Build output (image builds its own via `npm run build`)
+dist/
+build/
+
+# Vite / TS incremental build caches (host-specific, invalid in-container)
+*.tsbuildinfo
+.vite/
+
+# Editor / OS
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Claude Code / assistant session files
+.claude/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Test / coverage artifacts
+coverage/
+.nyc_output/
+
+# NOTE: the following are intentionally NOT excluded because the build
+# needs them inside the image:
+#   - package.json, package-lock.json  (npm ci)
+#   - src/, index.html, public/        (vite build inputs)
+#   - vite.config.ts, tsconfig*.json, tailwind.config.js, postcss.config.js
+#   - nginx.conf                        (copied into the production stage)

@@ -1,0 +1,33 @@
+# CyberGuard AI - Production Override
+#
+# Merge on top of the base dev compose file - do not use alone, it has no
+# `services:` of its own beyond the overrides below:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# What this changes vs. the base file:
+# - backend/celery-worker build the Dockerfile's `production` stage
+#   explicitly (no --reload, no watchfiles) instead of the implicit last
+#   stage (`development`).
+# - No bind mounts - the image's own COPYed code is used, not a live
+#   host directory. Rebuild the image to deploy code changes.
+# - DEBUG=false, ENVIRONMENT=production.
+#
+# Everything else (Postgres via host.docker.internal, Redis, Redpanda,
+# ports, volumes, networks) is unchanged from the base file.
+
+services:
+  backend:
+    build:
+      target: production
+    environment:
+      - DEBUG=false
+      - ENVIRONMENT=production
+    volumes: []
+
+  celery-worker:
+    build:
+      target: production
+    environment:
+      - DEBUG=false
+      - ENVIRONMENT=production
+    volumes: []

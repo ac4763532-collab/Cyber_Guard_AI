@@ -1,0 +1,200 @@
+# CyberGuard AI - Docker Development Environment
+#
+# This file is the DEV configuration: backend builds Dockerfile's last
+# stage (`development`, with --reload) since no `target:` is set here,
+# and source is bind-mounted live. For a production-shaped build, use:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+# which overrides target: production, drops the bind mounts, and disables
+# reload/debug - see docker-compose.prod.yml.
+
+services:
+  # ============================================
+  # Backend API (FastAPI)
+  # ============================================
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: cyberguard-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - APP_NAME=CyberGuard AI
+      - DEBUG=true
+      - ENVIRONMENT=development
+      - DB_ENABLED=true
+      # Laptop-installed PostgreSQL (postgresql-x64-18 service), not a
+      # Docker-managed database. host.docker.internal resolves to the
+      # Windows host from inside the container.
+      - DB_HOST=host.docker.internal
+      - DB_PORT=5432
+      - DB_NAME=CyberGuard_AI
+      - DB_USER=cyberguard
+      - DB_PASSWORD=${DB_PASSWORD:?DB_PASSWORD must be set in .env to the laptop PostgreSQL password for the cyberguard user}
+      - REDIS_URL=redis://redis:6379/0
+      - REDPANDA_BOOTSTRAP_SERVERS=redpanda:29092
+      - EVENT_BUS_ENABLED=true
+      # Without this, CollectorManager.start_all() never runs (defaults to
+      # False in app/config.py) and no Windows Event Log / Linux SSH
+      # collector ever starts inside the container, regardless of sources
+      # created via the API.
+      - LOG_COLLECTORS_ENABLED=true
+      - FIREBASE_PROJECT_ID=${FIREBASE_PROJECT_ID:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - SECRET_KEY=${SECRET_KEY:-dev-secret-change-in-production}
+    volumes:
+      - ./backend:/app
+      - backend-cache:/root/.cache
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      redis:
+        condition: service_started
+      redpanda:
+        condition: service_healthy
+    healthcheck:
+      # /health (bare) returns a hardcoded "healthy" unconditionally and
+      # checks nothing - see app/api/v1/health.py. /health/ready does real
+      # Redis + ML + agent checks and returns 503 when not ready.
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health/ready"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - cyberguard-network
+
+  # ============================================
+  # Frontend (React + Vite)
+  # ============================================
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      # VITE_* vars are baked into the static bundle at BUILD time by Vite
+      # (see frontend/Dockerfile's ARG/ENV in the builder stage) - a plain
+      # Nginx `environment:` block here would be inert, since Nginx never
+      # reads them and the bundle is already built.
+      args:
+        VITE_API_URL: /api/v1
+        VITE_FIREBASE_PROJECT_ID: ${FIREBASE_PROJECT_ID:-}
+        VITE_FIREBASE_API_KEY: ${FIREBASE_API_KEY:-}
+        VITE_FIREBASE_AUTH_DOMAIN: ${FIREBASE_AUTH_DOMAIN:-}
+    container_name: cyberguard-frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    networks:
+      - cyberguard-network
+
+  # ============================================
+  # PostgreSQL
+  # ============================================
+  # Intentionally no Dockerized postgres service. The application database
+  # is the laptop-installed PostgreSQL (CyberGuard_AI, user cyberguard,
+  # service postgresql-x64-18 on 0.0.0.0:5432), reached from containers via
+  # host.docker.internal. A previously Docker-managed instance also bound
+  # to host port 5432 (container cyberguard-postgres, volume
+  # cyberguard_ai_postgres-data); that container has been stopped so this
+  # port is unambiguous, but its volume was intentionally left on disk and
+  # is not referenced here. See docs/FRONTEND_IMPLEMENTATION_REPORT.md for
+  # the exact volume name if later cleanup is wanted.
+
+  # ============================================
+  # Redis (Cache & Queue)
+  # ============================================
+  redis:
+    image: redis:7-alpine
+    container_name: cyberguard-redis
+    command: redis-server --appendonly yes
+    volumes:
+      - redis-data:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - cyberguard-network
+
+  # ============================================
+  # Redpanda (Event Streaming)
+  # ============================================
+  redpanda:
+    image: docker.redpanda.com/redpandadata/redpanda:v24.1.8
+    container_name: cyberguard-redpanda
+    command:
+      - redpanda
+      - start
+      - --smp=1
+      - --memory=512M
+      - --reserve-memory=0M
+      - --overprovisioned
+      - --node-id=0
+      - --kafka-addr=PLAINTEXT://0.0.0.0:29092,OUTSIDE://0.0.0.0:9092
+      - --advertise-kafka-addr=PLAINTEXT://redpanda:29092,OUTSIDE://localhost:9092
+      - --pandaproxy-addr=0.0.0.0:8082
+      - --advertise-pandaproxy-addr=localhost:8082
+    ports:
+      - "9092:9092"      # Kafka API (external)
+      - "29092:29092"    # Kafka API (internal Docker)
+      - "8082:8082"      # HTTP Proxy API
+    volumes:
+      - redpanda-data:/var/lib/redpanda/data
+    healthcheck:
+      test: ["CMD", "rpk", "cluster", "health"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    networks:
+      - cyberguard-network
+
+  # ============================================
+  # Celery Worker (Background Tasks)
+  # ============================================
+  celery-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: cyberguard-celery
+    command: celery -A app.tasks worker --loglevel=info
+    environment:
+      - DB_ENABLED=true
+      - DB_HOST=host.docker.internal
+      - DB_PORT=5432
+      - DB_NAME=CyberGuard_AI
+      - DB_USER=cyberguard
+      - DB_PASSWORD=${DB_PASSWORD:?DB_PASSWORD must be set in .env to the laptop PostgreSQL password for the cyberguard user}
+      - REDIS_URL=redis://redis:6379/0
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+    volumes:
+      - ./backend:/app
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      - redis
+    profiles:
+      - full  # Only start with: docker compose --profile full up
+    networks:
+      - cyberguard-network
+
+# ============================================
+# Volumes
+# ============================================
+volumes:
+  redis-data:
+    driver: local
+  redpanda-data:
+    driver: local
+  backend-cache:
+    driver: local
+
+# ============================================
+# Networks
+# ============================================
+networks:
+  cyberguard-network:
+    driver: bridge

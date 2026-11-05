@@ -1,0 +1,635 @@
+"""
+CyberGuard AI - Threat Intelligence Service
+
+Provides IOC enrichment via external threat intelligence APIs:
+- VirusTotal: URL, domain, IP, file hash reputation
+- AbuseIPDB: IP abuse reports
+
+Security:
+- API keys stored server-side only
+- Results cached to reduce API calls (Redis + local memory)
+- Rate limiting respected
+- Circuit breaker for resilience
+"""
+
+import asyncio
+import hashlib
+import json
+from datetime import datetime, timezone, timedelta
+from enum import Enum
+from typing import Optional, Any
+from functools import lru_cache
+
+import httpx
+from redis.asyncio import Redis
+from pydantic import BaseModel, Field
+import structlog
+
+from app.config import get_settings
+from app.services.rate_limiting import get_rate_limiter, RateLimitExceeded
+from app.services.circuit_breaker import get_circuit_breaker, CircuitOpenError
+
+
+logger = structlog.get_logger(__name__)
+
+
+# =============================================================================
+# Models
+# =============================================================================
+
+class IOCType(str, Enum):
+    """Types of Indicators of Compromise."""
+    IP = "ip"
+    DOMAIN = "domain"
+    URL = "url"
+    EMAIL = "email"
+    HASH_MD5 = "hash_md5"
+    HASH_SHA1 = "hash_sha1"
+    HASH_SHA256 = "hash_sha256"
+
+
+class ThreatIntelResult(BaseModel):
+    """Result from threat intelligence lookup."""
+    ioc_type: IOCType
+    ioc_value: str
+    is_malicious: bool = False
+    risk_score: int = Field(default=0, ge=0, le=100)
+    sources: list[str] = Field(default_factory=list)
+    details: dict[str, Any] = Field(default_factory=dict)
+    cached: bool = False
+    lookup_time_ms: int = 0
+    error: Optional[str] = None
+
+
+class VirusTotalResult(BaseModel):
+    """Parsed VirusTotal API result."""
+    malicious_count: int = 0
+    suspicious_count: int = 0
+    harmless_count: int = 0
+    undetected_count: int = 0
+    total_engines: int = 0
+    reputation: int = 0
+    categories: list[str] = Field(default_factory=list)
+    last_analysis_date: Optional[datetime] = None
+
+
+class AbuseIPDBResult(BaseModel):
+    """Parsed AbuseIPDB API result."""
+    abuse_confidence_score: int = 0
+    total_reports: int = 0
+    is_public: bool = True
+    is_tor: bool = False
+    isp: str = ""
+    country_code: str = ""
+    last_reported_at: Optional[datetime] = None
+
+
+# =============================================================================
+# Threat Intelligence Service
+# =============================================================================
+
+class ThreatIntelService:
+    """
+    Threat Intelligence Service for IOC enrichment.
+
+    Integrates with:
+    - VirusTotal API v3
+    - AbuseIPDB API v2
+
+    Features:
+    - Two-tier caching (local memory + Redis)
+    - Rate limiting per external API
+    - Circuit breaker for resilience
+    """
+
+    VT_BASE_URL = "https://www.virustotal.com/api/v3"
+    ABUSEIPDB_BASE_URL = "https://api.abuseipdb.com/api/v2"
+
+    # Cache TTL (defaults, overridden by settings)
+    CACHE_TTL_SECONDS = 3600  # 1 hour
+
+    def __init__(self):
+        self.settings = get_settings()
+        self._cache: dict[str, tuple[ThreatIntelResult, datetime]] = {}
+        self._redis: Redis | None = None
+        try:
+            self._redis = Redis.from_url(self.settings.redis_url, decode_responses=True)
+        except Exception as exc:
+            logger.warning('Redis cache initialization failed', error=str(exc))
+
+        # Check API configuration
+        self._vt_enabled = bool(self.settings.virustotal_api_key)
+        self._abuseipdb_enabled = bool(self.settings.abuseipdb_api_key)
+
+        if not self._vt_enabled:
+            logger.warning("VirusTotal API key not configured")
+        if not self._abuseipdb_enabled:
+            logger.warning("AbuseIPDB API key not configured")
+
+        # Rate limiters
+        self._rate_limiter = get_rate_limiter()
+
+        # Circuit breakers
+        self._vt_circuit = get_circuit_breaker(
+            "virustotal",
+            failure_threshold=self.settings.external_circuit_failure_threshold,
+            recovery_timeout_seconds=self.settings.external_circuit_recovery_seconds,
+        )
+        self._abuseipdb_circuit = get_circuit_breaker(
+            "abuseipdb",
+            failure_threshold=self.settings.external_circuit_failure_threshold,
+            recovery_timeout_seconds=self.settings.external_circuit_recovery_seconds,
+        )
+
+    @property
+    def is_configured(self) -> bool:
+        """Check if at least one threat intel source is configured."""
+        return self._vt_enabled or self._abuseipdb_enabled
+
+    def _get_cache_key(self, ioc_type: IOCType, ioc_value: str) -> str:
+        """Generate cache key for IOC."""
+        return f"{ioc_type.value}:{ioc_value.lower()}"
+
+    def _get_cached(self, ioc_type: IOCType, ioc_value: str) -> Optional[ThreatIntelResult]:
+        """Get cached result if still valid."""
+        key = self._get_cache_key(ioc_type, ioc_value)
+        if key in self._cache:
+            result, cached_at = self._cache[key]
+            if datetime.now(timezone.utc) - cached_at < timedelta(seconds=self.CACHE_TTL_SECONDS):
+                result.cached = True
+                return result
+            else:
+                del self._cache[key]
+        return None
+
+    def _set_cached(self, result: ThreatIntelResult):
+        """Cache a result in local memory."""
+        key = self._get_cache_key(result.ioc_type, result.ioc_value)
+        self._cache[key] = (result, datetime.now(timezone.utc))
+
+    async def _set_redis_cached(self, result: ThreatIntelResult):
+        """Cache a result in Redis with appropriate TTL."""
+        if self._redis is None:
+            return
+
+        key = f"threat_intel:{self._get_cache_key(result.ioc_type, result.ioc_value)}"
+        try:
+            # Use different TTL for malicious vs clean results
+            ttl = (
+                self.settings.external_cache_ttl_malicious
+                if result.is_malicious
+                else self.settings.external_cache_ttl_clean
+            )
+            data = result.model_dump_json()
+            await self._redis.setex(key, ttl, data)
+        except Exception as exc:
+            logger.warning("Redis threat intel cache write failed", error=str(exc))
+
+    async def _get_redis_cached(self, ioc_type: IOCType, ioc_value: str) -> Optional[ThreatIntelResult]:
+        """Get a cached threat-intelligence result from Redis."""
+        if self._redis is None:
+            return None
+
+        key = f"threat_intel:{self._get_cache_key(ioc_type, ioc_value)}"
+        try:
+            cached_data = await self._redis.get(key)
+            if not cached_data:
+                return None
+
+            import json
+            data = json.loads(cached_data)
+            result = ThreatIntelResult(**data)
+            result.cached = True
+            return result
+        except Exception as exc:
+            logger.warning("Redis threat intel cache read failed", error=str(exc))
+            return None
+    async def lookup(self, ioc_type: IOCType, ioc_value: str) -> ThreatIntelResult:
+        """
+        Look up an IOC across configured threat intelligence sources.
+
+        Args:
+            ioc_type: Type of IOC
+            ioc_value: The IOC value to look up
+
+        Returns:
+            ThreatIntelResult with combined findings
+        """
+        start_time = datetime.now(timezone.utc)
+
+        # Check local cache first
+        cached = self._get_cached(ioc_type, ioc_value)
+        if cached:
+            logger.debug("Threat intel local cache hit", ioc_type=ioc_type.value, ioc=ioc_value[:50])
+            return cached
+
+        # Check Redis cache
+        redis_cached = await self._get_redis_cached(ioc_type, ioc_value)
+        if redis_cached:
+            # Store in local cache too
+            self._set_cached(redis_cached)
+            logger.debug("Threat intel Redis cache hit", ioc_type=ioc_type.value, ioc=ioc_value[:50])
+            return redis_cached
+
+        result = ThreatIntelResult(
+            ioc_type=ioc_type,
+            ioc_value=ioc_value,
+        )
+
+        try:
+            # Run lookups in parallel based on IOC type
+            tasks = []
+
+            if self._vt_enabled:
+                if ioc_type == IOCType.IP:
+                    tasks.append(self._lookup_vt_ip(ioc_value))
+                elif ioc_type == IOCType.DOMAIN:
+                    tasks.append(self._lookup_vt_domain(ioc_value))
+                elif ioc_type == IOCType.URL:
+                    tasks.append(self._lookup_vt_url(ioc_value))
+                elif ioc_type in (IOCType.HASH_MD5, IOCType.HASH_SHA1, IOCType.HASH_SHA256):
+                    tasks.append(self._lookup_vt_hash(ioc_value))
+
+            if self._abuseipdb_enabled and ioc_type == IOCType.IP:
+                tasks.append(self._lookup_abuseipdb(ioc_value))
+
+            if not tasks:
+                result.error = "No threat intelligence sources configured for this IOC type"
+                return result
+
+            # Execute lookups
+            lookup_results = await asyncio.gather(*tasks, return_exceptions=True)
+
+            # Combine results
+            for lr in lookup_results:
+                if isinstance(lr, Exception):
+                    logger.warning("Threat intel lookup failed", error=str(lr))
+                    continue
+
+                if isinstance(lr, dict):
+                    # VirusTotal result
+                    if "vt" in lr.get("source", ""):
+                        result.sources.append("VirusTotal")
+                        result.details["virustotal"] = lr.get("data", {})
+
+                        vt_data = lr.get("data", {})
+                        if vt_data.get("malicious_count", 0) > 0:
+                            result.is_malicious = True
+
+                        # Calculate risk score from VT
+                        mal = vt_data.get("malicious_count", 0)
+                        sus = vt_data.get("suspicious_count", 0)
+                        total = vt_data.get("total_engines", 1)
+                        if total > 0:
+                            vt_score = min(100, int((mal * 2 + sus) / total * 100))
+                            result.risk_score = max(result.risk_score, vt_score)
+
+                    # AbuseIPDB result
+                    elif "abuseipdb" in lr.get("source", ""):
+                        result.sources.append("AbuseIPDB")
+                        result.details["abuseipdb"] = lr.get("data", {})
+
+                        abuse_score = lr.get("data", {}).get("abuse_confidence_score", 0)
+                        if abuse_score >= 50:
+                            result.is_malicious = True
+                        result.risk_score = max(result.risk_score, abuse_score)
+
+            # Calculate lookup time
+            result.lookup_time_ms = int((datetime.now(timezone.utc) - start_time).total_seconds() * 1000)
+
+            # Cache result (local + Redis)
+            self._set_cached(result)
+            await self._set_redis_cached(result)
+
+            logger.info(
+                "Threat intel lookup complete",
+                ioc_type=ioc_type.value,
+                ioc=ioc_value[:50],
+                is_malicious=result.is_malicious,
+                risk_score=result.risk_score,
+                sources=result.sources,
+            )
+
+            return result
+
+        except Exception as e:
+            logger.error("Threat intel lookup error", error=str(e))
+            result.error = str(e)
+            return result
+
+    async def lookup_batch(self, iocs: list[tuple[IOCType, str]]) -> list[ThreatIntelResult]:
+        """
+        Look up multiple IOCs in parallel.
+
+        Args:
+            iocs: List of (ioc_type, ioc_value) tuples
+
+        Returns:
+            List of ThreatIntelResult
+        """
+        tasks = [self.lookup(ioc_type, ioc_value) for ioc_type, ioc_value in iocs]
+        return await asyncio.gather(*tasks)
+
+    # -------------------------------------------------------------------------
+    # VirusTotal Lookups (with rate limiting and circuit breaker)
+    # -------------------------------------------------------------------------
+
+    async def _acquire_vt_rate_limit(self) -> bool:
+        """Acquire VirusTotal rate limit token."""
+        return await self._rate_limiter.acquire(
+            key="external:virustotal",
+            limit=self.settings.external_vt_rate_limit,
+            window_seconds=self.settings.external_vt_rate_window,
+            wait=True,
+            max_wait_seconds=30.0,
+        )
+
+    async def _lookup_vt_ip(self, ip: str) -> dict:
+        """Look up IP address on VirusTotal."""
+        # Check circuit breaker
+        if not await self._vt_circuit.allow_request():
+            logger.warning("VirusTotal circuit open, skipping IP lookup", ip=ip[:20])
+            return {"source": "vt", "data": {}, "error": "circuit_open"}
+
+        # Rate limiting
+        if not await self._acquire_vt_rate_limit():
+            logger.warning("VirusTotal rate limit exceeded", ip=ip[:20])
+            return {"source": "vt", "data": {}, "error": "rate_limited"}
+
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.get(
+                    f"{self.VT_BASE_URL}/ip_addresses/{ip}",
+                    headers={"x-apikey": self.settings.virustotal_api_key},
+                    timeout=30.0,
+                )
+
+                if response.status_code == 404:
+                    await self._vt_circuit.record_success()
+                    return {"source": "vt", "data": {}}
+
+                response.raise_for_status()
+                await self._vt_circuit.record_success()
+
+                data = response.json().get("data", {}).get("attributes", {})
+                stats = data.get("last_analysis_stats", {})
+                return {
+                    "source": "vt",
+                    "data": {
+                        "malicious_count": stats.get("malicious", 0),
+                        "suspicious_count": stats.get("suspicious", 0),
+                        "harmless_count": stats.get("harmless", 0),
+                        "undetected_count": stats.get("undetected", 0),
+                        "total_engines": sum(stats.values()) if stats else 0,
+                        "reputation": data.get("reputation", 0),
+                        "country": data.get("country", ""),
+                        "as_owner": data.get("as_owner", ""),
+                    }
+                }
+        except httpx.HTTPStatusError as exc:
+            await self._vt_circuit.record_failure()
+            logger.error("VirusTotal IP lookup HTTP error", status=exc.response.status_code)
+            raise
+        except Exception as exc:
+            await self._vt_circuit.record_failure()
+            raise
+
+    async def _lookup_vt_domain(self, domain: str) -> dict:
+        """Look up domain on VirusTotal."""
+        # Check circuit breaker
+        if not await self._vt_circuit.allow_request():
+            logger.warning("VirusTotal circuit open, skipping domain lookup", domain=domain[:30])
+            return {"source": "vt", "data": {}, "error": "circuit_open"}
+
+        # Rate limiting
+        if not await self._acquire_vt_rate_limit():
+            logger.warning("VirusTotal rate limit exceeded", domain=domain[:30])
+            return {"source": "vt", "data": {}, "error": "rate_limited"}
+
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.get(
+                    f"{self.VT_BASE_URL}/domains/{domain}",
+                    headers={"x-apikey": self.settings.virustotal_api_key},
+                    timeout=30.0,
+                )
+
+                if response.status_code == 404:
+                    await self._vt_circuit.record_success()
+                    return {"source": "vt", "data": {}}
+
+                response.raise_for_status()
+                await self._vt_circuit.record_success()
+
+                data = response.json().get("data", {}).get("attributes", {})
+                stats = data.get("last_analysis_stats", {})
+                return {
+                    "source": "vt",
+                    "data": {
+                        "malicious_count": stats.get("malicious", 0),
+                        "suspicious_count": stats.get("suspicious", 0),
+                        "harmless_count": stats.get("harmless", 0),
+                        "undetected_count": stats.get("undetected", 0),
+                        "total_engines": sum(stats.values()) if stats else 0,
+                        "reputation": data.get("reputation", 0),
+                        "categories": list(data.get("categories", {}).values()),
+                        "registrar": data.get("registrar", ""),
+                        "creation_date": data.get("creation_date"),
+                    }
+                }
+        except httpx.HTTPStatusError as exc:
+            await self._vt_circuit.record_failure()
+            logger.error("VirusTotal domain lookup HTTP error", status=exc.response.status_code)
+            raise
+        except Exception as exc:
+            await self._vt_circuit.record_failure()
+            raise
+
+    async def _lookup_vt_url(self, url: str) -> dict:
+        """Look up URL on VirusTotal."""
+        # Check circuit breaker
+        if not await self._vt_circuit.allow_request():
+            logger.warning("VirusTotal circuit open, skipping URL lookup")
+            return {"source": "vt", "data": {}, "error": "circuit_open"}
+
+        # Rate limiting
+        if not await self._acquire_vt_rate_limit():
+            logger.warning("VirusTotal rate limit exceeded for URL lookup")
+            return {"source": "vt", "data": {}, "error": "rate_limited"}
+
+        try:
+            # URL must be base64 encoded without padding
+            import base64
+            url_id = base64.urlsafe_b64encode(url.encode()).decode().rstrip("=")
+
+            async with httpx.AsyncClient() as client:
+                response = await client.get(
+                    f"{self.VT_BASE_URL}/urls/{url_id}",
+                    headers={"x-apikey": self.settings.virustotal_api_key},
+                    timeout=30.0,
+                )
+
+                if response.status_code == 404:
+                    await self._vt_circuit.record_success()
+                    return {"source": "vt", "data": {}}
+
+                response.raise_for_status()
+                await self._vt_circuit.record_success()
+
+                data = response.json().get("data", {}).get("attributes", {})
+                stats = data.get("last_analysis_stats", {})
+                return {
+                    "source": "vt",
+                    "data": {
+                        "malicious_count": stats.get("malicious", 0),
+                        "suspicious_count": stats.get("suspicious", 0),
+                        "harmless_count": stats.get("harmless", 0),
+                        "undetected_count": stats.get("undetected", 0),
+                        "total_engines": sum(stats.values()) if stats else 0,
+                        "categories": list(data.get("categories", {}).values()),
+                        "final_url": data.get("last_final_url", url),
+                        "title": data.get("title", ""),
+                    }
+                }
+        except httpx.HTTPStatusError as exc:
+            await self._vt_circuit.record_failure()
+            logger.error("VirusTotal URL lookup HTTP error", status=exc.response.status_code)
+            raise
+        except Exception as exc:
+            await self._vt_circuit.record_failure()
+            raise
+
+    async def _lookup_vt_hash(self, file_hash: str) -> dict:
+        """Look up file hash on VirusTotal."""
+        # Check circuit breaker
+        if not await self._vt_circuit.allow_request():
+            logger.warning("VirusTotal circuit open, skipping hash lookup")
+            return {"source": "vt", "data": {}, "error": "circuit_open"}
+
+        # Rate limiting
+        if not await self._acquire_vt_rate_limit():
+            logger.warning("VirusTotal rate limit exceeded for hash lookup")
+            return {"source": "vt", "data": {}, "error": "rate_limited"}
+
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.get(
+                    f"{self.VT_BASE_URL}/files/{file_hash}",
+                    headers={"x-apikey": self.settings.virustotal_api_key},
+                    timeout=30.0,
+                )
+
+                if response.status_code == 404:
+                    await self._vt_circuit.record_success()
+                    return {"source": "vt", "data": {"not_found": True}}
+
+                response.raise_for_status()
+                await self._vt_circuit.record_success()
+
+                data = response.json().get("data", {}).get("attributes", {})
+                stats = data.get("last_analysis_stats", {})
+                return {
+                    "source": "vt",
+                    "data": {
+                        "malicious_count": stats.get("malicious", 0),
+                        "suspicious_count": stats.get("suspicious", 0),
+                        "harmless_count": stats.get("harmless", 0),
+                        "undetected_count": stats.get("undetected", 0),
+                        "total_engines": sum(stats.values()) if stats else 0,
+                        "type_description": data.get("type_description", ""),
+                        "type_tag": data.get("type_tag", ""),
+                        "names": data.get("names", [])[:5],
+                        "size": data.get("size", 0),
+                    }
+                }
+        except httpx.HTTPStatusError as exc:
+            await self._vt_circuit.record_failure()
+            logger.error("VirusTotal hash lookup HTTP error", status=exc.response.status_code)
+            raise
+        except Exception as exc:
+            await self._vt_circuit.record_failure()
+            raise
+
+    # -------------------------------------------------------------------------
+    # AbuseIPDB Lookups (with rate limiting and circuit breaker)
+    # -------------------------------------------------------------------------
+
+    async def _lookup_abuseipdb(self, ip: str) -> dict:
+        """Look up IP address on AbuseIPDB."""
+        # Check circuit breaker
+        if not await self._abuseipdb_circuit.allow_request():
+            logger.warning("AbuseIPDB circuit open, skipping lookup", ip=ip[:20])
+            return {"source": "abuseipdb", "data": {}, "error": "circuit_open"}
+
+        # Rate limiting
+        allowed = await self._rate_limiter.acquire(
+            key="external:abuseipdb",
+            limit=self.settings.external_abuseipdb_rate_limit,
+            window_seconds=self.settings.external_abuseipdb_rate_window,
+            wait=True,
+            max_wait_seconds=30.0,
+        )
+        if not allowed:
+            logger.warning("AbuseIPDB rate limit exceeded", ip=ip[:20])
+            return {"source": "abuseipdb", "data": {}, "error": "rate_limited"}
+
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.get(
+                    f"{self.ABUSEIPDB_BASE_URL}/check",
+                    params={
+                        "ipAddress": ip,
+                        "maxAgeInDays": 90,
+                        "verbose": True,
+                    },
+                    headers={
+                        "Key": self.settings.abuseipdb_api_key,
+                        "Accept": "application/json",
+                    },
+                    timeout=30.0,
+                )
+
+                response.raise_for_status()
+                await self._abuseipdb_circuit.record_success()
+
+                data = response.json().get("data", {})
+                return {
+                    "source": "abuseipdb",
+                    "data": {
+                        "abuse_confidence_score": data.get("abuseConfidenceScore", 0),
+                        "total_reports": data.get("totalReports", 0),
+                        "is_public": data.get("isPublic", True),
+                        "is_tor": data.get("isTor", False),
+                        "isp": data.get("isp", ""),
+                        "country_code": data.get("countryCode", ""),
+                        "domain": data.get("domain", ""),
+                        "usage_type": data.get("usageType", ""),
+                        "last_reported_at": data.get("lastReportedAt"),
+                    }
+                }
+        except httpx.HTTPStatusError as exc:
+            await self._abuseipdb_circuit.record_failure()
+            logger.error("AbuseIPDB lookup HTTP error", status=exc.response.status_code)
+            raise
+        except Exception as exc:
+            await self._abuseipdb_circuit.record_failure()
+            raise
+
+
+# =============================================================================
+# Singleton Instance
+# =============================================================================
+
+_threat_intel_service: Optional[ThreatIntelService] = None
+
+
+def get_threat_intel_service() -> ThreatIntelService:
+    """Get or create the ThreatIntelService singleton."""
+    global _threat_intel_service
+    if _threat_intel_service is None:
+        _threat_intel_service = ThreatIntelService()
+    return _threat_intel_service
+
+
+
+
