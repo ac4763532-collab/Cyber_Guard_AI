@@ -3,6 +3,7 @@
  * ============================================================================
  * Executive view of enterprise security posture: fleet health, active threat
  * rooms, enrolled employees, and contracted security analyst cases.
+ * Backed by live backend database aggregation.
  */
 
 import { useQuery } from "@tanstack/react-query";
@@ -22,36 +23,40 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
+import { Spinner } from "@/components/ui/Spinner";
 import { api } from "@/lib/api";
 import { useAuth } from "@/auth/AuthProvider";
+
+interface RoomSummary {
+  id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  member_count: number;
+}
+
+interface OrgDashboardData {
+  active_rooms: number;
+  enrolled_devices: number;
+  open_alerts: number;
+  engaged_analysts: number;
+  recent_rooms: RoomSummary[];
+}
 
 export default function OrganizationDashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
 
-  const { data: rooms = [] } = useQuery({
-    queryKey: ["org-rooms"],
+  const { data, isLoading } = useQuery<OrgDashboardData>({
+    queryKey: ["org-dashboard"],
     queryFn: async () => {
-      const res = await api.get<any[]>("/rooms/me");
-      return res.data || [];
-    }
+      const res = await api.get<OrgDashboardData>("/dashboard/organization");
+      return res.data;
+    },
+    refetchInterval: 10000,
   });
 
-  const { data: devices = [] } = useQuery({
-    queryKey: ["org-devices"],
-    queryFn: async () => {
-      const res = await api.get<any[]>("/devices");
-      return res.data || [];
-    }
-  });
-
-  const { data: alerts = [] } = useQuery({
-    queryKey: ["org-alerts"],
-    queryFn: async () => {
-      const res = await api.get<any[]>("/alerts");
-      return res.data || [];
-    }
-  });
+  const rooms = data?.recent_rooms || [];
 
   return (
     <div className="space-y-8 animate-in fade-in duration-300">
@@ -95,7 +100,9 @@ export default function OrganizationDashboard() {
             <Layers className="w-5 h-5 text-cyan-400" />
           </div>
           <div className="mt-4 flex items-baseline gap-2">
-            <span className="text-3xl font-black text-slate-100">{rooms.length}</span>
+            <span className="text-3xl font-black text-slate-100">
+              {isLoading ? "..." : (data?.active_rooms ?? 0)}
+            </span>
             <span className="text-xs text-slate-400">War rooms</span>
           </div>
         </Card>
@@ -106,7 +113,9 @@ export default function OrganizationDashboard() {
             <HardDrive className="w-5 h-5 text-indigo-400" />
           </div>
           <div className="mt-4 flex items-baseline gap-2">
-            <span className="text-3xl font-black text-slate-100">{devices.length}</span>
+            <span className="text-3xl font-black text-slate-100">
+              {isLoading ? "..." : (data?.enrolled_devices ?? 0)}
+            </span>
             <span className="text-xs text-slate-400">Active endpoints</span>
           </div>
         </Card>
@@ -117,7 +126,9 @@ export default function OrganizationDashboard() {
             <ShieldAlert className="w-5 h-5 text-rose-400" />
           </div>
           <div className="mt-4 flex items-baseline gap-2">
-            <span className="text-3xl font-black text-slate-100">{alerts.length}</span>
+            <span className="text-3xl font-black text-slate-100">
+              {isLoading ? "..." : (data?.open_alerts ?? 0)}
+            </span>
             <span className="text-xs text-rose-400 font-semibold">Triage required</span>
           </div>
         </Card>
@@ -128,8 +139,10 @@ export default function OrganizationDashboard() {
             <UserCheck className="w-5 h-5 text-emerald-400" />
           </div>
           <div className="mt-4 flex items-baseline gap-2">
-            <span className="text-3xl font-black text-slate-100">2</span>
-            <span className="text-xs text-emerald-400 font-semibold">On retainer</span>
+            <span className="text-3xl font-black text-slate-100">
+              {isLoading ? "..." : (data?.engaged_analysts ?? 0)}
+            </span>
+            <span className="text-xs text-emerald-400 font-semibold">Contracted experts</span>
           </div>
         </Card>
       </div>
@@ -148,7 +161,9 @@ export default function OrganizationDashboard() {
             </Button>
           </div>
 
-          {rooms.length === 0 ? (
+          {isLoading ? (
+            <div className="p-8 text-center"><Spinner label="Loading rooms..." /></div>
+          ) : rooms.length === 0 ? (
             <div className="p-8 rounded-xl bg-slate-900/40 border border-slate-800 text-center">
               <Layers className="w-8 h-8 text-slate-600 mx-auto mb-2" />
               <p className="text-sm font-semibold text-slate-300">No rooms active yet</p>
@@ -162,7 +177,7 @@ export default function OrganizationDashboard() {
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {rooms.map((room: any) => (
+              {rooms.map((room) => (
                 <div
                   key={room.id}
                   onClick={() => navigate(`/organization/rooms/${room.id}`)}
@@ -173,7 +188,7 @@ export default function OrganizationDashboard() {
                       {room.code}
                     </span>
                     <span className="text-xs text-slate-400">
-                      {room.members?.length || 1} members
+                      {room.member_count} members
                     </span>
                   </div>
                   <div>

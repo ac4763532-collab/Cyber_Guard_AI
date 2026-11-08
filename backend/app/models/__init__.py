@@ -75,7 +75,8 @@ from app.models.marketplace import (
 from app.models.audit import SecurityAuditLog
 
 # ── 21. Rooms
-from app.models.room import Room, RoomMember, RoomInvitation
+from app.models.room import Room, RoomMember, RoomInvitation, RoomMessage
+from app.models.direct_message import DirectMessage
 
 __all__: list[str] = [
     "User",
@@ -110,4 +111,6 @@ __all__: list[str] = [
     "Room",
     "RoomMember",
     "RoomInvitation",
+    "RoomMessage",
+    "DirectMessage",
 ]

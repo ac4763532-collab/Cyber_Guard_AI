@@ -6,6 +6,7 @@
  */
 
 import { useParams, useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { 
   ArrowLeft, 
   ShieldAlert, 
@@ -14,15 +15,84 @@ import {
   ExternalLink, 
   FileText, 
   Share2, 
-  AlertTriangle 
+  AlertTriangle,
+  Paperclip,
+  Globe
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
 import { toast } from "sonner";
+import { api } from "@/lib/api";
+
+interface EmailAnalysisDetail {
+  id: string;
+  sender: string;
+  recipient?: string;
+  subject: string;
+  received_at: string;
+  verdict: string;
+  score: number;
+  confidence: number;
+  status: string;
+  auth_results: { raw?: string };
+  headers: Record<string, string>;
+  urls_found: string[];
+  attachments: Array<{
+    filename: string;
+    mime: string;
+    size_bytes: number;
+    sha256: string;
+  }>;
+  triggered_rules: Array<{
+    rule_id: string;
+    title: string;
+    description: string;
+    severity: string;
+    confidence: number;
+  }>;
+  body_excerpt: string;
+}
 
 export default function EmailAnalysis() {
   const { analysisId } = useParams<{ analysisId: string }>();
   const navigate = useNavigate();
+
+  const { data, isLoading, error } = useQuery<EmailAnalysisDetail>({
+    queryKey: ["email-analysis", analysisId],
+    queryFn: async () => {
+      const res = await api.get<EmailAnalysisDetail>(`/email/analyses/${analysisId}`);
+      return res.data;
+    },
+    enabled: Boolean(analysisId),
+  });
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <div className="text-center">
+          <div className="w-12 h-12 border-4 border-cyan-400 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-slate-400">Loading email forensic telemetry...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !data) {
+    return (
+      <div className="p-8 text-center border border-slate-800 bg-slate-900 rounded-2xl max-w-lg mx-auto mt-12">
+        <AlertTriangle className="w-12 h-12 text-amber-400 mx-auto mb-3" />
+        <h2 className="text-lg font-bold text-slate-100">Email Analysis Record Not Found</h2>
+        <p className="text-xs text-slate-400 mt-2 mb-4">
+          The requested email analysis ID could not be retrieved from the database.
+        </p>
+        <Button onClick={() => navigate("/personal/email")} variant="outline" size="sm" className="border-slate-800 text-slate-200">
+          <ArrowLeft size={14} className="mr-1.5" /> Return to Email Inbox
+        </Button>
+      </div>
+    );
+  }
+
+  const isPhishing = data.verdict === "phishing";
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
@@ -39,68 +109,125 @@ export default function EmailAnalysis() {
 
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-800 pb-5">
         <div>
-          <span className="text-xs font-bold uppercase tracking-wider text-rose-400 bg-rose-500/10 border border-rose-500/30 px-2 py-0.5 rounded-full">
-            High-Risk Phishing Finding
+          <span className={`text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${isPhishing ? "text-rose-400 bg-rose-500/10 border border-rose-500/30" : "text-emerald-400 bg-emerald-500/10 border border-emerald-500/30"}`}>
+            {data.verdict.toUpperCase()} (Score: {data.score}%)
           </span>
           <h1 className="text-2xl font-black text-slate-100 tracking-tight mt-2">
-            Urgent: Your account has been suspended — Verify immediately
+            {data.subject}
           </h1>
-          <p className="text-xs text-slate-400 font-mono mt-1">Analysis ID: {analysisId || "eml-001"}</p>
+          <p className="text-xs text-slate-400 font-mono mt-1">From: {data.sender} • Ingested: {new Date(data.received_at).toLocaleString()}</p>
         </div>
 
         <div className="flex gap-2">
           <Button
             size="sm"
             onClick={() => {
-              toast.success("Evidence shared with Security Analysts via Page 18");
-              navigate("/personal/messages");
+              toast.success("Forensic evidence reference copied to clipboard.");
+              navigate(`/personal/messages?ref=${data.id}`);
             }}
             className="bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs"
           >
-            <Share2 size={14} className="mr-1.5" /> Share with Analyst
+            <Share2 size={14} className="mr-1.5" /> Consult Security Analyst
           </Button>
         </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+        
+        {/* Authentication Checks */}
         <Card className="bg-slate-900 border-slate-800 p-5">
           <h3 className="text-xs font-bold uppercase text-slate-400 tracking-wider">Authentication Checks</h3>
           <div className="mt-3 space-y-2 text-xs">
-            <div className="flex items-center justify-between">
-              <span className="text-slate-300">SPF Validation:</span>
-              <span className="text-rose-400 font-bold flex items-center gap-1"><XCircle size={14} /> SoftFail</span>
+            <div className="p-3 bg-slate-950/70 border border-slate-800 rounded-lg">
+              <span className="text-slate-400 block text-[11px]">Authentication-Results Header:</span>
+              <p className="font-mono text-slate-200 mt-1 break-all">
+                {data.auth_results?.raw || "None reported in headers"}
+              </p>
             </div>
-            <div className="flex items-center justify-between">
-              <span className="text-slate-300">DKIM Signature:</span>
-              <span className="text-rose-400 font-bold flex items-center gap-1"><XCircle size={14} /> Missing / Invalid</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-slate-300">DMARC Policy:</span>
-              <span className="text-amber-400 font-bold">Reject triggered</span>
+            <div className="flex items-center justify-between pt-1">
+              <span className="text-slate-300">Analysis Confidence:</span>
+              <span className="text-cyan-400 font-bold">{Math.round(data.confidence * 100)}%</span>
             </div>
           </div>
         </Card>
 
+        {/* Suspicious URLs */}
         <Card className="bg-slate-900 border-slate-800 p-5">
-          <h3 className="text-xs font-bold uppercase text-slate-400 tracking-wider">Suspicious Link Analysis</h3>
+          <h3 className="text-xs font-bold uppercase text-slate-400 tracking-wider flex items-center gap-1.5">
+            <Globe size={14} className="text-cyan-400" /> Extracted URLs ({data.urls_found.length})
+          </h3>
           <div className="mt-3 space-y-2 text-xs">
-            <p className="font-mono text-rose-300 break-all p-2 bg-slate-950 rounded border border-rose-500/30">
-              http://login.paypa1-verify-account.top/auth
-            </p>
-            <p className="text-[11px] text-slate-400">
-              Target IP: <span className="font-mono text-cyan-300">185.220.101.5</span> (AbuseIPDB reputation score: 92/100)
-            </p>
+            {data.urls_found.length === 0 ? (
+              <p className="text-slate-500 italic py-2">No external hyperlinks found in email body.</p>
+            ) : (
+              data.urls_found.map((url, i) => (
+                <div key={i} className="p-2 bg-slate-950/80 rounded border border-slate-800 text-slate-200 font-mono text-[11px] break-all">
+                  {url}
+                </div>
+              ))
+            )}
           </div>
         </Card>
 
+        {/* Detection Rules Triggered */}
         <Card className="bg-slate-900 border-slate-800 p-5">
-          <h3 className="text-xs font-bold uppercase text-slate-400 tracking-wider">Detection Logic</h3>
-          <p className="mt-2 text-xs text-slate-300 leading-relaxed">
-            Flagged by Rule <span className="font-mono text-cyan-400">EML-RULE-04</span> (Display Name Spoofing + Lookalike Domain + DMARC softfail).
-          </p>
-          <div className="mt-3 text-[11px] text-slate-400">
-            Severity: <span className="font-bold text-rose-400">CRITICAL</span> • Confidence: 94%
+          <h3 className="text-xs font-bold uppercase text-slate-400 tracking-wider flex items-center gap-1.5">
+            <ShieldAlert size={14} className="text-rose-400" /> Triggered Rules ({data.triggered_rules.length})
+          </h3>
+          <div className="mt-3 space-y-2 text-xs">
+            {data.triggered_rules.length === 0 ? (
+              <p className="text-emerald-400 text-xs py-2">No security threat rules fired.</p>
+            ) : (
+              data.triggered_rules.map((rule, idx) => (
+                <div key={idx} className="p-2.5 bg-slate-950/70 border border-rose-500/30 rounded-lg">
+                  <span className="font-bold text-rose-300">{rule.title}</span>
+                  <p className="text-[11px] text-slate-400 mt-0.5">{rule.description}</p>
+                </div>
+              ))
+            )}
           </div>
+        </Card>
+
+      </div>
+
+      {/* Attachments & Body Excerpt */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <Card className="bg-slate-900 border-slate-800">
+          <CardHeader>
+            <CardTitle className="text-base text-slate-100 flex items-center gap-2">
+              <Paperclip size={16} className="text-cyan-400" />
+              Attachments ({data.attachments.length})
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {data.attachments.length === 0 ? (
+              <p className="text-xs text-slate-500 italic">No file attachments enclosed in this message.</p>
+            ) : (
+              data.attachments.map((att, i) => (
+                <div key={i} className="p-3 bg-slate-950/70 border border-slate-800 rounded-xl flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-bold text-slate-200">{att.filename}</p>
+                    <p className="text-[11px] text-slate-400 font-mono mt-0.5">SHA-256: {att.sha256}</p>
+                  </div>
+                  <span className="text-[11px] text-slate-400">{(att.size_bytes / 1024).toFixed(1)} KB</span>
+                </div>
+              ))
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="bg-slate-900 border-slate-800">
+          <CardHeader>
+            <CardTitle className="text-base text-slate-100 flex items-center gap-2">
+              <FileText size={16} className="text-cyan-400" />
+              Raw Text Body Excerpt
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="p-4 bg-slate-950 border border-slate-800 rounded-xl font-mono text-xs text-slate-300 whitespace-pre-wrap max-h-64 overflow-y-auto">
+              {data.body_excerpt || "(No plain text content available)"}
+            </div>
+          </CardContent>
         </Card>
       </div>
     </div>

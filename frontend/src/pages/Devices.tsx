@@ -14,6 +14,7 @@
  */
 
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, Monitor, Server, Apple, Copy, CheckCircle2, XCircle, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
@@ -35,16 +36,21 @@ import {
 // LOCAL TYPES (Mirroring backend schema)
 // ============================================================================
 
-interface SecuritySource {
+interface DeviceItem {
   id: string;
-  source_key: string;
   name: string;
-  source_type: "windows" | "linux" | "macos" | "network" | "email";
-  status: "pending_enrollment" | "active" | "disabled";
-  collector_connected: boolean;
-  last_heartbeat_at: string | null;
-  last_event_at: string | null;
+  type: string;
+  os_version: string | null;
+  agent_version: string | null;
   hostname: string | null;
+  ip_address: string | null;
+  status: string;
+  last_scan: string | null;
+  last_heartbeat: string | null;
+  threat_count: number;
+  collector_connected: boolean;
+  source_key: string;
+  created_at: string;
 }
 
 type OS = "windows" | "linux" | "macos";
@@ -55,20 +61,17 @@ type OS = "windows" | "linux" | "macos";
 // ============================================================================
 
 export default function Devices() {
+  const navigate = useNavigate();
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   // ── Fetch Devices ─────────────────────────────────────────────────────
-  const { data, isLoading } = useQuery({
-    queryKey: ["sources"],
+  const { data, isLoading } = useQuery<{ items: DeviceItem[]; total: number }>({
+    queryKey: ["devices"],
     queryFn: async () => {
-      const { data } = await api.get<PaginatedResponse<SecuritySource>>("/sources", {
-        params: { page: 1, page_size: 50 },
-      });
+      const { data } = await api.get<{ items: DeviceItem[]; total: number }>("/devices");
       return data;
     },
-    // Poll every 10 seconds so the user sees the device turn green
-    // immediately after they run the installation command.
-    refetchInterval: 10000, 
+    refetchInterval: 8000, 
   });
 
   return (
@@ -114,35 +117,41 @@ export default function Devices() {
                 <TableHead>Type</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="hidden md:table-cell">Last Seen</TableHead>
+                <TableHead className="text-right">Action</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {data?.items.map((source) => (
-                <TableRow key={source.id}>
+              {data?.items.map((device) => (
+                <TableRow
+                  key={device.id}
+                  interactive
+                  onClick={() => navigate(`/personal/devices/${device.id}`)}
+                  className="cursor-pointer"
+                >
                   <TableCell>
                     <div className="flex flex-col">
                       <span className="font-medium text-slate-900 dark:text-slate-100">
-                        {source.name}
+                        {device.name}
                       </span>
                       <span className="text-xs text-slate-500 font-mono">
-                        {source.hostname || source.source_key}
+                        {device.hostname || device.source_key}
                       </span>
                     </div>
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2 text-sm capitalize text-slate-600 dark:text-slate-400">
-                      {source.source_type === "windows" && <Monitor size={16} />}
-                      {source.source_type === "linux" && <Server size={16} />}
-                      {source.source_type === "macos" && <Apple size={16} />}
-                      {source.source_type}
+                      {device.type === "windows" && <Monitor size={16} />}
+                      {device.type === "linux" && <Server size={16} />}
+                      {device.type === "macos" && <Apple size={16} />}
+                      {device.type}
                     </div>
                   </TableCell>
                   <TableCell>
-                    {source.collector_connected ? (
+                    {device.collector_connected ? (
                       <div className="flex items-center gap-1.5 text-sm font-medium text-green-600 dark:text-green-400">
                         <CheckCircle2 size={16} /> Online
                       </div>
-                    ) : source.status === "pending_enrollment" ? (
+                    ) : device.status === "pending_enrollment" || device.status === "pending" ? (
                       <div className="flex items-center gap-1.5 text-sm font-medium text-amber-600 dark:text-amber-400">
                         <AlertCircle size={16} /> Waiting for install...
                       </div>
@@ -153,7 +162,19 @@ export default function Devices() {
                     )}
                   </TableCell>
                   <TableCell className="hidden md:table-cell text-sm text-slate-500">
-                    {source.last_heartbeat_at ? formatRelativeTime(source.last_heartbeat_at) : "Never"}
+                    {device.last_heartbeat ? formatRelativeTime(device.last_heartbeat) : "Never"}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigate(`/personal/devices/${device.id}`);
+                      }}
+                    >
+                      View Details
+                    </Button>
                   </TableCell>
                 </TableRow>
               ))}
@@ -172,33 +193,36 @@ export default function Devices() {
 // CONNECT DEVICE MODAL (The Onboarding Flow)
 // ============================================================================
 
+interface DeviceCreated {
+  id: string;
+  source_key: string;
+  name: string;
+  os_type: string;
+  status: string;
+  enrollment_token: string;
+  expires_at: string;
+  powershell_install_command: string;
+  bash_install_command: string;
+}
+
 function ConnectDeviceModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
   const queryClient = useQueryClient();
   const [os, setOs] = useState<OS>("windows");
   const [deviceName, setDeviceName] = useState("");
-  const [enrollmentToken, setEnrollmentToken] = useState<string | null>(null);
+  const [createdDevice, setCreatedDevice] = useState<DeviceCreated | null>(null);
 
-  // ── Mutation: Create Source + Get Token ───────────────────────────────
+  // ── Mutation: Register Device + Get Token + Commands ─────────────────
   const createDeviceMutation = useMutation({
     mutationFn: async () => {
-      // 1. Create the source
-      const { data: source } = await api.post<SecuritySource>("/sources", {
+      const { data } = await api.post<DeviceCreated>("/devices", {
         name: deviceName || `My ${os.charAt(0).toUpperCase() + os.slice(1)} Device`,
-        source_type: os,
-        capabilities: ["log_collection"], // Default for OS agents
+        os_type: os,
       });
-
-      // 2. Generate the enrollment token
-      const { data: enrollment } = await api.post<{ plaintext_token: string }>(
-        `/sources/${source.id}/enrollment`,
-        { ttl_minutes: 15 }
-      );
-
-      return { source, token: enrollment.plaintext_token };
+      return data;
     },
     onSuccess: (data) => {
-      setEnrollmentToken(data.token);
-      queryClient.invalidateQueries({ queryKey: ["sources"] }); // Refresh table to show "pending" device
+      setCreatedDevice(data);
+      queryClient.invalidateQueries({ queryKey: ["devices"] });
     },
     onError: (err: any) => {
       toast.error(err.message || "Failed to generate enrollment token");
@@ -208,22 +232,23 @@ function ConnectDeviceModal({ isOpen, onClose }: { isOpen: boolean; onClose: () 
   // Reset state when modal closes
   const handleClose = () => {
     setTimeout(() => {
-      setEnrollmentToken(null);
+      setCreatedDevice(null);
       setDeviceName("");
       setOs("windows");
     }, 200);
     onClose();
   };
 
-  // ── Commands ──────────────────────────────────────────────────────────
-  const commands = {
-    windows: `# Run in PowerShell as Administrator:\n.\\install_service.ps1 -Action Install -EnrollmentToken "${enrollmentToken}"`,
-    linux: `# Run in Bash as root:\nsudo ./install_service.sh install --enroll "${enrollmentToken}"`,
-    macos: `# Run in Terminal:\nsudo python3 main.py enroll "${enrollmentToken}"`,
+  const getCommand = () => {
+    if (!createdDevice) return "";
+    if (os === "windows") {
+      return createdDevice.powershell_install_command;
+    }
+    return createdDevice.bash_install_command;
   };
 
   const copyToClipboard = () => {
-    navigator.clipboard.writeText(commands[os]);
+    navigator.clipboard.writeText(getCommand());
     toast.success("Command copied to clipboard");
   };
 
@@ -232,7 +257,7 @@ function ConnectDeviceModal({ isOpen, onClose }: { isOpen: boolean; onClose: () 
       <ModalContent className="max-w-2xl">
         
         {/* ── Step 1: Configure ─────────────────────────────────────────── */}
-        {!enrollmentToken ? (
+        {!createdDevice ? (
           <>
             <ModalHeader>
               <ModalTitle>Connect a Device</ModalTitle>
@@ -299,7 +324,7 @@ function ConnectDeviceModal({ isOpen, onClose }: { isOpen: boolean; onClose: () 
             <div className="py-6 space-y-4">
               <div className="relative">
                 <pre className="rounded-lg bg-slate-900 p-4 text-sm text-green-400 overflow-x-auto dark:bg-slate-950 font-mono">
-                  {commands[os]}
+                  {getCommand()}
                 </pre>
                 <Button
                   size="sm"

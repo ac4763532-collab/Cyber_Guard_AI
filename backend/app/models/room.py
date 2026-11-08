@@ -205,3 +205,36 @@ class RoomInvitation(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     room = relationship("Room", back_populates="invitations")
     invitee = relationship("User", foreign_keys=[invitee_user_id])
     inviter = relationship("User", foreign_keys=[inviter_user_id])
+
+
+class RoomMessage(Base, UUIDPrimaryKeyMixin, TimestampMixin):
+    """A message posted inside an organization room workspace."""
+
+    __tablename__ = "room_messages"
+
+    room_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("rooms.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    sender_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+
+    body: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+    )
+
+    message_type: Mapped[str] = mapped_column(
+        String(32),
+        nullable=False,
+        default="chat",
+        server_default="chat",
+    )
+
+    room = relationship("Room", backref="messages")
+    sender = relationship("User", foreign_keys=[sender_id])

@@ -7,9 +7,8 @@
  * Features:
  *   - Form validation using Zod + React Hook Form
  *   - Loading state on the submit button (prevents double-clicks)
- *   - Error toasts via Sonner (e.g., "Invalid credentials", "Account locked")
- *   - Smart redirect: if the user was kicked out of a protected route,
- *     logs them in and sends them right back to where they were going.
+ *   - Error toasts via Sonner
+ *   - Role-based redirect on successful login
  *   - Password visibility toggle (built into the Input component)
  *   - Full dark mode support
  */
@@ -19,20 +18,12 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useNavigate, useLocation, Link } from "react-router-dom";
-import { ShieldCheck, Mail, Lock } from "lucide-react";
+import { ShieldCheck, Mail, Lock, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 
 import { useAuth } from "@/auth/AuthProvider";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
-
-
-// ============================================================================
-// VALIDATION SCHEMA
-// ============================================================================
-// Mirrors the backend's LoginRequest schema (File 41).
-// We don't enforce min length on the password here because the backend
-// needs to return the specific "Invalid credentials" error for wrong passwords.
 
 const loginSchema = z.object({
   email: z
@@ -46,21 +37,11 @@ const loginSchema = z.object({
 
 type LoginFormValues = z.infer<typeof loginSchema>;
 
-
-// ============================================================================
-// COMPONENT
-// ============================================================================
-
 export default function Login() {
   const { login } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  // Where to redirect after login? 
-  // If we were bounced here by ProtectedRoute, it saved the original
-  // destination in `location.state.from`. Otherwise, go to dashboard.
-  const from = location.state?.from?.pathname || "/dashboard";
 
   const {
     register,
@@ -77,13 +58,25 @@ export default function Login() {
   const onSubmit = async (data: LoginFormValues) => {
     setIsSubmitting(true);
     try {
-      await login(data.email, data.password);
-      
-      // If successful, navigate to the original destination
+      const loggedInUser = await login(data.email, data.password);
       toast.success("Welcome back!");
-      navigate(from, { replace: true });
+
+      // If bounced here with a specific destination, return there
+      if (location.state?.from?.pathname && location.state.from.pathname !== "/login" && location.state.from.pathname !== "/dashboard") {
+        navigate(location.state.from.pathname, { replace: true });
+        return;
+      }
+
+      // Otherwise, navigate directly to authorized role-based workspace
+      const role = (loggedInUser?.role || "individual").toLowerCase();
+      if (role === "analyst") {
+        navigate("/analyst/dashboard", { replace: true });
+      } else if (role === "organizer" || role === "org_admin" || role === "organization") {
+        navigate("/organization/dashboard", { replace: true });
+      } else {
+        navigate("/personal/dashboard", { replace: true });
+      }
     } catch (error: any) {
-      // The `login()` function in AuthProvider throws a normalized Error
       toast.error(error.message || "Failed to log in");
     } finally {
       setIsSubmitting(false);
@@ -91,14 +84,18 @@ export default function Login() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50 p-4 dark:bg-slate-950">
+    <div className="flex min-h-screen items-center justify-center bg-slate-50 p-4 dark:bg-slate-950 font-sans">
       <div className="w-full max-w-md">
         
         {/* ── Brand Header ────────────────────────────────────────────── */}
         <div className="mb-8 flex flex-col items-center text-center">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-brand-100 text-brand-600 dark:bg-brand-900/50 dark:text-brand-400">
+          <Link
+            to="/"
+            className="flex h-12 w-12 items-center justify-center rounded-xl bg-brand-100 text-brand-600 dark:bg-brand-900/50 dark:text-brand-400 hover:scale-105 transition-transform shadow-md"
+            title="Back to Home"
+          >
             <ShieldCheck size={28} />
-          </div>
+          </Link>
           <h1 className="mt-4 text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
             Welcome to CyberGuard
           </h1>
@@ -147,12 +144,18 @@ export default function Login() {
               Don't have an account?{" "}
             </span>
             <Link
-              to="/register"
+              to="/select-account"
               className="font-semibold text-brand-600 hover:text-brand-500 dark:text-brand-400 dark:hover:text-brand-300"
             >
-              Sign up
+              Get started
             </Link>
           </div>
+        </div>
+
+        <div className="mt-6 text-center">
+          <Link to="/" className="inline-flex items-center gap-1.5 text-xs text-slate-500 hover:text-cyan-500 transition-colors">
+            <ArrowLeft size={14} /> Back to Homepage
+          </Link>
         </div>
 
       </div>

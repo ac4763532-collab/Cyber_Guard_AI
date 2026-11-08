@@ -71,7 +71,7 @@ from fastapi import (
     UploadFile,
     status,
 )
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from app.api.deps import (
     CurrentActiveUser,
@@ -129,6 +129,37 @@ router = APIRouter(
     prefix="/evidence",
     tags=["evidence"],
 )
+
+@router.get(
+    "",
+    response_model=PaginatedResponse[EvidenceList],
+    summary="List accessible evidence across all cases",
+)
+def list_all_evidence(
+    current_user: CurrentActiveUser,
+    db: DBDep,
+    page: PageDep,
+    filters: EvidenceFilter = Depends(),
+) -> PaginatedResponse[EvidenceList]:
+    from app.models.evidence import Evidence
+    from app.models.case import SecurityCase
+
+    accessible_workspaces = authorization.get_user_workspaces(db, current_user)
+    stmt = (
+        select(Evidence)
+        .join(SecurityCase, SecurityCase.id == Evidence.case_id)
+        .where(
+            Evidence.deleted_at.is_(None),
+            (SecurityCase.workspace_id.in_(accessible_workspaces)) | (SecurityCase.assigned_to_user_id == current_user.id)
+        )
+        .order_by(Evidence.created_at.desc())
+    )
+    total = db.scalar(select(func.count()).select_from(stmt.subquery())) or 0
+    items = db.scalars(stmt.offset(page.offset).limit(page.page_size)).all()
+    return PaginatedResponse[EvidenceList](
+        items=[EvidenceList.model_validate(e) for e in items],
+        meta=PageMeta.build(total=total, params=page),
+    )
 
 
 # ============================================================================

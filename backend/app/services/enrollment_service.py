@@ -659,7 +659,7 @@ def revoke_token(
         db, actor, PERM_SOURCE_ENROLL, workspace_id=source.workspace_id,
     )
 
-    if not token.is_pending:
+    if not token.is_redeemable:
         raise InvalidStateTransitionError(
             message=(
                 f"Cannot revoke enrollment in status {token.display_status}. "

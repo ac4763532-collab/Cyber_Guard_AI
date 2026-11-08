@@ -29,8 +29,8 @@ export interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string, fullName?: string, role?: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<User>;
+  register: (email: string, password: string, fullName?: string, role?: string) => Promise<User>;
   logout: () => void;
 }
 
@@ -103,6 +103,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // 3. Fetch the full user profile
     const { data: userProfile } = await api.get<User>("/auth/me");
     setUser(userProfile);
+    return userProfile;
   };
 
   // ── Register action ───────────────────────────────────────────────────
@@ -124,6 +125,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // until they verify their email.
     const { data: userProfile } = await api.get<User>("/auth/me");
     setUser(userProfile);
+    return userProfile;
   };
 
 

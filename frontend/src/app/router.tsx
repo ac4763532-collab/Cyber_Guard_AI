@@ -2,13 +2,19 @@ import { createBrowserRouter, Navigate } from "react-router-dom";
 import AppShell from "@/components/ui/AppShell";
 import ProtectedRoute from "@/auth/ProtectedRoute";
 
-// Public Pages
+// Public Marketing & Entry Pages
 import Landing from "@/pages/Landing";
 import UserSelection from "@/pages/UserSelection";
 import Login from "@/pages/Login";
 import Register from "@/pages/Register";
 import AnalystRegister from "@/pages/analyst/AnalystRegister";
 import OrganizationCreate from "@/pages/organization/OrganizationCreate";
+import Features from "@/pages/public/Features";
+import HowItWorks from "@/pages/public/HowItWorks";
+import Solutions from "@/pages/public/Solutions";
+import Pricing from "@/pages/public/Pricing";
+import About from "@/pages/public/About";
+import { Terms, Privacy } from "@/pages/public/LegalPages";
 
 // Individual Workspace Pages (Role: 'individual')
 import PersonalDashboard from "@/pages/personal/PersonalDashboard";
@@ -54,31 +60,25 @@ import HireAnalysts from "@/pages/organization/HireAnalysts";
 import OrganizationSettings from "@/pages/organization/OrganizationSettings";
 
 const router = createBrowserRouter([
-  // ── 1. PUBLIC ROUTES ──────────────────────────────────────────────────────────
-  {
-    path: "/",
-    Component: Landing,
-  },
-  {
-    path: "/select-account",
-    Component: UserSelection,
-  },
-  {
-    path: "/login",
-    Component: Login,
-  },
-  {
-    path: "/register",
-    Component: Register,
-  },
-  {
-    path: "/analyst/register",
-    Component: AnalystRegister,
-  },
-  {
-    path: "/organization/create",
-    Component: OrganizationCreate,
-  },
+  // ── 1. PUBLIC MARKETING & ONBOARDING ROUTES ─────────────────────────────────
+  { path: "/", Component: Landing },
+  { path: "/features", Component: Features },
+  { path: "/how-it-works", Component: HowItWorks },
+  { path: "/solutions", Component: Solutions },
+  { path: "/pricing", Component: Pricing },
+  { path: "/about", Component: About },
+  { path: "/terms", Component: Terms },
+  { path: "/privacy", Component: Privacy },
+  { path: "/select-account", Component: UserSelection },
+  { path: "/login", Component: Login },
+  { path: "/register", Component: Register },
+  { path: "/analyst/register", Component: AnalystRegister },
+  { path: "/organization/create", Component: OrganizationCreate },
+
+  // Compatibility Redirects
+  { path: "/individuals", element: <Navigate to="/register?type=individual" replace /> },
+  { path: "/analysts", element: <Navigate to="/analyst/register" replace /> },
+  { path: "/organizations", element: <Navigate to="/organization/create" replace /> },
 
   // ── 2. INDIVIDUAL WORKSPACE (Role: 'individual') ──────────────────────────────
   {
@@ -91,19 +91,24 @@ const router = createBrowserRouter([
       { path: "/personal/dashboard", Component: PersonalDashboard },
       { path: "/personal/devices", Component: Devices },
       { path: "/personal/devices/:deviceId", Component: DeviceDetails },
+      { path: "/personal/email", Component: EmailSecurity },
+      { path: "/personal/email/analysis", Component: EmailAnalysis },
+      { path: "/personal/email/:analysisId", Component: EmailAnalysis },
       { path: "/personal/email-security", Component: EmailSecurity },
       { path: "/personal/email-security/analysis", Component: EmailAnalysis },
       { path: "/personal/logs", Component: LogMonitoring },
       { path: "/personal/network", Component: NetworkSecurity },
       { path: "/personal/alerts", Component: Alerts },
       { path: "/personal/alerts/:id", Component: AlertDetail },
+      { path: "/personal/alerts/detail/:alertId", Component: AlertDetail },
       { path: "/personal/ai-assistant", Component: AIAssistant },
       { path: "/personal/analysts", Component: SecurityAnalysts },
       { path: "/personal/messages", Component: PersonalMessages },
       { path: "/personal/reports", Component: Reports },
       { path: "/personal/settings", Component: Settings },
       { path: "/personal/rooms", Component: MyRoomsAndInvitations },
-      // Direct aliases inside individual layout
+
+      // Backward-compatible Top-Level Aliases
       { path: "/dashboard", element: <Navigate to="/personal/dashboard" replace /> },
       { path: "/devices", element: <Navigate to="/personal/devices" replace /> },
       { path: "/alerts", element: <Navigate to="/personal/alerts" replace /> },
@@ -124,19 +129,24 @@ const router = createBrowserRouter([
       { path: "/analyst/application", Component: AnalystApplication },
       { path: "/analyst/verification", Component: AnalystVerificationStep },
       { path: "/analyst/status", Component: ApplicationStatus },
+      { path: "/analyst/application-status", Component: ApplicationStatus },
       { path: "/analyst/dashboard", Component: AnalystDashboard },
       { path: "/analyst/cases", Component: MyCases },
       { path: "/analyst/cases/available", Component: AvailableCases },
       { path: "/analyst/available-cases", Component: AvailableCases },
       { path: "/analyst/cases/:id", Component: CaseDetail },
+      { path: "/analyst/cases/detail/:caseId", Component: CaseDetail },
       { path: "/analyst/evidence", Component: EvidenceLibrary },
       { path: "/analyst/ai-investigation", Component: AIInvestigation },
       { path: "/analyst/messages", Component: AnalystMessages },
       { path: "/analyst/reports", Component: AnalystReports },
+      { path: "/analyst/services", Component: MyOfferings },
       { path: "/analyst/my-offerings", Component: MyOfferings },
       { path: "/analyst/profile", Component: AnalystProfile },
       { path: "/analyst/earnings", Component: Earnings },
       { path: "/analyst/settings", Component: AnalystSettings },
+
+      // Aliases
       { path: "/cases", element: <Navigate to="/analyst/cases" replace /> },
       { path: "/cases/:id", Component: CaseDetail },
     ],

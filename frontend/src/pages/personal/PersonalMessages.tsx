@@ -2,179 +2,275 @@
  * CyberGuard AI — Page 18: Personal Direct Messages
  * ============================================================================
  * Direct, end-to-end scoped messaging between individual users and verified
- * analysts using exact public User IDs. Does not mix with Room or Case scopes.
+ * analysts using exact public User IDs. Backed by PostgreSQL direct_messages.
  */
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { 
   MessageSquare, 
   Send, 
-  Paperclip, 
-  ShieldCheck, 
-  Lock, 
   Search, 
   User, 
-  Plus 
+  Plus,
+  RefreshCw,
+  ShieldCheck,
+  CheckCheck
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
 import { toast } from "sonner";
 import { useAuth } from "@/auth/AuthProvider";
+import { api } from "@/lib/api";
 
-interface ChatMessage {
+interface ContactItem {
+  user_id: string;
+  public_user_id: string;
+  full_name: string;
+  email: string;
+  role: string;
+  last_message?: string;
+  last_message_at?: string;
+  unread_count: number;
+}
+
+interface DirectMessageItem {
   id: string;
-  sender: string;
-  isMe: boolean;
-  text: string;
+  sender_id: string;
+  sender_public_id?: string;
+  recipient_id: string;
+  recipient_public_id?: string;
+  body: string;
+  is_me: boolean;
+  is_read: boolean;
+  created_at: string;
   timestamp: string;
 }
 
 export default function PersonalMessages() {
   const { user } = useAuth();
   const [searchParams] = useSearchParams();
-  const targetUserParam = searchParams.get("user") || "aarav-analyst-000042";
+  const targetUserParam = searchParams.get("user") || "";
+  const evidenceRef = searchParams.get("ref");
 
-  const [activeContact, setActiveContact] = useState({
-    name: "Aarav Mehta (Analyst)",
-    public_id: targetUserParam,
-    status: "online",
+  const [targetInput, setTargetInput] = useState(targetUserParam);
+  const [activeRecipient, setActiveRecipient] = useState(targetUserParam);
+  const [inputText, setInputText] = useState(
+    evidenceRef ? `Hello! I would like your analysis on evidence item ${evidenceRef}.` : ""
+  );
+  const [isSending, setIsSending] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // 1. Load conversation contacts
+  const { data: contacts = [], refetch: refetchContacts } = useQuery<ContactItem[]>({
+    queryKey: ["direct-message-contacts"],
+    queryFn: async () => {
+      const res = await api.get<ContactItem[]>("/direct-messages/contacts");
+      return res.data || [];
+    },
+    refetchInterval: 15_000,
   });
 
-  const [input, setInput] = useState("");
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      id: "1",
-      sender: "aarav-analyst-000042",
-      isMe: false,
-      text: "Hello! I received your inquiry regarding the flagged email EML-001. I have reviewed the DMARC record and can confirm it's an impersonation attack.",
-      timestamp: "10:15 AM",
-    },
-    {
-      id: "2",
-      sender: "me",
-      isMe: true,
-      text: "Thanks Aarav! Should I report this domain to our registrar as well?",
-      timestamp: "10:18 AM",
-    },
-  ]);
+  // Select first contact if none selected and contacts exist
+  useEffect(() => {
+    if (!activeRecipient && contacts.length > 0 && contacts[0]) {
+      setActiveRecipient(contacts[0].public_user_id);
+    }
+  }, [contacts, activeRecipient]);
 
-  const handleSend = (e: React.FormEvent) => {
+  // 2. Load conversation history with active recipient
+  const { data: messageHistory = [], refetch: refetchMessages, isLoading: isMessagesLoading } = useQuery<DirectMessageItem[]>({
+    queryKey: ["direct-messages", activeRecipient],
+    queryFn: async () => {
+      if (!activeRecipient) return [];
+      const res = await api.get<DirectMessageItem[]>(`/direct-messages/${activeRecipient}`);
+      return res.data || [];
+    },
+    enabled: Boolean(activeRecipient),
+    refetchInterval: 5_000,
+  });
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messageHistory]);
+
+  const handleStartConversation = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!input.trim()) return;
+    if (!targetInput.trim()) return;
+    setActiveRecipient(targetInput.trim());
+    toast.info(`Opened conversation with ${targetInput.trim()}`);
+  };
 
-    const newMsg: ChatMessage = {
-      id: Date.now().toString(),
-      sender: user?.public_user_id || "me",
-      isMe: true,
-      text: input.trim(),
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-    };
+  const handleSend = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!inputText.trim() || !activeRecipient || isSending) return;
 
-    setMessages((prev) => [...prev, newMsg]);
-    setInput("");
+    const textToSend = inputText.trim();
+    setIsSending(true);
+
+    try {
+      await api.post(`/direct-messages/${activeRecipient}`, { body: textToSend });
+      setInputText("");
+      refetchMessages();
+      refetchContacts();
+    } catch (err: any) {
+      toast.error(err.response?.data?.detail || "Failed to deliver message. Verify the recipient User ID.");
+    } finally {
+      setIsSending(false);
+    }
   };
 
   return (
     <div className="h-[calc(100vh-8rem)] flex gap-4 animate-in fade-in duration-300">
       
-      {/* ── Left Sidebar (Conversations) ──────────────────────────────── */}
-      <div className="w-80 flex flex-col bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden">
-        <div className="p-4 border-b border-slate-800 flex items-center justify-between">
-          <div>
+      {/* ── Left Sidebar (Conversations Roster) ───────────────────────── */}
+      <div className="w-80 flex flex-col bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shrink-0">
+        <div className="p-4 border-b border-slate-800">
+          <div className="flex items-center justify-between">
             <h2 className="font-bold text-slate-100 text-sm flex items-center gap-2">
               <MessageSquare size={16} className="text-cyan-400" />
               Direct Messages
             </h2>
-            <p className="text-[11px] text-slate-400">Scoped to your verified ID</p>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => refetchContacts()}
+              className="h-7 w-7 p-0 text-slate-400 hover:text-slate-200"
+            >
+              <RefreshCw size={13} />
+            </Button>
           </div>
-          <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-slate-400 hover:text-cyan-400">
-            <Plus size={18} />
-          </Button>
+          <p className="text-[11px] text-slate-400 mt-0.5">Your ID: <span className="text-cyan-400 font-mono">{user?.public_user_id || "loading..."}</span></p>
+
+          <form onSubmit={handleStartConversation} className="mt-3 flex gap-1.5">
+            <Input
+              value={targetInput}
+              onChange={(e) => setTargetInput(e.target.value)}
+              placeholder="Enter User ID (slug)..."
+              className="bg-slate-950 border-slate-800 text-xs h-8 text-slate-200"
+            />
+            <Button type="submit" size="sm" className="bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold px-2.5 h-8">
+              <Plus size={14} />
+            </Button>
+          </form>
         </div>
 
-        <div className="p-3 border-b border-slate-800/60">
-          <Input
-            placeholder="Search by User ID..."
-            className="bg-slate-950 border-slate-800 text-xs h-8"
-          />
-        </div>
-
-        <div className="flex-1 overflow-y-auto divide-y divide-slate-800/60">
-          <div
-            onClick={() => setActiveContact({ name: "Aarav Mehta (Analyst)", public_id: "aarav-analyst-000042", status: "online" })}
-            className="p-3 hover:bg-slate-800/50 cursor-pointer transition bg-slate-800/30"
-          >
-            <div className="flex items-center justify-between">
-              <span className="font-semibold text-xs text-slate-200">Aarav Mehta</span>
-              <span className="text-[10px] text-slate-500">10:18 AM</span>
+        <div className="flex-1 overflow-y-auto divide-y divide-slate-800/60 p-2 space-y-1">
+          {contacts.length === 0 ? (
+            <div className="text-center py-12 px-4">
+              <User className="w-8 h-8 text-slate-700 mx-auto mb-2" />
+              <p className="text-xs font-semibold text-slate-400">No conversations yet</p>
+              <p className="text-[11px] text-slate-500 mt-1">
+                Enter an analyst or colleague's public User ID above to start an authorized conversation.
+              </p>
             </div>
-            <p className="text-[11px] font-mono text-cyan-400 mt-0.5">aarav-analyst-000042</p>
-            <p className="text-xs text-slate-400 truncate mt-1">Thanks Aarav! Should I report this...</p>
-          </div>
+          ) : (
+            contacts.map((c) => (
+              <div
+                key={c.user_id}
+                onClick={() => setActiveRecipient(c.public_user_id)}
+                className={`p-3 rounded-xl cursor-pointer transition flex items-center justify-between ${activeRecipient === c.public_user_id ? "bg-cyan-500/10 border border-cyan-500/30" : "hover:bg-slate-800/40"}`}
+              >
+                <div className="space-y-0.5 max-w-[190px]">
+                  <p className="text-xs font-bold text-slate-200 truncate">{c.full_name}</p>
+                  <p className="text-[10px] text-slate-500 font-mono truncate">{c.public_user_id}</p>
+                  {c.last_message && (
+                    <p className="text-[11px] text-slate-400 truncate mt-1">{c.last_message}</p>
+                  )}
+                </div>
+                {c.unread_count > 0 && (
+                  <span className="h-5 w-5 rounded-full bg-cyan-500 text-slate-950 font-bold text-[10px] flex items-center justify-center">
+                    {c.unread_count}
+                  </span>
+                )}
+              </div>
+            ))
+          )}
         </div>
       </div>
 
-      {/* ── Right Chat Area ───────────────────────────────────────────── */}
+      {/* ── Main Chat Window ─────────────────────────────────────────── */}
       <div className="flex-1 flex flex-col bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden">
-        
-        {/* Chat Header */}
-        <div className="h-16 border-b border-slate-800 px-6 flex items-center justify-between bg-slate-950/40">
-          <div>
-            <h3 className="font-bold text-slate-100 text-sm">{activeContact.name}</h3>
-            <span className="text-xs font-mono text-cyan-400">{activeContact.public_id}</span>
-          </div>
-          <div className="flex items-center gap-2 text-xs text-slate-400">
-            <Lock size={14} className="text-emerald-400" />
-            <span>Encrypted Direct Scope</span>
-          </div>
-        </div>
-
-        {/* Messages Stream */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-4">
-          {messages.map((m) => (
-            <div key={m.id} className={`flex ${m.isMe ? "justify-end" : "justify-start"}`}>
-              <div
-                className={`max-w-md rounded-2xl p-3.5 text-xs ${
-                  m.isMe
-                    ? "bg-cyan-600 text-slate-950 font-medium"
-                    : "bg-slate-950 border border-slate-800 text-slate-200"
-                }`}
-              >
-                <div className="flex items-center justify-between gap-4 mb-1">
-                  <span className={`text-[10px] font-bold ${m.isMe ? "text-slate-950" : "text-cyan-400 font-mono"}`}>
-                    {m.isMe ? "You" : m.sender}
-                  </span>
-                  <span className={`text-[10px] ${m.isMe ? "text-slate-900/60" : "text-slate-500"}`}>{m.timestamp}</span>
-                </div>
-                <p>{m.text}</p>
-              </div>
+        {/* Header */}
+        <div className="p-4 border-b border-slate-800 bg-slate-950/60 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center text-cyan-400 font-bold text-xs">
+              <User size={16} />
             </div>
-          ))}
+            <div>
+              <h3 className="font-bold text-sm text-slate-100 flex items-center gap-2">
+                {activeRecipient || "Select a Conversation"}
+                {activeRecipient && <ShieldCheck size={14} className="text-emerald-400" />}
+              </h3>
+              <p className="text-[11px] text-slate-400">
+                {activeRecipient ? "Authorized direct peer-to-peer session" : "No active peer selected"}
+              </p>
+            </div>
+          </div>
         </div>
 
-        {/* Input Form */}
-        <form onSubmit={handleSend} className="p-4 border-t border-slate-800 bg-slate-950/50 flex gap-2">
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={() => toast.info("Evidence attachment vault opened")}
-            className="text-slate-400 hover:text-cyan-400"
-          >
-            <Paperclip size={18} />
-          </Button>
-          <Input
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder="Type a message or attach evidence..."
-            className="bg-slate-900 border-slate-800 text-xs text-slate-100 focus:border-cyan-500"
-          />
-          <Button type="submit" className="bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold px-4">
-            <Send size={16} />
-          </Button>
-        </form>
+        {/* Message Stream */}
+        <div className="flex-1 p-4 overflow-y-auto space-y-3 bg-slate-950/30">
+          {!activeRecipient ? (
+            <div className="h-full flex flex-col items-center justify-center text-center p-8">
+              <MessageSquare className="w-10 h-10 text-slate-700 mb-2" />
+              <p className="text-sm font-bold text-slate-300">No Active Chat</p>
+              <p className="text-xs text-slate-500 mt-1 max-w-sm">
+                Select an existing conversation on the left or enter a public User ID to start messaging.
+              </p>
+            </div>
+          ) : messageHistory.length === 0 ? (
+            <div className="h-full flex flex-col items-center justify-center text-center p-8">
+              <MessageSquare className="w-10 h-10 text-slate-700 mb-2" />
+              <p className="text-sm font-bold text-slate-300">Beginning of Conversation</p>
+              <p className="text-xs text-slate-500 mt-1 max-w-sm">
+                No messages exchanged with {activeRecipient} yet. Send your first message below.
+              </p>
+            </div>
+          ) : (
+            messageHistory.map((msg) => (
+              <div
+                key={msg.id}
+                className={`flex flex-col max-w-lg ${msg.is_me ? "ml-auto items-end" : "items-start"}`}
+              >
+                <div
+                  className={`p-3 rounded-2xl text-xs leading-relaxed ${msg.is_me ? "bg-cyan-500 text-slate-950 font-medium rounded-tr-sm" : "bg-slate-800 text-slate-100 border border-slate-700/60 rounded-tl-sm"}`}
+                >
+                  <p className="whitespace-pre-wrap">{msg.body}</p>
+                </div>
+                <div className="flex items-center gap-1 mt-1 px-1 text-[10px] text-slate-500">
+                  <span>{msg.timestamp}</span>
+                  {msg.is_me && (
+                    <CheckCheck size={12} className={msg.is_read ? "text-cyan-400" : "text-slate-500"} />
+                  )}
+                </div>
+              </div>
+            ))
+          )}
+          <div ref={messagesEndRef} />
+        </div>
+
+        {/* Input Bar */}
+        <div className="p-3 border-t border-slate-800 bg-slate-950/80">
+          <form onSubmit={handleSend} className="flex gap-2">
+            <Input
+              value={inputText}
+              onChange={(e) => setInputText(e.target.value)}
+              placeholder={activeRecipient ? `Message ${activeRecipient}...` : "Select a recipient first"}
+              disabled={!activeRecipient || isSending}
+              className="bg-slate-900 border-slate-800 text-xs h-10 text-slate-200"
+            />
+            <Button
+              type="submit"
+              disabled={!activeRecipient || !inputText.trim() || isSending}
+              className="bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold px-4 h-10"
+            >
+              <Send size={14} />
+            </Button>
+          </form>
+        </div>
       </div>
 
     </div>

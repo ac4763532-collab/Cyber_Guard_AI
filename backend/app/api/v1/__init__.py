@@ -196,7 +196,37 @@ api_router.include_router(admin.router)
 # ── Rooms and Invitations (Direct join, membership) ─────────────────────────
 from app.api.v1 import rooms
 api_router.include_router(rooms.router)
+
 api_router.include_router(rooms.invitation_router)
+
+# ── Unified Device Management ──────────────────────────────────────────────
+from app.api.v1 import devices
+api_router.include_router(devices.router)
+
+# ── Email Security & EML Ingestion ─────────────────────────────────────────
+from app.api.v1 import email
+api_router.include_router(email.router)
+
+# ── Network Telemetry & Flow Monitoring ────────────────────────────────────
+from app.api.v1 import network
+api_router.include_router(network.router)
+
+# ── Log Monitoring ─────────────────────────────────────────────────────────
+from app.api.v1 import logs
+api_router.include_router(logs.router)
+
+# ── AI Security Assistant ──────────────────────────────────────────────────
+from app.api.v1 import assistant
+api_router.include_router(assistant.router)
+
+# ── Live Dashboard Aggregations ────────────────────────────────────────────
+from app.api.v1 import dashboard
+api_router.include_router(dashboard.router)
+
+# ── Direct User Messaging ──────────────────────────────────────────────────
+from app.api.v1 import direct_messages
+api_router.include_router(direct_messages.router)
+
 
 
 # ============================================================================

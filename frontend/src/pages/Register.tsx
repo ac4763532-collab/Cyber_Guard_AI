@@ -2,34 +2,25 @@
  * CyberGuard AI — Registration Page
  * ============================================================================
  * 
- * Handles new user sign-ups.
- * 
- * Key differences from Login:
- *   1. **Password Complexity** — Enforces the backend's rules (min 8 chars,
- *      at least one letter, at least one number) using Zod.
- *   2. **Confirm Password** — Uses Zod `.refine()` to ensure both passwords match.
- *   3. **Pending Verification UX** — The backend creates accounts in a
- *      `PENDING_VERIFICATION` state. We show a toast after registration
- *      explaining they need to verify their email to unlock full access.
+ * Handles new user sign-ups with:
+ *   - Role-specific onboarding detection (?type=individual, etc.)
+ *   - Password complexity enforcement via Zod
+ *   - Confirm password match check
+ *   - Role-based redirect upon registration
+ *   - Link back to Home and Sign In
  */
 
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { useNavigate, Link } from "react-router-dom";
-import { ShieldCheck, Mail, Lock, User } from "lucide-react";
+import { useNavigate, Link, useSearchParams } from "react-router-dom";
+import { ShieldCheck, Mail, Lock, User, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 
 import { useAuth } from "@/auth/AuthProvider";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
-
-
-// ============================================================================
-// VALIDATION SCHEMA
-// ============================================================================
-// Mirrors the backend's RegisterRequest schema (File 41).
 
 const registerSchema = z
   .object({
@@ -47,19 +38,16 @@ const registerSchema = z
   })
   .refine((data) => data.password === data.confirmPassword, {
     message: "Passwords do not match",
-    path: ["confirmPassword"], // Tells Zod to attach the error to the confirmPassword field
+    path: ["confirmPassword"],
   });
 
 type RegisterFormValues = z.infer<typeof registerSchema>;
 
-
-// ============================================================================
-// COMPONENT
-// ============================================================================
-
 export default function Register() {
   const { register: registerUser } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const accountType = searchParams.get("type") || "individual";
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const {
@@ -79,14 +67,21 @@ export default function Register() {
   const onSubmit = async (data: RegisterFormValues) => {
     setIsSubmitting(true);
     try {
-      await registerUser(data.email, data.password, data.fullName);
+      const registered = await registerUser(data.email, data.password, data.fullName, accountType);
       
       toast.success("Account created successfully!", {
         description: "Please check your email to verify your account.",
-        duration: 6000, // Show slightly longer so they can read the instruction
+        duration: 6000,
       });
-      
-      navigate("/dashboard", { replace: true });
+
+      const userRole = (registered?.role || accountType).toLowerCase();
+      if (userRole === "analyst") {
+        navigate("/analyst/dashboard", { replace: true });
+      } else if (userRole === "organizer" || userRole === "org_admin" || userRole === "organization") {
+        navigate("/organization/dashboard", { replace: true });
+      } else {
+        navigate("/personal/dashboard", { replace: true });
+      }
     } catch (error: any) {
       toast.error(error.message || "Failed to create account");
     } finally {
@@ -95,14 +90,18 @@ export default function Register() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50 p-4 dark:bg-slate-950">
+    <div className="flex min-h-screen items-center justify-center bg-slate-50 p-4 dark:bg-slate-950 font-sans">
       <div className="w-full max-w-md">
         
         {/* ── Brand Header ────────────────────────────────────────────── */}
         <div className="mb-8 flex flex-col items-center text-center">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-brand-100 text-brand-600 dark:bg-brand-900/50 dark:text-brand-400">
+          <Link
+            to="/"
+            className="flex h-12 w-12 items-center justify-center rounded-xl bg-brand-100 text-brand-600 dark:bg-brand-900/50 dark:text-brand-400 hover:scale-105 transition-transform shadow-md"
+            title="Back to Home"
+          >
             <ShieldCheck size={28} />
-          </div>
+          </Link>
           <h1 className="mt-4 text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
             Create your account
           </h1>
@@ -181,9 +180,18 @@ export default function Register() {
         </div>
 
         {/* ── Terms Disclaimer ────────────────────────────────────────── */}
-        <p className="mt-8 text-center text-xs text-slate-400 dark:text-slate-500">
-          By signing up, you agree to our Terms of Service and Privacy Policy.
+        <p className="mt-6 text-center text-xs text-slate-400 dark:text-slate-500">
+          By signing up, you agree to our{" "}
+          <Link to="/terms" className="underline hover:text-cyan-400">Terms of Service</Link>{" "}
+          and{" "}
+          <Link to="/privacy" className="underline hover:text-cyan-400">Privacy Policy</Link>.
         </p>
+
+        <div className="mt-4 text-center">
+          <Link to="/" className="inline-flex items-center gap-1.5 text-xs text-slate-500 hover:text-cyan-500 transition-colors">
+            <ArrowLeft size={14} /> Back to Homepage
+          </Link>
+        </div>
 
       </div>
     </div>

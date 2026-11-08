@@ -1,26 +1,22 @@
 /**
  * CyberGuard AI — User Selection (Page 2)
  * ============================================================================
+ * Public page where visitors select their account type before proceeding
+ * to their workspace-specific registration or setup.
  *
- * Public page where new visitors select their account type before proceeding
- * to their workspace-specific dashboard. Exactly three selectable cards:
- * Individual, Security Analyst, Organization. One selected at a time.
- * Visual cyan border/glow/check when selected. Continue disabled until
- * terms checkbox is accepted.
- *
- * Flow: Individual → /personal/dashboard (5)
- *       Analyst  → /analyst/register (21)
- *       Organization → /organization/create (37)
- *
- * Design: dark navy (#071321) background with cyan/blue accents, Inter font,
- * responsive grid, cyan border/glow/check on selection, disabled Continue
- * until terms accepted.
+ * Flow: Individual   → /register?type=individual
+ *       Analyst      → /analyst/register
+ *       Organization → /organization/create
  */
 
 import { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { ArrowLeft, Check, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/Card";
 import { cn } from "@/lib/utils";
+import PublicNavbar from "@/components/public/PublicNavbar";
+import PublicFooter from "@/components/public/PublicFooter";
 
 interface AccountCardProps {
   label: string;
@@ -32,7 +28,7 @@ interface AccountCardProps {
 const accountCards: AccountCardProps[] = [
   {
     label: "Individual",
-    href: "/personal/dashboard",
+    href: "/register?type=individual",
     description:
       "Protect your personal devices, monitor email activity, and analyze logs and network traffic for suspicious behavior.",
     variant: "individual",
@@ -51,9 +47,7 @@ const accountCards: AccountCardProps[] = [
       "Cybersecurity management for companies. Create organizations, manage departments, invite and manage analysts.",
     variant: "organization",
   },
-]
-
-import { useNavigate } from "react-router-dom";
+];
 
 export default function UserSelection() {
   const navigate = useNavigate();
@@ -73,96 +67,125 @@ export default function UserSelection() {
   const continueDisabled = !selected || !termsAccepted;
 
   return (
-    <main className="min-h-screen bg-slate-50 dark:bg-slate-950">
-      <div className="max-w-7xl mx-auto p-4 sm:p-6 sm:py-12">
-        <div className="text-center mb-12">
-          <h2 className="text-4xl sm:text-5xl font-bold tracking-tight text-slate-900 dark:text-slate-100 mb-4">
-            Welcome to CyberGuard AI
-          </h2>
-          <p className="text-slate-600 dark:text-slate-400 text-lg max-w-md mx-auto">
-            Select your account type to get started with the right security
-            experience for your needs.
+    <div className="min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 flex flex-col font-sans">
+      <PublicNavbar />
+
+      <main className="flex-1 mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 py-10">
+        
+        <div className="mb-6">
+          <Link
+            to="/"
+            className="inline-flex items-center gap-1.5 text-xs text-slate-500 hover:text-cyan-500 transition-colors"
+          >
+            <ArrowLeft size={14} /> Back to Homepage
+          </Link>
+        </div>
+
+        <div className="text-center mb-10 space-y-2">
+          <h1 className="text-3xl sm:text-4xl font-black tracking-tight text-slate-900 dark:text-slate-100">
+            Select Your Account Type
+          </h1>
+          <p className="text-sm text-slate-600 dark:text-slate-400 max-w-md mx-auto">
+            Choose the workspace that aligns with your security responsibilities.
           </p>
         </div>
 
         {/* ── Selection Cards ───────────────────────────────────────── */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           {accountCards.map((card, i) => (
             <Card
               key={card.label}
               className={cn(
-                "border rounded-lg p-6 transition-all duration-200 cursor-pointer",
+                "border rounded-xl p-6 transition-all duration-200 cursor-pointer bg-white dark:bg-slate-900 flex flex-col justify-between",
                 selected?.variant === card.variant
-                  ? "border-[var(--cyan)] shadow-cyan-500/20"
-                  : "border-slate-300 dark:border-slate-700 hover:border-slate-400 dark:hover:border-slate-600",
-                selected?.index === i && "ring-2 ring-cyan-500/20"
+                  ? "border-cyan-500 ring-2 ring-cyan-500/30 shadow-lg shadow-cyan-500/10"
+                  : "border-slate-200 dark:border-slate-800 hover:border-slate-400 dark:hover:border-slate-700"
               )}
               onClick={() => handleSelect(card.variant, i, card.href)}
             >
-              <CardHeader>
-                <CardTitle className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold uppercase tracking-wider text-cyan-600 dark:text-cyan-400">
+                    Step 1 of 2
+                  </span>
+                  {selected?.variant === card.variant && (
+                    <span className="flex h-5 w-5 items-center justify-center rounded-full bg-cyan-500 text-slate-950">
+                      <Check size={12} strokeWidth={3} />
+                    </span>
+                  )}
+                </div>
+
+                <CardTitle className="text-xl font-bold text-slate-900 dark:text-slate-100">
                   {card.label}
                 </CardTitle>
-              </CardHeader>
-              <CardDescription className="text-sm text-slate-500 dark:text-slate-400 mt-2">
-                {card.description}
-              </CardDescription>
+
+                <CardDescription className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                  {card.description}
+                </CardDescription>
+              </div>
+
+              <div className="pt-6">
+                <Button
+                  size="sm"
+                  variant={selected?.variant === card.variant ? "primary" : "outline"}
+                  onClick={() => handleSelect(card.variant, i, card.href)}
+                  className="w-full text-xs font-bold"
+                >
+                  {selected?.variant === card.variant ? "Selected" : "Select Role"}
+                </Button>
+              </div>
             </Card>
           ))}
         </div>
 
-        {/* ── Selected state visual feedback ──────────────────────────── */}
-        {selected && (
-          <div className="mt-8 p-6 rounded-lg bg-cyan-500/5 text-center">
-            <svg
-              className="w-12 h-12 mx-auto text-cyan-400 mb-3"
-              viewBox="0 0 24 24"
-              fill="currentColor"
-            >
-              <path d="M9 12l2 2 4-4m6.3-2.8a7.96 7.96 0 0 1-1.8 6.4 8.05 8.05 0 0 1-5.3 0 7.93 7.93 0 0 1-1.8-6.4c0-1.1.4-2.1 1.2-3L12 6l-1.2-1.2c.8-.8 1.2-2.1 1.2-3 0-3.3-2.5-6-5.6-6a9.96 9.96 0 0 0-4 5.4 9.98 9.98 0 0 0 4.6 2.4zM12 3a3 3 0 1 0 0 6 3 3 0 0 0 0-6z" />
-            </svg>
-            <p className="text-cyan-200 font-medium">
-              {selected.variant} selected
-            </p>
-            <p className="text-cyan-100 text-sm mt-1">
-              Continue to {selected.href}
-            </p>
-          </div>
-        )}
-
-        {/* ── Continue button ─────────────────────────────────────────── */}
-        <div className="mt-10 pt-8 border-t border-slate-200 dark:border-slate-800">
-          <Button
-            variant="primary"
-            size="lg"
-            disabled={continueDisabled}
-            className="w-full"
-            onClick={handleContinue}
-          >
-            {continueDisabled
-              ? "Complete terms to continue"
-              : selected?.variant === "individual"
-              ? "Continue to Personal Security"
-              : selected?.variant === "analyst"
-              ? "Continue to Security Analyst"
-              : "Continue to Organization"}
-          </Button>
-        </div>
-
-        {/* ── Terms checkbox ──────────────────────────────────────────── */}
-        <div className="mt-6 text-sm">
-          <label className="flex items-center gap-2 cursor-pointer">
+        {/* ── Terms and Continue ────────────────────────────────────── */}
+        <div className="max-w-md mx-auto bg-white/60 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 space-y-4">
+          <label className="flex items-start gap-3 cursor-pointer text-xs text-slate-600 dark:text-slate-400">
             <input
               type="checkbox"
               checked={termsAccepted}
               onChange={(e) => setTermsAccepted(e.target.checked)}
-              className="rounded border-slate-500 dark:border-slate-400 focus:ring-sky-500"
+              className="mt-0.5 rounded border-slate-400 text-cyan-500 focus:ring-cyan-500"
             />
-            I agree to the <a href="/terms" className="underline text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 transition-colors">Terms of Service</a> and
-            <a href="/privacy" className="underline text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 transition-colors">Privacy Policy</a>.
+            <span>
+              I agree to the{" "}
+              <Link to="/terms" className="text-cyan-600 dark:text-cyan-400 font-bold hover:underline">
+                Terms of Service
+              </Link>{" "}
+              and{" "}
+              <Link to="/privacy" className="text-cyan-600 dark:text-cyan-400 font-bold hover:underline">
+                Privacy Policy
+              </Link>
+              .
+            </span>
           </label>
+
+          <Button
+            variant="primary"
+            size="lg"
+            disabled={continueDisabled}
+            className="w-full text-sm font-bold shadow-md shadow-cyan-500/20"
+            onClick={handleContinue}
+          >
+            {continueDisabled
+              ? "Accept terms to continue"
+              : selected?.variant === "individual"
+              ? "Continue to Individual Sign Up"
+              : selected?.variant === "analyst"
+              ? "Continue to Analyst Application"
+              : "Continue to Organization Setup"}
+          </Button>
+
+          <p className="text-center text-xs text-slate-500">
+            Already have an account?{" "}
+            <Link to="/login" className="text-cyan-600 dark:text-cyan-400 font-bold hover:underline">
+              Sign In
+            </Link>
+          </p>
         </div>
-      </div>
-    </main>
+      </main>
+
+      <PublicFooter />
+    </div>
   );
 }

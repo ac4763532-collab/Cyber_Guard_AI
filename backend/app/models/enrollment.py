@@ -451,6 +451,12 @@ class SourceEnrollment(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         return self.revoked_at is not None
 
     @property
+    @property
+    def is_pending(self) -> bool:
+        """True if token is pending and redeemable."""
+        return self.is_redeemable
+
+    @property
     def is_redeemable(self) -> bool:
         """
         The single gate every redemption check must consult.

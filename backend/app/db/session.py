@@ -100,7 +100,7 @@ logger = get_logger(__name__)
 # ============================================================================
 
 #: Lock ensures concurrent first calls build exactly one engine.
-_engine_lock: threading.Lock = threading.Lock()
+_engine_lock: threading.RLock = threading.RLock()
 _engine: Engine | None = None
 _session_factory: sessionmaker[Session] | None = None
 

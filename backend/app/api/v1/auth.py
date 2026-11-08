@@ -73,6 +73,7 @@ import uuid
 from fastapi import APIRouter, status
 
 from app.api.deps import CurrentUser, DBDep
+from app.core.config import settings
 from app.auth.jwt import (
     build_token_response,
     verify_refresh_token,
@@ -149,14 +150,23 @@ def register(
     If step 2 fails for any reason, the transaction rolls back and no
     account is created — no orphaned user, no password reset needed.
     """
+    from datetime import datetime, timezone
+    initial_status = (
+        UserStatus.ACTIVE
+        if getattr(settings, "AUTO_ACTIVATE_USERS", True) or settings.APP_ENV == "development"
+        else UserStatus.PENDING_VERIFICATION
+    )
     user = create_user(
         db,
         email=body.email,
         password=body.password,
         full_name=body.full_name,
         role=body.role,
-        status=UserStatus.PENDING_VERIFICATION,
+        status=initial_status,
     )
+    if initial_status == UserStatus.ACTIVE:
+        user.email_verified = True
+        user.email_verified_at = datetime.now(timezone.utc)
 
     tokens = build_token_response(
         user_id=user.id,

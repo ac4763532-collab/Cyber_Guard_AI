@@ -10,7 +10,9 @@ from __future__ import annotations
 import uuid
 from typing import List
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel, Field
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.deps import CurrentUser, DBDep
@@ -199,3 +201,115 @@ def decline_room_invite(
     room_service.respond_to_invitation(db, invitation_id=invitation_id, user=current_user, accept=False)
     db.commit()
     return {"success": True, "message": "Invitation declined"}
+
+
+# ── Room Messages & Member Roster ──────────────────────────────────────────
+
+class RoomMessageCreate(BaseModel):
+    body: str = Field(..., min_length=1, max_length=5000)
+
+
+@router.get("/{room_id}/messages", summary="Get messages in a room workspace")
+def get_room_messages(
+    room_id: uuid.UUID,
+    current_user: CurrentUser,
+    db: DBDep,
+    limit: int = 100,
+):
+    from app.models.room import RoomMember, RoomMessage
+    member = db.execute(
+        select(RoomMember).where(RoomMember.room_id == room_id, RoomMember.user_id == current_user.id)
+    ).scalar_one_or_none()
+
+    if not member:
+        raise HTTPException(status_code=403, detail="You are not a member of this room.")
+
+    messages = list(
+        db.execute(
+            select(RoomMessage)
+            .where(RoomMessage.room_id == room_id)
+            .order_by(RoomMessage.created_at.asc())
+            .limit(limit)
+        ).scalars().all()
+    )
+
+    return [
+        {
+            "id": str(m.id),
+            "room_id": str(m.room_id),
+            "sender_id": str(m.sender_id) if m.sender_id else None,
+            "sender_name": m.sender.full_name or m.sender.email if m.sender else "System",
+            "sender_public_id": m.sender.public_user_id if m.sender else "system",
+            "body": m.body,
+            "is_me": (m.sender_id == current_user.id),
+            "created_at": m.created_at.isoformat(),
+            "timestamp": m.created_at.strftime("%I:%M %p"),
+        }
+        for m in messages
+    ]
+
+
+@router.post("/{room_id}/messages", status_code=status.HTTP_201_CREATED, summary="Post message to room workspace")
+def post_room_message(
+    room_id: uuid.UUID,
+    payload: RoomMessageCreate,
+    current_user: CurrentUser,
+    db: DBDep,
+):
+    from app.models.room import RoomMember, RoomMessage
+    member = db.execute(
+        select(RoomMember).where(RoomMember.room_id == room_id, RoomMember.user_id == current_user.id)
+    ).scalar_one_or_none()
+
+    if not member:
+        raise HTTPException(status_code=403, detail="You are not an authorized member of this room.")
+
+    msg = RoomMessage(
+        room_id=room_id,
+        sender_id=current_user.id,
+        body=payload.body,
+        message_type="chat",
+    )
+    db.add(msg)
+    db.commit()
+    db.refresh(msg)
+
+    return {
+        "id": str(msg.id),
+        "room_id": str(msg.room_id),
+        "sender_id": str(msg.sender_id),
+        "sender_name": current_user.full_name or current_user.email,
+        "sender_public_id": current_user.public_user_id,
+        "body": msg.body,
+        "is_me": True,
+        "created_at": msg.created_at.isoformat(),
+        "timestamp": msg.created_at.strftime("%I:%M %p"),
+    }
+
+
+@router.get("/{room_id}/members", summary="Get room member roster")
+def get_room_members(
+    room_id: uuid.UUID,
+    current_user: CurrentUser,
+    db: DBDep,
+):
+    from app.models.room import RoomMember
+    members = list(
+        db.execute(
+            select(RoomMember).where(RoomMember.room_id == room_id)
+        ).scalars().all()
+    )
+
+    return [
+        {
+            "id": str(m.id),
+            "user_id": str(m.user_id),
+            "name": m.user.full_name or m.user.email if m.user else "User",
+            "email": m.user.email if m.user else "",
+            "public_user_id": m.user.public_user_id if m.user else "",
+            "role": m.role,
+            "status": m.status,
+            "joined_at": m.joined_at.isoformat(),
+        }
+        for m in members
+    ]

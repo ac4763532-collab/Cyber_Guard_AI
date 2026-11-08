@@ -378,7 +378,7 @@ def create_source(
         organization_id=workspace.organization_id,
         request=request,
         metadata={
-            "source_type": payload.source_type.value,
+            "source_type": getattr(payload.source_type, "value", str(payload.source_type)),
             "capabilities": capabilities,
         },
     )
@@ -389,7 +389,7 @@ def create_source(
             "source_id": str(source.id),
             "workspace_id": str(workspace.id),
             "source_key": source_key,
-            "source_type": payload.source_type.value,
+            "source_type": getattr(payload.source_type, "value", str(payload.source_type)),
         },
     )
 
