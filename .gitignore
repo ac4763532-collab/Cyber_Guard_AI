@@ -48,4 +48,6 @@ Thumbs.db
 *.swp
 *.swo
 logs/
+.pgdata*/
+pgdata*/
 *.log

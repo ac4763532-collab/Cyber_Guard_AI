@@ -267,8 +267,34 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     )
 
     # DB health: warn in dev, fail in prod.
-    if health_check():
+    db_ok = health_check()
+    if db_ok:
         logger.info("Database reachable at startup")
+
+        # ── Start agent runtime (if enabled)
+        if settings.AGENT_EXECUTION_ENABLED:
+            try:
+                from app.agents.runtime import start_runtime
+                start_runtime(settings)
+                logger.info("Agent runtime thread started")
+            except Exception:  # noqa: BLE001
+                logger.exception("Failed to start agent runtime — continuing without it")
+        else:
+            logger.info("Agent runtime disabled (AGENT_EXECUTION_ENABLED=false)")
+
+        # ── Start scheduler (skip in test mode to avoid unmanaged background sweeps)
+        if not settings.is_test:
+            _scheduler_stop_event = threading.Event()
+            _scheduler_thread = threading.Thread(
+                target=_scheduler_loop,
+                args=(_scheduler_stop_event,),
+                name="cyberguard-scheduler",
+                daemon=True,
+            )
+            _scheduler_thread.start()
+            logger.info("Scheduler thread started")
+        else:
+            logger.info("Scheduler disabled in test mode")
     else:
         if settings.is_production:
             raise ConfigurationError(
@@ -281,36 +307,9 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
         else:
             logger.warning(
                 "Database unreachable at startup — continuing in %s mode. "
-                "/health will return 503 until the DB is reachable.",
+                "Background workers paused. /health will return 503 until PostgreSQL is started.",
                 settings.APP_ENV,
             )
-
-    # ── Start agent runtime (if enabled)
-    if settings.AGENT_EXECUTION_ENABLED:
-        try:
-            from app.agents.runtime import start_runtime
-            start_runtime(settings)
-            logger.info("Agent runtime thread started")
-        except Exception:  # noqa: BLE001
-            logger.exception("Failed to start agent runtime — continuing without it")
-    else:
-        logger.info(
-            "Agent runtime disabled (AGENT_EXECUTION_ENABLED=false)"
-        )
-
-    # ── Start scheduler (skip in test mode to avoid unmanaged background sweeps)
-    if not settings.is_test:
-        _scheduler_stop_event = threading.Event()
-        _scheduler_thread = threading.Thread(
-            target=_scheduler_loop,
-            args=(_scheduler_stop_event,),
-            name="cyberguard-scheduler",
-            daemon=True,
-        )
-        _scheduler_thread.start()
-        logger.info("Scheduler thread started")
-    else:
-        logger.info("Scheduler disabled in test mode")
 
     logger.info(
         "%s ready — docs at %s/docs",

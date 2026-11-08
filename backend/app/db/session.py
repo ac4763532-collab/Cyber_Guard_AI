@@ -115,6 +115,8 @@ def _build_connect_args() -> dict[str, object]:
         "application_name": "cyberguard-api",
         # Server-side kill for runaway queries.
         "options": f"-c statement_timeout={settings.DB_POOL_TIMEOUT * 1000}",
+        # Fast fail connection timeout (seconds) to prevent startup hangs if DB is offline.
+        "connect_timeout": 2,
     }
 
 
@@ -290,17 +292,18 @@ def health_check() -> bool:
         - startup hook (raises ``DatabaseError`` if False)
         - diagnostic scripts
 
-    Never raises. Logs the failure once so a recurring error does not
-    flood the log.
+    Never raises. Fast connection check using direct engine connection
+    to avoid QueuePool acquisition blocks.
     """
     try:
-        with session_scope() as db:
-            db.execute(text("SELECT 1"))
+        engine = get_engine()
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
         return True
     except Exception as exc:
-        logger.error(
+        logger.warning(
             "Database health check failed",
-            extra={"error": type(exc).__name__, "message": str(exc)[:200]},
+            extra={"error": type(exc).__name__, "detail": str(exc)[:200]},
         )
         return False
 

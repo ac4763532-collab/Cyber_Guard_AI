@@ -28,6 +28,17 @@ def upgrade() -> None:
     # ── 1. Update users table with public_user_id and role ───────────────────
     op.add_column("users", sa.Column("public_user_id", sa.String(64), nullable=True))
     op.add_column("users", sa.Column("role", sa.String(32), nullable=False, server_default="individual"))
+    
+    # Safely backfill any pre-existing users without a public slug
+    op.execute(
+        sa.text(
+            "UPDATE users SET public_user_id = "
+            "lower(regexp_replace(coalesce(full_name, split_part(email, '@', 1)), '[^a-zA-Z0-9]+', '-', 'g')) "
+            "|| '-user-' || floor(100000 + random() * 900000)::int "
+            "WHERE public_user_id IS NULL"
+        )
+    )
+
     op.create_index("ix_users_public_user_id", "users", ["public_user_id"], unique=True)
     op.create_index("ix_users_role", "users", ["role"])
 
