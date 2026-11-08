@@ -1,0 +1,143 @@
+# CyberGuard AI — Implement Page 3: Common Login
+
+You are a senior full-stack React and FastAPI engineer working on my existing CyberGuard AI project.
+
+Project location: `E:\CyberGuard`
+
+Implement Page 3 — Login (`/login`) using the approved visual mockup.
+
+## 1. Inspect the existing project first
+
+Before modifying anything:
+- Inspect the frontend folder structure.
+- Identify existing React, TypeScript, Vite and Tailwind configuration.
+- Inspect routing, authentication context, Firebase setup, API client and shared components.
+- Reuse existing authentication and design components.
+- Do not create duplicate authentication systems.
+- Do not overwrite unrelated files.
+
+## 2. Login page design
+
+Implement the approved dark cybersecurity interface:
+- Dark navy background.
+- Cyan and electric-blue accents.
+- CyberGuard AI logo and branding.
+- Home and Create Account navigation.
+- Welcome Back heading.
+- Three horizontal account-selection cards ABOVE the login form.
+- Responsive card layout: horizontal desktop, vertical mobile.
+- Glass-style login panel and subtle cybersecurity background graphics.
+
+## 3. Account selection
+
+Display exactly three selectable cards:
+
+A. Individual
+- Personal security account.
+- Personal dashboard access.
+
+B. Security Analyst
+- Professional analyst account.
+- Verification required.
+
+C. Organization
+- Company account.
+- Organization and room-based access.
+
+Behaviour:
+- No card selected initially.
+- Only one card can be selected.
+- Selected card has a cyan border, glow and check indicator.
+- User can change the selection before login.
+- Account selection is a login context, not authorization.
+
+## 4. Login form
+
+Implement:
+- Registered email address.
+- Password.
+- Show/hide password.
+- Remember Me.
+- Forgot Password.
+- Sign In.
+- Continue with Google.
+- Create Account link.
+
+Use proper validation, accessible labels, loading states and clear error messages.
+
+## 5. Firebase authentication
+
+Reuse the existing Firebase Authentication configuration.
+
+Support:
+- Email/password sign-in.
+- Google sign-in.
+- Password reset.
+- Existing session persistence settings.
+
+Do not expose secrets or API keys in frontend source.
+
+## 6. Backend authorization
+
+After Firebase authentication:
+1. Obtain the Firebase ID token.
+2. Send it to the existing FastAPI backend.
+3. Verify the token on the backend.
+4. Retrieve the actual account types, verification status, organization memberships and room permissions.
+5. Validate the selected login context.
+6. Return only authorized destinations and access information.
+7. Redirect the user appropriately.
+
+Never trust frontend role values.
+
+## 7. Redirect rules
+
+- Individual → `/personal/dashboard`
+- Verified Analyst → `/analyst/dashboard`
+- Pending Analyst → `/analyst/application-status`
+- Organization Admin → `/organization/dashboard`
+- Organization Employee → authorized organization workspace
+- Assigned Analyst → explicitly authorized room/workspace
+
+If the selected type does not match the user's authorized account, show a helpful error and allow switching account type.
+
+If the user has multiple authorized account types, allow the appropriate selection.
+
+Unverified analysts must never receive approved analyst permissions.
+
+## 8. Security and reliability
+
+- Preserve existing Firebase and FastAPI architecture.
+- Enforce all permissions server-side.
+- Protect frontend routes, but never rely on frontend protection alone.
+- Handle expired tokens, failed authentication, network errors and unauthorized access.
+- Avoid fake buttons, placeholder authentication and hardcoded user roles.
+- Use secure session handling and existing backend rate-limiting protections where available.
+
+## 9. Testing
+
+Test:
+- All three account selections.
+- No selection by default.
+- Switching account types.
+- Email/password login.
+- Google login.
+- Password reset.
+- Incorrect credentials.
+- Pending analyst access.
+- Organization membership and room authorization.
+- Responsive layouts.
+
+Run existing lint, type-check and test commands.
+
+## 10. Final report
+
+Report:
+- Files created and modified.
+- Existing components reused.
+- Authentication integration.
+- Backend changes.
+- Tests executed and results.
+- Remaining limitations.
+
+Implement Page 3 only. Do not start Page 4 or redesign other pages.

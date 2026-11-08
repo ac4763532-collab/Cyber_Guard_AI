@@ -1,0 +1,277 @@
+# TASK: Implement CyberGuard AI — Public Home Page (Page 1)
+
+Act as a Senior Frontend Engineer, React Architect, UI/UX Developer, and Production SaaS Engineer.
+
+Implement the approved CyberGuard AI Home Page in my existing project.
+
+## 1. Project Context
+
+Project: CyberGuard AI
+
+Project root: E:\CyberGuard
+
+Frontend technology:
+- React 18
+- TypeScript
+- Vite
+- Tailwind CSS
+
+Backend:
+- FastAPI
+- Firebase Authentication
+- PostgreSQL
+
+The Home Page is the public landing page of a multi-agent cybersecurity platform.
+
+There are exactly three user categories:
+1. Normal User
+2. Security Analyst
+3. Company Admin
+
+Do not introduce Platform Admin or Super Admin.
+
+## 2. Visual Reference
+
+Use the approved CyberGuard AI Home Page image supplied with this prompt as the primary design reference.
+
+Reproduce its:
+- Dark navy background.
+- Minimal professional appearance.
+- Blue and cyan accents.
+- Typography and visual hierarchy.
+- Navigation layout.
+- Section spacing.
+- Card design.
+- Eight-agent grid.
+- Workflow layout.
+- Trust and security section.
+- FAQ accordion.
+- CTA banner.
+- Footer.
+
+Do not create a different design.
+
+Make the implementation responsive for desktop, tablet, and mobile.
+
+## 3. Required Page Sections
+
+Implement these sections in this exact order:
+
+1. Header and Navigation
+2. Hero Section
+3. Three Security Experiences
+4. Eight AI Security Agents
+5. How CyberGuard AI Works
+6. Platform Capabilities
+7. Trust and Security
+8. Frequently Asked Questions
+9. Final Call to Action
+10. Footer
+
+## 4. Functional Requirements
+
+### Header
+- CyberGuard AI logo links to Home.
+- Home navigates to `/`.
+- Features navigates to `/features`.
+- How It Works navigates to `/how-it-works`.
+- Solutions opens the appropriate solutions navigation.
+- Pricing navigates to `/pricing`.
+- About navigates to `/about`.
+- Login navigates to `/login`.
+- Get Started navigates to `/register`.
+- Mobile navigation must work correctly.
+
+### Hero
+Headline:
+"Intelligent Cybersecurity. One Unified Platform."
+
+Description:
+"CyberGuard AI brings together intelligent threat detection, security monitoring, threat intelligence, and incident investigation to help individuals and organizations understand and respond to cyber threats."
+
+Buttons:
+- Get Started → `/register`
+- Explore Platform → `/features`
+
+Use a cybersecurity shield and network illustration on the right.
+
+### Three Security Experiences
+
+Card 1: Personal Security
+- Explain personal device, email, and security monitoring.
+- Link to `/individuals`.
+
+Card 2: Security Analysts
+- Explain investigation and professional analyst services.
+- Link to `/analysts`.
+
+Card 3: Organizations
+- Explain organizational device monitoring and incident management.
+- Link to `/organizations`.
+
+### Eight AI Security Agents
+
+Create eight cards:
+1. Email Analysis
+2. Log Analysis
+3. Network Analysis
+4. AI Analyst
+5. Threat Intelligence
+6. IOC Correlation
+7. Incident Response
+8. Reporting
+
+Each card must have:
+- Appropriate icon.
+- Agent name.
+- Short accurate description.
+- Optional link to its feature information.
+
+Use a responsive four-column desktop grid.
+
+### How It Works
+
+Display:
+Connect → Collect → Detect → Correlate → Respond.
+
+Use connected visual steps and clear descriptions.
+
+### Platform Capabilities
+
+Display six cards:
+- Centralized Security Monitoring.
+- Multi-Agent Threat Detection.
+- Threat Intelligence Integration.
+- Security Incident Management.
+- AI-Assisted Investigation.
+- Security Reports and Analytics.
+
+### Trust and Security
+
+Display accurate information about:
+- Authorized Data Collection.
+- Access Control.
+- Privacy First.
+- Auditability.
+
+Do not claim certifications or security guarantees that have not been verified.
+
+### FAQ
+
+Build a working accordion.
+
+Include:
+- What is CyberGuard AI?
+- Who can use the platform?
+- How does data collection work?
+- What are the eight AI security agents?
+- Is my data secure and private?
+
+### Final CTA
+
+Headline:
+"Take Control of Your Cybersecurity."
+
+Buttons:
+- Get Started → `/register`
+- Explore Platform → `/features`
+
+### Footer
+
+Create four columns:
+- Platform
+- Solutions
+- Company
+- Legal
+
+Include working links and copyright.
+
+## 5. Technical Requirements
+
+- Inspect the existing frontend project before changing anything.
+- Review the current routing, component structure, dependencies, styles, and authentication integration.
+- Reuse existing components and established project conventions.
+- Do not create duplicate routers or duplicate authentication systems.
+- Do not overwrite existing files without inspecting them.
+- Use React Router if already installed; otherwise follow the project's existing routing approach.
+- Use reusable, strongly typed React components.
+- Use Lucide icons if the project already supports them.
+- Keep components maintainable and avoid unnecessary dependencies.
+- Use accessible semantic HTML.
+- Implement keyboard-accessible navigation and FAQ.
+- Add proper page metadata and SEO title/description.
+- Optimize images and prevent layout shifts.
+
+## 6. Authentication and Navigation
+
+The Home Page is publicly accessible.
+
+- Login must lead to the existing login flow.
+- Registration must lead to the existing registration flow.
+- Do not implement fake authentication.
+- Do not let frontend role selection grant permissions.
+- Authentication and workspace authorization must remain enforced by the backend.
+- Preserve the three user categories and existing membership rules.
+
+If a destination page does not exist yet, do not create fake functionality or broken navigation. Report the missing route and implement a suitable temporary navigation strategy consistent with the existing application.
+
+## 7. Quality Requirements
+
+Every interactive element must work.
+
+Implement:
+- Loading states where asynchronous actions exist.
+- Error handling where applicable.
+- Hover and focus states.
+- Responsive navigation.
+- Smooth but restrained transitions.
+- Proper empty and unavailable states where relevant.
+
+Do not display:
+- Fake live threat counts.
+- Fake customer numbers.
+- Fake testimonials.
+- Fake certifications.
+- Fake operational monitoring status.
+
+The landing page must not claim that an agent is operational merely because its card is displayed.
+
+## 8. Implementation Workflow
+
+Follow these steps:
+
+1. Inspect the existing repository.
+2. Report the existing frontend architecture and files relevant to the Home Page.
+3. Identify reusable components and missing dependencies.
+4. Propose the exact files that need to be created or modified.
+5. Implement the Home Page using the approved design.
+6. Connect navigation to existing routes.
+7. Test responsive layouts.
+8. Run TypeScript checks, linting, and available frontend tests.
+9. Fix implementation errors.
+10. Report all changed files and test results.
+
+IMPORTANT:
+- Do not rewrite the entire project.
+- Do not delete existing functionality.
+- Do not modify the backend unless strictly required and approved.
+- Do not reset or delete database data.
+- Do not assume that an unimplemented route or backend feature exists.
+- Do not generate placeholder pages to make broken links appear functional.
+- Deliver complete file contents when asked to provide individual files.
+
+## 9. Final Deliverable
+
+The result must be the actual working CyberGuard AI public Home Page inside my existing project, visually matching the supplied approved reference image.
+
+At completion, report:
+- Files created.
+- Files modified.
+- Existing routes reused.
+- Missing routes.
+- Features implemented.
+- Responsive testing results.
+- TypeScript/lint/test results.
+- Remaining limitations.
+
+Do not proceed to Page 2 until I review and approve the Home Page implementation.

@@ -1,0 +1,149 @@
+# Implement CyberGuard AI — Page 6: My Devices
+
+You are a senior full-stack engineer working on my existing production-oriented CyberGuard AI platform.
+
+**Project:** `E:\CyberGuard`  
+**Page:** My Devices  
+**Route:** `/personal/devices`  
+**Frontend:** React 18, TypeScript, Vite, Tailwind CSS  
+**Backend:** FastAPI, Python, PostgreSQL, Redis, Redpanda.
+
+## 1. First inspect the existing project
+
+Before writing code:
+
+- Inspect the existing frontend architecture, routing, components, authentication and API services.
+- Inspect existing FastAPI device, enrollment, collector and telemetry implementations.
+- Reuse existing components and endpoints where possible.
+- Do not create duplicate APIs, models, tables or services.
+- Do not overwrite working files without understanding their existing behavior.
+- Identify missing functionality before implementing it.
+
+## 2. Implement the approved UI
+
+Reproduce the approved Page 6 visual design:
+
+- Dark navy background.
+- Neon cyan and blue accents.
+- Professional cybersecurity SaaS interface.
+- Left Individual Workspace sidebar.
+- Top navigation with search, notifications and profile.
+- Compact `+ Connect Device` button in the page header.
+
+### Overview cards
+
+1. Total Devices
+2. Online Devices
+3. Offline Devices
+4. Active Collectors
+
+All values must come from authenticated backend APIs. Never hardcode operational metrics.
+
+### Device inventory
+
+Implement a responsive device inventory table with:
+
+- Device name
+- Operating system and version
+- Connection status
+- Collector status and version
+- Last event timestamp
+- Device risk
+- Actions menu
+
+Support Windows, Linux and Android only where a working collector or integration exists.
+
+Include searching, filtering, sorting, pagination and refresh.
+
+### Device health overview
+
+Display:
+
+- Collector running/stopped
+- Last heartbeat
+- Events successfully ingested
+- Collector version and update status
+
+Heartbeat and event ingestion must be separate measurements.
+
+### Device risk distribution
+
+Display High, Medium, Low and Unknown risk categories using actual detection evidence.
+
+Do not invent risk scores or claim a device is safe when monitoring data is unavailable.
+
+### Recent device activity
+
+Show real device enrollment, collector updates, heartbeat changes, incoming events, disconnections and access revocations.
+
+## 3. Connect Device modal
+
+When the user clicks `+ Connect Device`, open a complete enrollment modal.
+
+Steps:
+
+1. Select Windows, Linux or supported Android.
+2. Display platform-specific instructions.
+3. Request a secure enrollment token from the backend.
+4. Generate a single-use, expiring token.
+5. Provide the appropriate installer or enrollment instructions.
+6. Register and authenticate the collector.
+7. Verify device identity and heartbeat.
+8. Show success or a meaningful error.
+
+Do not mark a device connected merely because the token was generated or the installer was downloaded.
+
+## 4. Device actions
+
+Implement:
+
+- View Details → `/personal/devices/:deviceId`
+- Rename Device
+- Disconnect Device
+- Revoke Device Access
+
+Require confirmation for sensitive actions.
+
+## 5. Backend integration
+
+Use existing endpoints where available. If functionality is missing, implement it through the established FastAPI architecture.
+
+Requirements:
+
+- Firebase-authenticated user identity.
+- Server-side ownership authorization.
+- Secure device credentials.
+- Expiring enrollment tokens.
+- Idempotent device registration.
+- Device heartbeat tracking.
+- Collector health tracking.
+- Event ingestion status.
+- Audit logging for sensitive actions.
+- Proper validation, error handling and database transactions.
+
+Never trust a device ID or user ID supplied by the frontend without authorization checks.
+
+## 6. Quality requirements
+
+- No fake data or fabricated monitoring status.
+- No placeholder buttons that appear functional.
+- Loading, empty, error and disconnected states.
+- Responsive desktop and mobile layouts.
+- Accessible controls and clear status labels.
+- Unit and integration tests.
+- No breaking changes to existing pages.
+
+## 7. Completion report
+
+After implementation, report:
+
+1. Files inspected.
+2. Files created or modified.
+3. APIs reused or created.
+4. Database changes and migrations.
+5. Collector functionality implemented.
+6. Tests executed and results.
+7. Remaining limitations.
+8. Exact commands to run and test the page.
+
+**Important:** Implement only Page 6. Do not start Page 7 or modify unrelated modules.

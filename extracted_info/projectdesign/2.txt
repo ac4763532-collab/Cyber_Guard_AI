@@ -1,0 +1,160 @@
+# Implement CyberGuard AI — Page 2: User Selection
+
+You are a senior full-stack engineer working on my existing production-oriented CyberGuard AI project.
+
+**Project location:** `E:\CyberGuard`
+
+**Task:** Implement Page 2 — User Selection (`/select-account`) according to the approved visual mockup and specifications.
+
+## 1. Inspect before modifying
+
+Before writing code:
+
+- Inspect the existing frontend folder structure.
+- Identify the current React, TypeScript, Vite and Tailwind setup.
+- Inspect existing routing, layouts, components, authentication integration and design system.
+- Reuse existing components and dependencies wherever possible.
+- Do not create duplicate routes, authentication systems, layouts or components.
+- Do not overwrite unrelated files.
+- Report the implementation plan before making significant structural changes.
+
+## 2. Page design
+
+Create a professional, responsive cybersecurity account-selection page.
+
+Design requirements:
+- Dark navy background.
+- Cyan and electric-blue accents.
+- CyberGuard AI shield logo and branding.
+- Header with Home and Login navigation.
+- Heading: "Choose Your Security Experience".
+- Description: "Select how you want to use CyberGuard AI. We'll guide you through the right setup."
+- Three horizontal account cards on desktop.
+- Cards stack vertically on mobile.
+- Subtle hover, focus and selection animations.
+- Consistent styling with the existing CyberGuard AI Home page.
+
+## 3. Three account cards
+
+### Individual / Normal User
+Description: Personal cybersecurity protection.
+
+Features:
+- Personal Security Center
+- Device monitoring
+- Email, log and network analysis
+- Threat alerts and incidents
+- AI Security Assistant
+
+Label: Direct registration.
+
+Destination: `/register?type=individual`
+
+### Security Analyst
+Description: Professional cybersecurity investigation.
+
+Features:
+- Professional profile
+- Analyst verification
+- Case investigation
+- Evidence analysis
+- AI investigation support
+- Reports and services
+
+Label: Verification required.
+
+Destination: `/analyst/register`
+
+Important: An analyst must complete the required verification process before receiving approved analyst permissions. Do not bypass verification.
+
+### Organization
+Description: Cybersecurity management for companies.
+
+Features:
+- Create organization
+- Multiple rooms and departments
+- Multiple employee memberships
+- Invite and manage analysts
+- Device and data-source management
+- Organization-wide security monitoring
+
+Label: Direct setup — no organization approval.
+
+Destination: `/organization/create`
+
+Important: Do not introduce company-document verification or organization approval.
+
+## 4. Selection behaviour
+
+- No account card is selected by default.
+- Only one card can be selected at a time.
+- Clicking a card selects it; it must not navigate immediately.
+- Visually distinguish the selected card with a cyan border, background glow and check indicator.
+- Keyboard navigation and visible focus states must work.
+- Continue is disabled until an account type is selected and the Terms checkbox is accepted.
+- Continue navigates to the correct destination for the selected account type.
+
+## 5. Terms acceptance
+
+Display this checkbox:
+
+"I agree to the Terms of Service and acknowledge the Privacy Notice."
+
+Requirements:
+- Unchecked by default.
+- Both document names must be accessible links.
+- Do not create additional standalone public pages just for these documents.
+- Do not allow Continue until the checkbox is checked.
+- Record acceptance and document versions during registration through the appropriate backend registration flow. Do not falsely record acceptance on this selection page alone.
+
+## 6. Authentication and routing
+
+Authentication happens after account selection, during the relevant registration flow.
+
+Do not authenticate the user on `/select-account`.
+
+Ensure:
+- Individual → `/register?type=individual`
+- Analyst → `/analyst/register`
+- Organization → `/organization/create`
+- Existing account Login link → `/login`
+- Home link → `/`
+
+Use the existing router and authentication architecture.
+
+## 7. Security and engineering requirements
+
+- Do not trust the selected account type as authorization.
+- Enforce role and organization permissions on the backend.
+- Do not grant analyst permissions before verification.
+- Do not allow organization selection to grant Company Admin permissions until organization creation and authentication are completed successfully.
+- Avoid fake buttons and nonfunctional links.
+- Do not hardcode secrets or API keys.
+- Preserve existing Firebase authentication integration.
+- Add appropriate loading, error and disabled states.
+- Ensure accessibility, semantic HTML and responsive behaviour.
+
+## 8. Testing
+
+After implementation:
+
+- Test all three selection paths.
+- Test that no card is selected initially.
+- Test that only one card can be selected.
+- Test that Continue remains disabled until both requirements are met.
+- Test all navigation destinations.
+- Test desktop, tablet and mobile layouts.
+- Run the project's existing lint, type-check and test commands.
+- Fix errors introduced by this implementation.
+
+## 9. Final report
+
+Provide:
+1. Files created.
+2. Files modified.
+3. Components and routes reused.
+4. Functionality implemented.
+5. Tests executed and results.
+6. Any remaining limitations.
+
+Implement only Page 2. Do not start Page 3 or redesign other pages. Preserve the existing project architecture.

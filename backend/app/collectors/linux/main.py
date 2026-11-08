@@ -1,0 +1,847 @@
+"""
+CyberGuard AI — Linux Collector Main Entrypoint
+============================================================================
+
+The collector's CLI and orchestration layer. Ties together:
+
+    config.py               — settings + collector_id
+    credential_store.py     — Fernet-encrypted credential
+    api_client.py           — HTTP client
+    event_queue.py          — SQLite durable queue
+    log_reader.py           — journald + file tailing
+    event_normalizer.py     — Linux syslog → CyberGuard event shape
+    runtime_integration.py  — reader loop + cursor persistence
+    event_sender.py         — background send thread
+    heartbeat_worker.py     — background heartbeat thread
+
+This file is the conductor. It parses CLI arguments, starts the
+background threads, delegates the reader loop to runtime_integration,
+and coordinates graceful shutdown.
+
+Commands
+--------
+    run                 Start the collector (normal operation)
+    enroll <token>      Redeem an enrollment token
+    status              Show current state (enrolled? queue? backend?)
+    test-connection     Probe the backend /health endpoint
+    clear-credential    Remove stored credential (forces re-enroll)
+    version             Show version info
+
+Threads when running
+--------------------
+    Main thread         Reader loop (delegated to runtime_integration)
+    Sender thread       event_queue → HTTP batches
+    Heartbeat thread    POST /collector/heartbeat every 60s
+
+The reader (main thread) monitors the heartbeat thread. If heartbeat
+stops (credential revoked, backend permanently rejecting), the reader
+exits, then main.py joins the sender thread and exits cleanly.
+
+Signal handling
+---------------
+Linux convention:
+
+    SIGINT  (Ctrl+C)   → graceful shutdown
+    SIGTERM (systemd)  → graceful shutdown
+    SIGHUP             → treated as SIGTERM (rarely used; ignore)
+
+Both set the stop_event. The reader loop checks it after each batch.
+On exit, `runtime_integration.save_on_shutdown` is called to persist
+the last cursor before the process dies.
+
+Systemd integration
+-------------------
+When installed via `install_service.sh`, the collector runs as a
+systemd unit (Type=simple) that invokes `main.py run` directly.
+systemd handles:
+
+    - Restart on non-zero exit (Restart=on-failure)
+    - Resource limits (MemoryMax, CPUQuota if configured)
+    - Journald stdout capture (automatic — our logs go to stderr)
+    - Kill signal (SIGTERM by default)
+    - Graceful shutdown window (TimeoutStopSec=30 by default)
+
+The `install_service.sh` script configures all of this. This file
+only needs to handle the signals it receives — systemd handles the
+rest.
+
+Exit codes
+----------
+    0    Success (clean shutdown, or normal completion of a command)
+    1    Unexpected error
+    2    Configuration error (missing/malformed config)
+    3    Not enrolled (need to run `enroll`)
+    4    Credential invalid (need to re-enroll)
+
+Usage examples
+--------------
+    # First-time enrollment (as root or with sudo):
+    sudo python3 main.py enroll cgc_abc123def456...
+
+    # Run in foreground (usually systemd does this):
+    python3 main.py run
+
+    # Check status:
+    python3 main.py status
+
+    # Test connectivity:
+    python3 main.py test-connection
+
+    # Force re-enroll:
+    python3 main.py clear-credential
+"""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import logging
+import signal
+import socket
+import sys
+import threading
+from pathlib import Path
+from typing import Any
+
+# Local imports — sys.path has this file's dir when running `python main.py`
+from config import (
+    CollectorConfig,
+    CONFIG_DIR,
+    STATE_DIR,
+    LOG_DIR,
+    LOG_FILE,
+    configure_logging,
+)
+from credential_store import (
+    clear_credential,
+    ensure_key_exists,
+    load_credential,
+    store_credential,
+)
+from api_client import (
+    ApiClient,
+    HealthProbeResult,
+    _get_hostname,
+    _get_os_version,
+    _get_primary_mac,
+)
+from event_queue import EventQueue
+from event_sender import EventSender
+from heartbeat_worker import HeartbeatWorker
+from runtime_integration import (
+    ReaderLoopStats,
+    create_reader,
+    run_reader_loop,
+    save_on_shutdown,
+    verify_saved_state,
+)
+
+
+logger = logging.getLogger(__name__)
+
+
+# ============================================================================
+# EXIT CODES
+# ============================================================================
+
+EXIT_OK = 0
+EXIT_ERROR = 1
+EXIT_CONFIG_ERROR = 2
+EXIT_NOT_ENROLLED = 3
+EXIT_CREDENTIAL_INVALID = 4
+
+
+# ============================================================================
+# HARDWARE FINGERPRINT (Linux)
+# ============================================================================
+
+def _read_machine_id() -> str | None:
+    """
+    Read /etc/machine-id (or /var/lib/dbus/machine-id as fallback).
+
+    /etc/machine-id is a stable, per-installation random string
+    generated by systemd on first boot. It survives reboots,
+    config changes, and collector reinstalls — the ideal stable
+    identifier for a "this is the same device" signal.
+
+    The fallback (/var/lib/dbus/machine-id) exists on older systems
+    that predate systemd adoption.
+    """
+    for path in ("/etc/machine-id", "/var/lib/dbus/machine-id"):
+        try:
+            content = Path(path).read_text(encoding="utf-8").strip()
+            if content and len(content) >= 16:
+                return content
+        except (OSError, UnicodeDecodeError):
+            continue
+    return None
+
+
+def _compute_hardware_fingerprint() -> str | None:
+    """
+    Compute a stable device fingerprint: ``sha256:<64 hex>``.
+
+    Inputs (in order of reliability):
+
+        1. /etc/machine-id    — systemd's per-install UUID (best)
+        2. Primary MAC        — reads /sys/class/net/*/address
+        3. Hostname           — weakest but always available
+
+    All three are hashed together when available. If only the MAC
+    and hostname exist (unusual — the machine-id file is virtually
+    always present on modern systems), the fingerprint is still
+    stable across collector reinstalls.
+
+    Returns None only if EVERY input is unavailable — nearly
+    impossible on a real Linux host.
+    """
+    parts: list[str] = []
+
+    machine_id = _read_machine_id()
+    if machine_id:
+        parts.append(f"mid:{machine_id}")
+
+    primary_mac = _get_primary_mac()
+    if primary_mac:
+        parts.append(f"mac:{primary_mac}")
+
+    try:
+        hostname = socket.gethostname()
+        if hostname:
+            parts.append(f"host:{hostname.lower()}")
+    except Exception:
+        pass
+
+    if not parts:
+        return None
+
+    payload = "|".join(sorted(parts))
+    digest = hashlib.sha256(payload.encode("utf-8")).hexdigest()
+    return f"sha256:{digest}"
+
+
+# ============================================================================
+# SIGNAL HANDLING
+# ============================================================================
+
+def _install_signal_handlers(stop_event: threading.Event) -> None:
+    """
+    Install SIGINT/SIGTERM handlers that set the stop event.
+
+    systemd sends SIGTERM on `systemctl stop` or on shutdown. Ctrl+C
+    sends SIGINT. Both should trigger the same graceful shutdown path.
+
+    We do NOT handle SIGHUP — it's rarely sent to service units, and
+    some systemd configs use it for "reload config" which we don't
+    support mid-run. Default behavior (terminate) is acceptable.
+    """
+
+    def _handler(signum: int, frame: Any) -> None:  # noqa: ARG001
+        # Log the signal name — makes shutdown logs readable
+        try:
+            sig_name = signal.Signals(signum).name
+        except ValueError:
+            sig_name = f"signal-{signum}"
+        logger.info(
+            "Received %s — initiating graceful shutdown",
+            sig_name,
+            extra={"signal": sig_name},
+        )
+        stop_event.set()
+
+    try:
+        signal.signal(signal.SIGINT, _handler)
+        signal.signal(signal.SIGTERM, _handler)
+    except (ValueError, OSError) as exc:
+        # Signal handling not available — some embedded environments.
+        # Ctrl+C still works via KeyboardInterrupt.
+        logger.warning(
+            "Could not install signal handlers",
+            extra={"error": str(exc)[:200]},
+        )
+
+
+# ============================================================================
+# COMMAND: run
+# ============================================================================
+
+def _cmd_run(args: argparse.Namespace) -> int:  # noqa: ARG001
+    """Start the collector — the main operational command."""
+    # ── Load config
+    try:
+        config = CollectorConfig.load()
+    except RuntimeError as exc:
+        print(f"Configuration error: {exc}", file=sys.stderr)
+        return EXIT_CONFIG_ERROR
+
+    configure_logging(config)
+
+    logger.info(
+        "CyberGuard AI Linux Collector starting",
+        extra={
+            **config.to_log_dict(),
+            "config_file": str(CONFIG_DIR / "config.json"),
+            "state_dir": str(STATE_DIR),
+            "log_file": str(LOG_FILE),
+            "python": sys.version.split()[0],
+            "os": _get_os_version(),
+        },
+    )
+
+    # ── Preflight: enrolled?
+    if not config.is_enrolled:
+        print(
+            "Collector is not enrolled.\n"
+            "Run: sudo python3 main.py enroll <enrollment-token>\n"
+            "Get the token from the CyberGuard dashboard "
+            "(Devices → Connect Device → Linux).",
+            file=sys.stderr,
+        )
+        return EXIT_NOT_ENROLLED
+
+    # ── Preflight: credential decryptable?
+    credential = load_credential(config)
+    if not credential:
+        print(
+            "Stored credential is not decryptable (Fernet key mismatch, "
+            "corrupt file, or missing key).\n"
+            "Run: sudo python3 main.py clear-credential\n"
+            "Then: sudo python3 main.py enroll <new-token>",
+            file=sys.stderr,
+        )
+        return EXIT_CREDENTIAL_INVALID
+
+    # ── Ensure Fernet key exists (idempotent — first run generates it)
+    try:
+        ensure_key_exists()
+    except RuntimeError as exc:
+        print(f"Cannot initialize credential key: {exc}", file=sys.stderr)
+        return EXIT_CONFIG_ERROR
+
+    # ── Construct components
+    try:
+        client = ApiClient(config)
+        queue = EventQueue(max_queue_size=config.max_queue_size)
+        reader = create_reader(config)
+    except Exception as exc:  # noqa: BLE001
+        print(f"Failed to initialize collector: {exc}", file=sys.stderr)
+        return EXIT_ERROR
+
+    # ── Verify saved reader state (rotation detection on startup)
+    try:
+        resets = verify_saved_state(config)
+        if resets:
+            logger.warning(
+                "File positions reset on startup",
+                extra={"resets": resets},
+            )
+    except Exception:  # noqa: BLE001
+        logger.exception("State verification failed — continuing")
+
+    # ── Construct sender + heartbeat
+    sender = EventSender(config, queue, client)
+    heartbeat = HeartbeatWorker(
+        config=config,
+        client=client,
+        queue=queue,
+        sender_stats_callback=sender.stats,
+    )
+
+    # ── One-shot backend probe (informational)
+    probe = client.probe_health()
+    if not probe.reachable:
+        logger.warning(
+            "Backend unreachable at startup — collector will buffer "
+            "events until connection is restored",
+            extra={"error": probe.error_message},
+        )
+    elif probe.db_ok is False:
+        logger.warning(
+            "Backend reachable but DB down — sends will fail",
+        )
+    else:
+        logger.info("Backend reachable and healthy")
+
+    # ── Stop event + signal handlers
+    stop_event = threading.Event()
+    _install_signal_handlers(stop_event)
+
+    # ── Start background threads
+    sender_thread = threading.Thread(
+        target=sender.run_forever,
+        args=(stop_event,),
+        name="cyberguard-sender",
+        daemon=True,
+    )
+    heartbeat_thread = threading.Thread(
+        target=heartbeat.run_forever,
+        args=(stop_event,),
+        name="cyberguard-heartbeat",
+        daemon=True,
+    )
+    sender_thread.start()
+    heartbeat_thread.start()
+
+    logger.info(
+        "Collector running (3 threads: reader/sender/heartbeat)",
+    )
+
+    # ── Run reader loop in main thread (delegated to runtime_integration)
+    stats = ReaderLoopStats()
+    exit_code = EXIT_OK
+
+    try:
+        run_reader_loop(
+            config=config,
+            reader=reader,
+            queue=queue,
+            stop_event=stop_event,
+            heartbeat=heartbeat,
+            stats=stats,
+        )
+    except KeyboardInterrupt:
+        logger.info("KeyboardInterrupt received — stopping")
+        stop_event.set()
+    except Exception:  # noqa: BLE001
+        logger.exception("Fatal error in reader loop")
+        exit_code = EXIT_ERROR
+        stop_event.set()
+
+    # ── Graceful shutdown
+    logger.info("Shutting down...")
+    stop_event.set()
+
+    # Belt-and-suspenders: save reader state even if run_reader_loop's
+    # finally block didn't run cleanly
+    try:
+        save_on_shutdown(config, reader)
+    except Exception:  # noqa: BLE001
+        logger.exception("Shutdown state save failed")
+
+    # Join threads
+    sender_thread.join(timeout=15.0)
+    if sender_thread.is_alive():
+        logger.warning("Sender thread did not stop within 15s")
+
+    heartbeat_thread.join(timeout=15.0)
+    if heartbeat_thread.is_alive():
+        logger.warning("Heartbeat thread did not stop within 15s")
+
+    # ── Final state snapshot
+    try:
+        queue_stats = queue.stats()
+        logger.info("Final queue state", extra=queue_stats)
+    except Exception:  # noqa: BLE001
+        pass
+
+    queue.close()
+
+    logger.info(
+        "Collector stopped",
+        extra={
+            "exit_code": exit_code,
+            "sender_stats": sender.stats(),
+            "heartbeat_stats": heartbeat.stats(),
+            "reader_stats": stats.summary(),
+        },
+    )
+
+    return exit_code
+
+
+# ============================================================================
+# COMMAND: enroll
+# ============================================================================
+
+def _cmd_enroll(args: argparse.Namespace) -> int:
+    """Redeem an enrollment token and persist the resulting credential."""
+    try:
+        config = CollectorConfig.load()
+    except RuntimeError as exc:
+        print(f"Configuration error: {exc}", file=sys.stderr)
+        return EXIT_CONFIG_ERROR
+
+    configure_logging(config)
+
+    token = (args.token or "").strip()
+    if not token:
+        print("Enrollment token is empty.", file=sys.stderr)
+        return EXIT_CONFIG_ERROR
+
+    # ── Already enrolled?
+    if config.is_enrolled:
+        existing = load_credential(config)
+        if existing:
+            print(
+                "Collector is already enrolled.\n"
+                "To re-enroll (e.g. after revoking the current credential):\n"
+                "  sudo python3 main.py clear-credential\n"
+                "  sudo python3 main.py enroll <new-token>",
+                file=sys.stderr,
+            )
+            return EXIT_CREDENTIAL_INVALID
+        else:
+            print(
+                "Credential is stored but not decryptable (Fernet key "
+                "mismatch, or wrong user running the command).\n"
+                "Clearing and attempting fresh enrollment.",
+                file=sys.stderr,
+            )
+            clear_credential(config)
+            config.save()
+
+    print(f"Enrolling collector {config.collector_id}")
+    print(f"  Backend:  {config.backend_url}")
+    print(f"  Hostname: {_get_hostname()}")
+    print(f"  OS:       {_get_os_version()}")
+
+    # ── Ensure Fernet key exists before we store the credential
+    try:
+        ensure_key_exists()
+    except RuntimeError as exc:
+        print(f"Cannot initialize credential encryption key: {exc}",
+              file=sys.stderr)
+        return EXIT_CONFIG_ERROR
+
+    # ── Compute hardware fingerprint and call enroll
+    fingerprint = _compute_hardware_fingerprint()
+
+    client = ApiClient(config)
+    result = client.enroll(
+        plaintext_token=token,
+        agent_version=config.agent_version,
+        hardware_fingerprint=fingerprint,
+    )
+
+    if not result.success:
+        print(
+            f"Enrollment failed: {result.error_code}\n"
+            f"  {result.error_message}",
+            file=sys.stderr,
+        )
+        if result.should_retry:
+            print(
+                "  This is a transient error — try again shortly.",
+                file=sys.stderr,
+            )
+        return EXIT_ERROR
+
+    if not result.plaintext_credential:
+        print(
+            "Backend returned success but no credential. "
+            "This is a backend bug — contact support with the "
+            "timestamp and backend URL.",
+            file=sys.stderr,
+        )
+        return EXIT_ERROR
+
+    # ── Store the credential (encrypts + writes credential.enc)
+    try:
+        store_credential(config, result.plaintext_credential)
+    except RuntimeError as exc:
+        print(
+            f"Enrolled but failed to persist credential: {exc}\n"
+            f"The credential is in memory but will be lost on exit. "
+            f"Try running clear-credential and re-enrolling.",
+            file=sys.stderr,
+        )
+        return EXIT_ERROR
+
+    # ── Merge server-provided heartbeat interval
+    if result.heartbeat_interval_seconds:
+        config.heartbeat_interval_seconds = int(
+            result.heartbeat_interval_seconds
+        )
+
+    # ── Persist config
+    try:
+        config.save()
+    except Exception as exc:  # noqa: BLE001
+        print(
+            f"Failed to save config.json after enrollment: {exc}\n"
+            f"Credential file exists but config.json is out of date. "
+            f"Fix permissions and retry.",
+            file=sys.stderr,
+        )
+        return EXIT_ERROR
+
+    print()
+    print("Enrollment successful.")
+    print(f"  Collector ID:      {config.collector_id}")
+    print(f"  Credential prefix: {result.credential_prefix}")
+    print(f"  Config saved:      {CONFIG_DIR / 'config.json'}")
+    print(f"  Key saved:         {STATE_DIR / 'fernet.key'}")
+    print(f"  Credential saved:  {STATE_DIR / 'credential.enc'}")
+    print()
+    print("Start the collector with:")
+    print("    sudo python3 main.py run")
+    print("Or install as a systemd service:")
+    print("    sudo ./install_service.sh install")
+    return EXIT_OK
+
+
+# ============================================================================
+# COMMAND: status
+# ============================================================================
+
+def _cmd_status(args: argparse.Namespace) -> int:  # noqa: ARG001
+    """Print the collector's current state."""
+    try:
+        config = CollectorConfig.load()
+    except RuntimeError as exc:
+        print(f"Configuration error: {exc}", file=sys.stderr)
+        return EXIT_CONFIG_ERROR
+
+    print("CyberGuard AI Linux Collector — Status")
+    print("=" * 58)
+    print(f"  Collector ID:      {config.collector_id}")
+    print(f"  Backend URL:       {config.backend_url}")
+    print(f"  Enrolled:          {config.is_enrolled}")
+    print(f"  Config directory:  {CONFIG_DIR}")
+    print(f"  State directory:   {STATE_DIR}")
+    print(f"  Log file:          {LOG_FILE}")
+    print(f"  Agent version:     {config.agent_version}")
+    print(f"  Hostname:          {_get_hostname()}")
+    print(f"  OS:                {_get_os_version()}")
+    print()
+
+    # ── Sources
+    print(f"  Journald enabled:  {config.use_journald}")
+    print(f"  Log files enabled: {config.use_log_files}")
+    if config.use_log_files:
+        print(f"  Log files tracked: {len(config.log_files)}")
+        for f in config.log_files:
+            exists = "✓" if Path(f).exists() else "✗"
+            print(f"    {exists} {f}")
+    if config.use_journald and config.journald_units:
+        print(f"  Journald units:    {', '.join(config.journald_units)}")
+    print()
+
+    # ── Reader state
+    cursor_preview = (
+        config.journald_cursor[:20] + "..."
+        if config.journald_cursor else "none"
+    )
+    print(f"  Journald cursor:   {cursor_preview}")
+    positions = config.file_positions or {}
+    print(f"  File positions:    {len(positions)} files tracked")
+    for path_str, state in list(positions.items())[:5]:
+        if isinstance(state, dict):
+            print(
+                f"    {path_str} @ "
+                f"inode={state.get('inode')} offset={state.get('offset')}"
+            )
+        else:
+            print(f"    {path_str} @ offset={state}")
+    print()
+
+    # ── Credential
+    credential = load_credential(config)
+    if credential:
+        print("  Credential:        Available (decryptable)")
+        prefix = credential[:12]
+        print(f"  Credential prefix: {prefix}")
+    elif config.is_enrolled:
+        print("  Credential:        STORED BUT UNDECRYPTABLE")
+        print("                     (wrong key, wrong user, or corrupt)")
+    else:
+        print("  Credential:        Not enrolled")
+    print()
+
+    # ── Queue
+    try:
+        queue = EventQueue(max_queue_size=config.max_queue_size)
+        qstats = queue.stats()
+        print(f"  Queue:             {qstats['count']} events pending")
+        if qstats.get("oldest_age_seconds") is not None:
+            age = qstats["oldest_age_seconds"]
+            print(f"  Oldest event:      {age}s ago ({age // 60}m)")
+        queue.close()
+    except Exception as exc:  # noqa: BLE001
+        print(f"  Queue:             unable to read ({exc})")
+
+    return EXIT_OK
+
+
+# ============================================================================
+# COMMAND: test-connection
+# ============================================================================
+
+def _cmd_test_connection(args: argparse.Namespace) -> int:  # noqa: ARG001
+    """Probe the backend's /health endpoint."""
+    try:
+        config = CollectorConfig.load()
+    except RuntimeError as exc:
+        print(f"Configuration error: {exc}", file=sys.stderr)
+        return EXIT_CONFIG_ERROR
+
+    print(f"Testing connection to {config.backend_url} ...")
+
+    client = ApiClient(config)
+    result: HealthProbeResult = client.probe_health()
+
+    if not result.reachable:
+        print(f"  REACHABLE:  NO")
+        print(f"  Error:      {result.error_message}")
+        print()
+        print("Check:")
+        print("  - Is the backend running?")
+        print("  - Is the URL correct in config.json?")
+        print("  - Is there a firewall blocking the port?")
+        print("  - Does DNS resolve the backend hostname?")
+        return EXIT_ERROR
+
+    print(f"  REACHABLE:  YES")
+    if result.status_code is not None:
+        print(f"  Status:     {result.status_code}")
+    if result.db_ok is not None:
+        print(f"  DB health:  {'OK' if result.db_ok else 'DOWN'}")
+        if not result.db_ok:
+            print()
+            print("Backend is up but its database is down. "
+                  "Event sends will fail until resolved.")
+            return EXIT_ERROR
+
+    print()
+    print("Backend is healthy and ready to receive events.")
+    return EXIT_OK
+
+
+# ============================================================================
+# COMMAND: clear-credential
+# ============================================================================
+
+def _cmd_clear_credential(args: argparse.Namespace) -> int:  # noqa: ARG001
+    """Remove the stored credential (forces re-enrollment)."""
+    try:
+        config = CollectorConfig.load()
+    except RuntimeError as exc:
+        print(f"Configuration error: {exc}", file=sys.stderr)
+        return EXIT_CONFIG_ERROR
+
+    if not config.credential and not (STATE_DIR / "credential.enc").exists():
+        print("No credential to clear — collector is already unenrolled.")
+        return EXIT_OK
+
+    answer = input(
+        "This will remove the current credential and require "
+        "re-enrollment. Continue? [y/N] "
+    ).strip().lower()
+
+    if answer not in ("y", "yes"):
+        print("Cancelled.")
+        return EXIT_OK
+
+    clear_credential(config)
+    config.save()
+
+    print()
+    print("Credential cleared.")
+    print("The Fernet key at", STATE_DIR / "fernet.key",
+          "was preserved.")
+    print("To re-enroll: sudo python3 main.py enroll <new-token>")
+    return EXIT_OK
+
+
+# ============================================================================
+# COMMAND: version
+# ============================================================================
+
+def _cmd_version(args: argparse.Namespace) -> int:  # noqa: ARG001
+    """Print collector version + environment."""
+    print("CyberGuard AI — Linux Collector")
+    print(f"  Python:        {sys.version.split()[0]}")
+    print(f"  Platform:      {sys.platform}")
+    print(f"  Hostname:      {_get_hostname()}")
+    print(f"  OS:            {_get_os_version()}")
+    try:
+        config = CollectorConfig.load()
+        print(f"  Agent version: {config.agent_version}")
+        print(f"  Config dir:    {CONFIG_DIR}")
+        print(f"  State dir:     {STATE_DIR}")
+    except Exception:  # noqa: BLE001
+        print("  (config not loadable — run 'main.py status' for details)")
+    return EXIT_OK
+
+
+# ============================================================================
+# ARGUMENT PARSER
+# ============================================================================
+
+def _build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="cyberguard-collector",
+        description=(
+            "CyberGuard AI Linux Collector — reads systemd journal and "
+            "log files, streams security events to the CyberGuard "
+            "backend."
+        ),
+    )
+    sub = parser.add_subparsers(
+        dest="command", required=True, metavar="<command>",
+    )
+
+    run_p = sub.add_parser(
+        "run",
+        help="Start the collector (normal operational command).",
+    )
+    run_p.set_defaults(func=_cmd_run)
+
+    enroll_p = sub.add_parser(
+        "enroll",
+        help="Redeem an enrollment token and store the resulting credential.",
+    )
+    enroll_p.add_argument(
+        "token",
+        help="Plaintext enrollment token from the CyberGuard dashboard.",
+    )
+    enroll_p.set_defaults(func=_cmd_enroll)
+
+    status_p = sub.add_parser(
+        "status",
+        help="Show current collector state (enrollment, cursor, queue).",
+    )
+    status_p.set_defaults(func=_cmd_status)
+
+    test_p = sub.add_parser(
+        "test-connection",
+        help="Probe the backend's /health endpoint.",
+    )
+    test_p.set_defaults(func=_cmd_test_connection)
+
+    clear_p = sub.add_parser(
+        "clear-credential",
+        help="Remove the stored credential (forces re-enrollment).",
+    )
+    clear_p.set_defaults(func=_cmd_clear_credential)
+
+    ver_p = sub.add_parser(
+        "version",
+        help="Show collector version and environment info.",
+    )
+    ver_p.set_defaults(func=_cmd_version)
+
+    return parser
+
+
+# ============================================================================
+# MAIN
+# ============================================================================
+
+def main(argv: list[str] | None = None) -> int:
+    """Parse arguments and dispatch to the requested command."""
+    parser = _build_parser()
+    args = parser.parse_args(argv)
+
+    try:
+        return args.func(args)
+    except KeyboardInterrupt:
+        print("\nInterrupted by user.", file=sys.stderr)
+        return EXIT_ERROR
+    except Exception:  # noqa: BLE001
+        logger.exception("Unhandled error in command %s", args.command)
+        return EXIT_ERROR
+
+
+if __name__ == "__main__":
+    sys.exit(main())

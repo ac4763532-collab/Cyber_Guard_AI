@@ -1,0 +1,51 @@
+# ============================================================================
+# CyberGuard AI — Root .gitignore
+# ============================================================================
+
+# Environment and Secrets
+.env
+.env.*
+*.env
+!*.env.example
+!*.example.env
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+firebase-service-account*.json
+service-account*.json
+credentials.json
+secrets.json
+
+# Node & Frontend
+node_modules/
+dist/
+dist-ssr/
+*.local
+.npm
+.eslintcache
+
+# Python & Backend
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+.pytest_cache/
+.coverage
+htmlcov/
+*.egg-info/
+
+# Operating System & IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
+logs/
+*.log

@@ -1,0 +1,37 @@
+# CyberGuard AI — Linux Collector Dependencies
+# ============================================================================
+# Installed into /opt/cyberguard/venv/ by install_service.sh.
+#
+# Only two hard dependencies. The collector is deliberately minimal —
+# a security tool that drags in dozens of packages is a bigger attack
+# surface than the thing it's supposed to protect.
+#
+# Installed via: /opt/cyberguard/venv/bin/python3 -m pip install -r requirements.txt
+# ============================================================================
+
+
+# ── HTTP client ─────────────────────────────────────────────────────────────
+# Used by api_client.py to talk to the CyberGuard backend.
+# httpx (not requests) because: async-capable, no transitive bloat,
+# single-file install, first-class timeout support.
+httpx>=0.27.0,<1.0.0
+
+
+# ── Cryptography ────────────────────────────────────────────────────────────
+# Used by credential_store.py for Fernet (AES-128-CBC + HMAC-SHA256)
+# credential encryption at rest.
+#
+# 42.0 is the first version with reliable binary wheels on every
+# supported platform + OpenSSL 3 support without compilation.
+cryptography>=42.0.0,<47.0.0
+
+
+# ── Optional: psutil (CPU/memory heartbeat fallback) ────────────────────────
+# The heartbeat_worker prefers /proc/self/stat and /proc/meminfo on Linux
+# (zero-dependency, always available). psutil is only used as a fallback
+# when /proc is hidden (rare — some hardened containers).
+#
+# Uncomment to enable the fallback. Not installed by default — the
+# installer can add it via `python3 -m pip install psutil` if needed.
+#
+# psutil>=5.9.0,<7.0.0

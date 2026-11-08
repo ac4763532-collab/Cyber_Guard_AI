@@ -1,0 +1,126 @@
+# ============================================================================
+# CyberGuard AI — Docker Compose Configuration
+# ============================================================================
+# 
+# This file orchestrates the entire production stack:
+#   1. PostgreSQL (Database)
+#   2. Redis (Cache & Rate Limiting)
+#   3. Backend (FastAPI)
+#   4. Frontend (React + Nginx)
+#
+# Usage:
+#   docker compose up -d --build
+#
+# The Nginx frontend container acts as the reverse proxy, so you only
+# need to expose port 80 (or 5173) to the outside world.
+# ============================================================================
+
+services:
+  # ── 1. PostgreSQL Database ──────────────────────────────────────────────
+  db:
+    image: postgres:15-alpine
+    container_name: cyberguard-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: cyberguard
+      POSTGRES_PASSWORD: cyberguard_dev
+      POSTGRES_DB: cyberguard
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432" # Exposed for local dev (e.g., pgAdmin or DBeaver)
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cyberguard -d cyberguard"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - cyberguard_net
+
+  # ── 2. Redis Cache ──────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: cyberguard-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redisdata:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - cyberguard_net
+
+  # ── 3. FastAPI Backend ──────────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: cyberguard-backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      # Application
+      APP_ENV: ${APP_ENV:-development}
+      APP_DEBUG: "${APP_DEBUG:-false}"
+      BACKEND_PUBLIC_URL: "${BACKEND_PUBLIC_URL:-http://localhost:8000}"
+      FRONTEND_PUBLIC_URL: "${FRONTEND_PUBLIC_URL:-http://localhost:5173}"
+      
+      # Database (Note: uses 'db' hostname, not localhost)
+      DATABASE_URL: "${DATABASE_URL:-postgresql://cyberguard:cyberguard_dev@db:5432/cyberguard}"
+      REDIS_URL: "${REDIS_URL:-redis://redis:6379/0}"
+      
+      # Security: In production, JWT_SECRET_KEY must be provided via host environment or .env
+      JWT_SECRET_KEY: "${JWT_SECRET_KEY:-}"
+      
+      # CORS (Allow the frontend container to communicate)
+      CORS_ALLOWED_ORIGINS: "http://localhost,http://localhost:5173,http://localhost:80"
+      
+      # Kafka (Disabled for MVP)
+      KAFKA_ENABLED: "false"
+      
+      # AI (Disabled by default until API keys are provided)
+      LLM_PROVIDER: "none"
+    ports:
+      - "8000:8000"
+    networks:
+      - cyberguard_net
+
+  # ── 4. React Frontend ───────────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: cyberguard-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "80:80"       # Expose Nginx on standard HTTP port
+      - "5173:80"     # Also expose on 5173 so it matches the Vite dev URL
+    networks:
+      - cyberguard_net
+
+# ============================================================================
+# VOLUMES & NETWORKS
+# ============================================================================
+# Volumes ensure that your database and Redis data persist even if you
+# destroy the containers. 
+
+volumes:
+  pgdata:
+    driver: local
+  redisdata:
+    driver: local
+
+networks:
+  cyberguard_net:
+    driver: bridge
