@@ -1,0 +1,905 @@
+{
+  "category": "Account Management",
+  "description": "Creation, modification, deletion, enablement, disablement, password, and lockout-related account administration.",
+  "source": {
+    "inventory_basis": "User-supplied Windows Minimal/Common Event ID lists and detailed event catalogue",
+    "definition_policy": "Only event meanings supported by the supplied catalogue are summarized. Unverified field mappings remain pending verification."
+  },
+  "events": {
+    "4720": {
+      "event_id": 4720,
+      "name": "A user account was created",
+      "category": "Account Management",
+      "definition_status": "catalogue_summary_only",
+      "title": "A user account was created",
+      "description": "A user account was created",
+      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
+      "who": {},
+      "where": {},
+      "when": "Use the timestamp recorded in the original Windows event.",
+      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
+      "severity_guidance": {
+        "low": "Expected activity with no unusual context.",
+        "medium": "Unusual or repeated activity that needs review.",
+        "high": "Corroborated suspicious activity supported by related evidence."
+      },
+      "recommendations": [
+        "Inspect the original event details and available fields.",
+        "Correlate with related events before assigning a security conclusion."
+      ],
+      "related_events": [],
+      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
+    },
+    "4722": {
+      "event_id": 4722,
+      "name": "A user account was enabled",
+      "category": "Account Management",
+      "definition_status": "catalogue_summary_only",
+      "title": "A user account was enabled",
+      "description": "A user account was enabled",
+      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
+      "who": {},
+      "where": {},
+      "when": "Use the timestamp recorded in the original Windows event.",
+      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
+      "severity_guidance": {
+        "low": "Expected activity with no unusual context.",
+        "medium": "Unusual or repeated activity that needs review.",
+        "high": "Corroborated suspicious activity supported by related evidence."
+      },
+      "recommendations": [
+        "Inspect the original event details and available fields.",
+        "Correlate with related events before assigning a security conclusion."
+      ],
+      "related_events": [],
+      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
+    },
+    "4723": {
+      "event_id": 4723,
+      "name": "An attempt was made to change an account password",
+      "category": "Account Management",
+      "definition_status": "catalogue_summary_only",
+      "title": "An attempt was made to change an account password",
+      "description": "An attempt was made to change an account password",
+      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
+      "who": {},
+      "where": {},
+      "when": "Use the timestamp recorded in the original Windows event.",
+      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
+      "severity_guidance": {
+        "low": "Expected activity with no unusual context.",
+        "medium": "Unusual or repeated activity that needs review.",
+        "high": "Corroborated suspicious activity supported by related evidence."
+      },
+      "recommendations": [
+        "Inspect the original event details and available fields.",
+        "Correlate with related events before assigning a security conclusion."
+      ],
+      "related_events": [],
+      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
+    },
+    "4724": {
+      "event_id": 4724,
+      "name": "An attempt was made to reset an account password",
+      "category": "Account Management",
+      "definition_status": "catalogue_summary_only",
+      "title": "An attempt was made to reset an account password",
+      "description": "An attempt was made to reset an account password",
+      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
+      "who": {},
+      "where": {},
+      "when": "Use the timestamp recorded in the original Windows event.",
+      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
+      "severity_guidance": {
+        "low": "Expected activity with no unusual context.",
+        "medium": "Unusual or repeated activity that needs review.",
+        "high": "Corroborated suspicious activity supported by related evidence."
+      },
+      "recommendations": [
+        "Inspect the original event details and available fields.",
+        "Correlate with related events before assigning a security conclusion."
+      ],
+      "related_events": [],
+      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
+    },
+    "4725": {
+      "event_id": 4725,
+      "name": "A user account was disabled",
+      "category": "Account Management",
+      "definition_status": "catalogue_summary_only",
+      "title": "A user account was disabled",
+      "description": "A user account was disabled",
+      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
+      "who": {},
+      "where": {},
+      "when": "Use the timestamp recorded in the original Windows event.",
+      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
+      "severity_guidance": {
+        "low": "Expected activity with no unusual context.",
+        "medium": "Unusual or repeated activity that needs review.",
+        "high": "Corroborated suspicious activity supported by related evidence."
+      },
+      "recommendations": [
+        "Inspect the original event details and available fields.",
+        "Correlate with related events before assigning a security conclusion."
+      ],
+      "related_events": [],
+      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
+    },
+    "4726": {
+      "event_id": 4726,
+      "name": "A user account was deleted",
+      "category": "Account Management",
+      "definition_status": "catalogue_summary_only",
+      "title": "A user account was deleted",
+      "description": "A user account was deleted",
+      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
+      "who": {},
+      "where": {},
+      "when": "Use the timestamp recorded in the original Windows event.",
+      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
+      "severity_guidance": {
+        "low": "Expected activity with no unusual context.",
+        "medium": "Unusual or repeated activity that needs review.",
+        "high": "Corroborated suspicious activity supported by related evidence."
+      },
+      "recommendations": [
+        "Inspect the original event details and available fields.",
+        "Correlate with related events before assigning a security conclusion."
+      ],
+      "related_events": [],
+      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
+    },
+    "4727": {
+      "event_id": 4727,
+      "name": "A security-enabled global group was created",
+      "category": "Account Management",
+      "definition_status": "catalogue_summary_only",
+      "title": "A security-enabled global group was created",
+      "description": "A security-enabled global group was created",
+      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
+      "who": {},
+      "where": {},
+      "when": "Use the timestamp recorded in the original Windows event.",
+      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
+      "severity_guidance": {
+        "low": "Expected activity with no unusual context.",
+        "medium": "Unusual or repeated activity that needs review.",
+        "high": "Corroborated suspicious activity supported by related evidence."
+      },
+      "recommendations": [
+        "Inspect the original event details and available fields.",
+        "Correlate with related events before assigning a security conclusion."
+      ],
+      "related_events": [],
+      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
+    },
+    "4728": {
+      "event_id": 4728,
+      "name": "A member was added to a security-enabled global group",
+      "category": "Account Management",
+      "definition_status": "catalogue_summary_only",
+      "title": "A member was added to a security-enabled global group",
+      "description": "A member was added to a security-enabled global group",
+      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
+      "who": {},
+      "where": {},
+      "when": "Use the timestamp recorded in the original Windows event.",
+      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
+      "severity_guidance": {
+        "low": "Expected activity with no unusual context.",
+        "medium": "Unusual or repeated activity that needs review.",
+        "high": "Corroborated suspicious activity supported by related evidence."
+      },
+      "recommendations": [
+        "Inspect the original event details and available fields.",
+        "Correlate with related events before assigning a security conclusion."
+      ],
+      "related_events": [],
+      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
+    },
+    "4729": {
+      "event_id": 4729,
+      "name": "A member was removed from a security-enabled global group",
+      "category": "Account Management",
+      "definition_status": "catalogue_summary_only",
+      "title": "A member was removed from a security-enabled global group",
+      "description": "A member was removed from a security-enabled global group",
+      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
+      "who": {},
+      "where": {},
+      "when": "Use the timestamp recorded in the original Windows event.",
+      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
+      "severity_guidance": {
+        "low": "Expected activity with no unusual context.",
+        "medium": "Unusual or repeated activity that needs review.",
+        "high": "Corroborated suspicious activity supported by related evidence."
+      },
+      "recommendations": [
+        "Inspect the original event details and available fields.",
+        "Correlate with related events before assigning a security conclusion."
+      ],
+      "related_events": [],
+      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
+    },
+    "4732": {
+      "event_id": 4732,
+      "name": "A member was added to a security-enabled local group",
+      "category": "Account Management",
+      "definition_status": "catalogue_summary_only",
+      "title": "A member was added to a security-enabled local group",
+      "description": "A member was added to a security-enabled local group",
+      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
+      "who": {},
+      "where": {},
+      "when": "Use the timestamp recorded in the original Windows event.",
+      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
+      "severity_guidance": {
+        "low": "Expected activity with no unusual context.",
+        "medium": "Unusual or repeated activity that needs review.",
+        "high": "Corroborated suspicious activity supported by related evidence."
+      },
+      "recommendations": [
+        "Inspect the original event details and available fields.",
+        "Correlate with related events before assigning a security conclusion."
+      ],
+      "related_events": [],
+      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
+    },
+    "4733": {
+      "event_id": 4733,
+      "name": "A member was removed from a security-enabled local group",
+      "category": "Account Management",
+      "definition_status": "catalogue_summary_only",
+      "title": "A member was removed from a security-enabled local group",
+      "description": "A member was removed from a security-enabled local group",
+      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
+      "who": {},
+      "where": {},
+      "when": "Use the timestamp recorded in the original Windows event.",
+      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
+      "severity_guidance": {
+        "low": "Expected activity with no unusual context.",
+        "medium": "Unusual or repeated activity that needs review.",
+        "high": "Corroborated suspicious activity supported by related evidence."
+      },
+      "recommendations": [
+        "Inspect the original event details and available fields.",
+        "Correlate with related events before assigning a security conclusion."
+      ],
+      "related_events": [],
+      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
+    },
+    "4735": {
+      "event_id": 4735,
+      "name": "A security-enabled local group was changed",
+      "category": "Account Management",
+      "definition_status": "catalogue_summary_only",
+      "title": "A security-enabled local group was changed",
+      "description": "A security-enabled local group was changed",
+      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
+      "who": {},
+      "where": {},
+      "when": "Use the timestamp recorded in the original Windows event.",
+      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
+      "severity_guidance": {
+        "low": "Expected activity with no unusual context.",
+        "medium": "Unusual or repeated activity that needs review.",
+        "high": "Corroborated suspicious activity supported by related evidence."
+      },
+      "recommendations": [
+        "Inspect the original event details and available fields.",
+        "Correlate with related events before assigning a security conclusion."
+      ],
+      "related_events": [],
+      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
+    },
+    "4737": {
+      "event_id": 4737,
+      "name": "A security-enabled global group was changed",
+      "category": "Account Management",
+      "definition_status": "catalogue_summary_only",
+      "title": "A security-enabled global group was changed",
+      "description": "A security-enabled global group was changed",
+      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
+      "who": {},
+      "where": {},
+      "when": "Use the timestamp recorded in the original Windows event.",
+      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
+      "severity_guidance": {
+        "low": "Expected activity with no unusual context.",
+        "medium": "Unusual or repeated activity that needs review.",
+        "high": "Corroborated suspicious activity supported by related evidence."
+      },
+      "recommendations": [
+        "Inspect the original event details and available fields.",
+        "Correlate with related events before assigning a security conclusion."
+      ],
+      "related_events": [],
+      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
+    },
+    "4738": {
+      "event_id": 4738,
+      "name": "A user account was changed",
+      "category": "Account Management",
+      "definition_status": "catalogue_summary_only",
+      "title": "A user account was changed",
+      "description": "A user account was changed",
+      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
+      "who": {},
+      "where": {},
+      "when": "Use the timestamp recorded in the original Windows event.",
+      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
+      "severity_guidance": {
+        "low": "Expected activity with no unusual context.",
+        "medium": "Unusual or repeated activity that needs review.",
+        "high": "Corroborated suspicious activity supported by related evidence."
+      },
+      "recommendations": [
+        "Inspect the original event details and available fields.",
+        "Correlate with related events before assigning a security conclusion."
+      ],
+      "related_events": [],
+      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
+    },
+    "4739": {
+      "event_id": 4739,
+      "name": "Domain policy was changed",
+      "category": "Account Management",
+      "definition_status": "catalogue_summary_only",
+      "title": "Domain policy was changed",
+      "description": "Domain policy was changed",
+      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
+      "who": {},
+      "where": {},
+      "when": "Use the timestamp recorded in the original Windows event.",
+      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
+      "severity_guidance": {
+        "low": "Expected activity with no unusual context.",
+        "medium": "Unusual or repeated activity that needs review.",
+        "high": "Corroborated suspicious activity supported by related evidence."
+      },
+      "recommendations": [
+        "Inspect the original event details and available fields.",
+        "Correlate with related events before assigning a security conclusion."
+      ],
+      "related_events": [],
+      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
+    },
+    "4740": {
+      "event_id": 4740,
+      "name": "A user account was locked out",
+      "category": "Account Management",
+      "definition_status": "catalogue_summary_only",
+      "title": "A user account was locked out",
+      "description": "A user account was locked out",
+      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
+      "who": {},
+      "where": {},
+      "when": "Use the timestamp recorded in the original Windows event.",
+      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
+      "severity_guidance": {
+        "low": "Expected activity with no unusual context.",
+        "medium": "Unusual or repeated activity that needs review.",
+        "high": "Corroborated suspicious activity supported by related evidence."
+      },
+      "recommendations": [
+        "Inspect the original event details and available fields.",
+        "Correlate with related events before assigning a security conclusion."
+      ],
+      "related_events": [],
+      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
+    },
+    "4742": {
+      "event_id": 4742,
+      "name": "Event definition pending verification",
+      "category": "Account Management",
+      "definition_status": "pending_verification",
+      "title": "Windows security event",
+      "description": "This Event ID is present in the supplied event inventory; verify its provider-specific meaning before displaying an interpretation.",
+      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
+      "who": {},
+      "where": {},
+      "when": "Use the timestamp recorded in the original Windows event.",
+      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
+      "severity_guidance": {
+        "low": "Expected activity with no unusual context.",
+        "medium": "Unusual or repeated activity that needs review.",
+        "high": "Corroborated suspicious activity supported by related evidence."
+      },
+      "recommendations": [
+        "Inspect the original event details and available fields.",
+        "Correlate with related events before assigning a security conclusion."
+      ],
+      "related_events": [],
+      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
+    },
+    "4744": {
+      "event_id": 4744,
+      "name": "Event definition pending verification",
+      "category": "Account Management",
+      "definition_status": "pending_verification",
+      "title": "Windows security event",
+      "description": "This Event ID is present in the supplied event inventory; verify its provider-specific meaning before displaying an interpretation.",
+      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
+      "who": {},
+      "where": {},
+      "when": "Use the timestamp recorded in the original Windows event.",
+      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
+      "severity_guidance": {
+        "low": "Expected activity with no unusual context.",
+        "medium": "Unusual or repeated activity that needs review.",
+        "high": "Corroborated suspicious activity supported by related evidence."
+      },
+      "recommendations": [
+        "Inspect the original event details and available fields.",
+        "Correlate with related events before assigning a security conclusion."
+      ],
+      "related_events": [],
+      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
+    },
+    "4745": {
+      "event_id": 4745,
+      "name": "Event definition pending verification",
+      "category": "Account Management",
+      "definition_status": "pending_verification",
+      "title": "Windows security event",
+      "description": "This Event ID is present in the supplied event inventory; verify its provider-specific meaning before displaying an interpretation.",
+      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
+      "who": {},
+      "where": {},
+      "when": "Use the timestamp recorded in the original Windows event.",
+      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
+      "severity_guidance": {
+        "low": "Expected activity with no unusual context.",
+        "medium": "Unusual or repeated activity that needs review.",
+        "high": "Corroborated suspicious activity supported by related evidence."
+      },
+      "recommendations": [
+        "Inspect the original event details and available fields.",
+        "Correlate with related events before assigning a security conclusion."
+      ],
+      "related_events": [],
+      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
+    },
+    "4746": {
+      "event_id": 4746,
+      "name": "Event definition pending verification",
+      "category": "Account Management",
+      "definition_status": "pending_verification",
+      "title": "Windows security event",
+      "description": "This Event ID is present in the supplied event inventory; verify its provider-specific meaning before displaying an interpretation.",
+      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
+      "who": {},
+      "where": {},
+      "when": "Use the timestamp recorded in the original Windows event.",
+      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
+      "severity_guidance": {
+        "low": "Expected activity with no unusual context.",
+        "medium": "Unusual or repeated activity that needs review.",
+        "high": "Corroborated suspicious activity supported by related evidence."
+      },
+      "recommendations": [
+        "Inspect the original event details and available fields.",
+        "Correlate with related events before assigning a security conclusion."
+      ],
+      "related_events": [],
+      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
+    },
+    "4750": {
+      "event_id": 4750,
+      "name": "Event definition pending verification",
+      "category": "Account Management",
+      "definition_status": "pending_verification",
+      "title": "Windows security event",
+      "description": "This Event ID is present in the supplied event inventory; verify its provider-specific meaning before displaying an interpretation.",
+      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
+      "who": {},
+      "where": {},
+      "when": "Use the timestamp recorded in the original Windows event.",
+      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
+      "severity_guidance": {
+        "low": "Expected activity with no unusual context.",
+        "medium": "Unusual or repeated activity that needs review.",
+        "high": "Corroborated suspicious activity supported by related evidence."
+      },
+      "recommendations": [
+        "Inspect the original event details and available fields.",
+        "Correlate with related events before assigning a security conclusion."
+      ],
+      "related_events": [],
+      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
+    },
+    "4751": {
+      "event_id": 4751,
+      "name": "Event definition pending verification",
+      "category": "Account Management",
+      "definition_status": "pending_verification",
+      "title": "Windows security event",
+      "description": "This Event ID is present in the supplied event inventory; verify its provider-specific meaning before displaying an interpretation.",
+      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
+      "who": {},
+      "where": {},
+      "when": "Use the timestamp recorded in the original Windows event.",
+      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
+      "severity_guidance": {
+        "low": "Expected activity with no unusual context.",
+        "medium": "Unusual or repeated activity that needs review.",
+        "high": "Corroborated suspicious activity supported by related evidence."
+      },
+      "recommendations": [
+        "Inspect the original event details and available fields.",
+        "Correlate with related events before assigning a security conclusion."
+      ],
+      "related_events": [],
+      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
+    },
+    "4752": {
+      "event_id": 4752,
+      "name": "Event definition pending verification",
+      "category": "Account Management",
+      "definition_status": "pending_verification",
+      "title": "Windows security event",
+      "description": "This Event ID is present in the supplied event inventory; verify its provider-specific meaning before displaying an interpretation.",
+      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
+      "who": {},
+      "where": {},
+      "when": "Use the timestamp recorded in the original Windows event.",
+      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
+      "severity_guidance": {
+        "low": "Expected activity with no unusual context.",
+        "medium": "Unusual or repeated activity that needs review.",
+        "high": "Corroborated suspicious activity supported by related evidence."
+      },
+      "recommendations": [
+        "Inspect the original event details and available fields.",
+        "Correlate with related events before assigning a security conclusion."
+      ],
+      "related_events": [],
+      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
+    },
+    "4754": {
+      "event_id": 4754,
+      "name": "Event definition pending verification",
+      "category": "Account Management",
+      "definition_status": "pending_verification",
+      "title": "Windows security event",
+      "description": "This Event ID is present in the supplied event inventory; verify its provider-specific meaning before displaying an interpretation.",
+      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
+      "who": {},
+      "where": {},
+      "when": "Use the timestamp recorded in the original Windows event.",
+      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
+      "severity_guidance": {
+        "low": "Expected activity with no unusual context.",
+        "medium": "Unusual or repeated activity that needs review.",
+        "high": "Corroborated suspicious activity supported by related evidence."
+      },
+      "recommendations": [
+        "Inspect the original event details and available fields.",
+        "Correlate with related events before assigning a security conclusion."
+      ],
+      "related_events": [],
+      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
+    },
+    "4755": {
+      "event_id": 4755,
+      "name": "Event definition pending verification",
+      "category": "Account Management",
+      "definition_status": "pending_verification",
+      "title": "Windows security event",
+      "description": "This Event ID is present in the supplied event inventory; verify its provider-specific meaning before displaying an interpretation.",
+      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
+      "who": {},
+      "where": {},
+      "when": "Use the timestamp recorded in the original Windows event.",
+      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
+      "severity_guidance": {
+        "low": "Expected activity with no unusual context.",
+        "medium": "Unusual or repeated activity that needs review.",
+        "high": "Corroborated suspicious activity supported by related evidence."
+      },
+      "recommendations": [
+        "Inspect the original event details and available fields.",
+        "Correlate with related events before assigning a security conclusion."
+      ],
+      "related_events": [],
+      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
+    },
+    "4756": {
+      "event_id": 4756,
+      "name": "Event definition pending verification",
+      "category": "Account Management",
+      "definition_status": "pending_verification",
+      "title": "Windows security event",
+      "description": "This Event ID is present in the supplied event inventory; verify its provider-specific meaning before displaying an interpretation.",
+      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
+      "who": {},
+      "where": {},
+      "when": "Use the timestamp recorded in the original Windows event.",
+      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
+      "severity_guidance": {
+        "low": "Expected activity with no unusual context.",
+        "medium": "Unusual or repeated activity that needs review.",
+        "high": "Corroborated suspicious activity supported by related evidence."
+      },
+      "recommendations": [
+        "Inspect the original event details and available fields.",
+        "Correlate with related events before assigning a security conclusion."
+      ],
+      "related_events": [],
+      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
+    },
+    "4757": {
+      "event_id": 4757,
+      "name": "Event definition pending verification",
+      "category": "Account Management",
+      "definition_status": "pending_verification",
+      "title": "Windows security event",
+      "description": "This Event ID is present in the supplied event inventory; verify its provider-specific meaning before displaying an interpretation.",
+      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
+      "who": {},
+      "where": {},
+      "when": "Use the timestamp recorded in the original Windows event.",
+      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
+      "severity_guidance": {
+        "low": "Expected activity with no unusual context.",
+        "medium": "Unusual or repeated activity that needs review.",
+        "high": "Corroborated suspicious activity supported by related evidence."
+      },
+      "recommendations": [
+        "Inspect the original event details and available fields.",
+        "Correlate with related events before assigning a security conclusion."
+      ],
+      "related_events": [],
+      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
+    },
+    "4760": {
+      "event_id": 4760,
+      "name": "Event definition pending verification",
+      "category": "Account Management",
+      "definition_status": "pending_verification",
+      "title": "Windows security event",
+      "description": "This Event ID is present in the supplied event inventory; verify its provider-specific meaning before displaying an interpretation.",
+      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
+      "who": {},
+      "where": {},
+      "when": "Use the timestamp recorded in the original Windows event.",
+      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
+      "severity_guidance": {
+        "low": "Expected activity with no unusual context.",
+        "medium": "Unusual or repeated activity that needs review.",
+        "high": "Corroborated suspicious activity supported by related evidence."
+      },
+      "recommendations": [
+        "Inspect the original event details and available fields.",
+        "Correlate with related events before assigning a security conclusion."
+      ],
+      "related_events": [],
+      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
+    },
+    "4761": {
+      "event_id": 4761,
+      "name": "Event definition pending verification",
+      "category": "Account Management",
+      "definition_status": "pending_verification",
+      "title": "Windows security event",
+      "description": "This Event ID is present in the supplied event inventory; verify its provider-specific meaning before displaying an interpretation.",
+      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
+      "who": {},
+      "where": {},
+      "when": "Use the timestamp recorded in the original Windows event.",
+      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
+      "severity_guidance": {
+        "low": "Expected activity with no unusual context.",
+        "medium": "Unusual or repeated activity that needs review.",
+        "high": "Corroborated suspicious activity supported by related evidence."
+      },
+      "recommendations": [
+        "Inspect the original event details and available fields.",
+        "Correlate with related events before assigning a security conclusion."
+      ],
+      "related_events": [],
+      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
+    },
+    "4762": {
+      "event_id": 4762,
+      "name": "Event definition pending verification",
+      "category": "Account Management",
+      "definition_status": "pending_verification",
+      "title": "Windows security event",
+      "description": "This Event ID is present in the supplied event inventory; verify its provider-specific meaning before displaying an interpretation.",
+      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
+      "who": {},
+      "where": {},
+      "when": "Use the timestamp recorded in the original Windows event.",
+      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
+      "severity_guidance": {
+        "low": "Expected activity with no unusual context.",
+        "medium": "Unusual or repeated activity that needs review.",
+        "high": "Corroborated suspicious activity supported by related evidence."
+      },
+      "recommendations": [
+        "Inspect the original event details and available fields.",
+        "Correlate with related events before assigning a security conclusion."
+      ],
+      "related_events": [],
+      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
+    },
+    "4764": {
+      "event_id": 4764,
+      "name": "Event definition pending verification",
+      "category": "Account Management",
+      "definition_status": "pending_verification",
+      "title": "Windows security event",
+      "description": "This Event ID is present in the supplied event inventory; verify its provider-specific meaning before displaying an interpretation.",
+      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
+      "who": {},
+      "where": {},
+      "when": "Use the timestamp recorded in the original Windows event.",
+      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
+      "severity_guidance": {
+        "low": "Expected activity with no unusual context.",
+        "medium": "Unusual or repeated activity that needs review.",
+        "high": "Corroborated suspicious activity supported by related evidence."
+      },
+      "recommendations": [
+        "Inspect the original event details and available fields.",
+        "Correlate with related events before assigning a security conclusion."
+      ],
+      "related_events": [],
+      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
+    },
+    "4767": {
+      "event_id": 4767,
+      "name": "A user account was unlocked",
+      "category": "Account Management",
+      "definition_status": "catalogue_summary_only",
+      "title": "A user account was unlocked",
+      "description": "A user account was unlocked",
+      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
+      "who": {},
+      "where": {},
+      "when": "Use the timestamp recorded in the original Windows event.",
+      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
+      "severity_guidance": {
+        "low": "Expected activity with no unusual context.",
+        "medium": "Unusual or repeated activity that needs review.",
+        "high": "Corroborated suspicious activity supported by related evidence."
+      },
+      "recommendations": [
+        "Inspect the original event details and available fields.",
+        "Correlate with related events before assigning a security conclusion."
+      ],
+      "related_events": [],
+      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
+    },
+    "4793": {
+      "event_id": 4793,
+      "name": "Event definition pending verification",
+      "category": "Account Management",
+      "definition_status": "pending_verification",
+      "title": "Windows security event",
+      "description": "This Event ID is present in the supplied event inventory; verify its provider-specific meaning before displaying an interpretation.",
+      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
+      "who": {},
+      "where": {},
+      "when": "Use the timestamp recorded in the original Windows event.",
+      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
+      "severity_guidance": {
+        "low": "Expected activity with no unusual context.",
+        "medium": "Unusual or repeated activity that needs review.",
+        "high": "Corroborated suspicious activity supported by related evidence."
+      },
+      "recommendations": [
+        "Inspect the original event details and available fields.",
+        "Correlate with related events before assigning a security conclusion."
+      ],
+      "related_events": [],
+      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
+    },
+    "4794": {
+      "event_id": 4794,
+      "name": "An attempt was made to set the Directory Services Restore Mode administrator password",
+      "category": "Account Management",
+      "definition_status": "catalogue_summary_only",
+      "title": "An attempt was made to set the Directory Services Restore Mode administrator password",
+      "description": "An attempt was made to set the Directory Services Restore Mode administrator password",
+      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
+      "who": {},
+      "where": {},
+      "when": "Use the timestamp recorded in the original Windows event.",
+      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
+      "severity_guidance": {
+        "low": "Expected activity with no unusual context.",
+        "medium": "Unusual or repeated activity that needs review.",
+        "high": "Corroborated suspicious activity supported by related evidence."
+      },
+      "recommendations": [
+        "Inspect the original event details and available fields.",
+        "Correlate with related events before assigning a security conclusion."
+      ],
+      "related_events": [],
+      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
+    },
+    "4797": {
+      "event_id": 4797,
+      "name": "Event definition pending verification",
+      "category": "Account Management",
+      "definition_status": "pending_verification",
+      "title": "Windows security event",
+      "description": "This Event ID is present in the supplied event inventory; verify its provider-specific meaning before displaying an interpretation.",
+      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
+      "who": {},
+      "where": {},
+      "when": "Use the timestamp recorded in the original Windows event.",
+      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
+      "severity_guidance": {
+        "low": "Expected activity with no unusual context.",
+        "medium": "Unusual or repeated activity that needs review.",
+        "high": "Corroborated suspicious activity supported by related evidence."
+      },
+      "recommendations": [
+        "Inspect the original event details and available fields.",
+        "Correlate with related events before assigning a security conclusion."
+      ],
+      "related_events": [],
+      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
+    },
+    "4798": {
+      "event_id": 4798,
+      "name": "A user's local group membership was enumerated",
+      "category": "Account Management",
+      "definition_status": "catalogue_summary_only",
+      "title": "A user's local group membership was enumerated",
+      "description": "A user's local group membership was enumerated",
+      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
+      "who": {},
+      "where": {},
+      "when": "Use the timestamp recorded in the original Windows event.",
+      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
+      "severity_guidance": {
+        "low": "Expected activity with no unusual context.",
+        "medium": "Unusual or repeated activity that needs review.",
+        "high": "Corroborated suspicious activity supported by related evidence."
+      },
+      "recommendations": [
+        "Inspect the original event details and available fields.",
+        "Correlate with related events before assigning a security conclusion."
+      ],
+      "related_events": [],
+      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
+    },
+    "4799": {
+      "event_id": 4799,
+      "name": "A security-enabled local group membership was enumerated",
+      "category": "Account Management",
+      "definition_status": "catalogue_summary_only",
+      "title": "A security-enabled local group membership was enumerated",
+      "description": "A security-enabled local group membership was enumerated",
+      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
+      "who": {},
+      "where": {},
+      "when": "Use the timestamp recorded in the original Windows event.",
+      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
+      "severity_guidance": {
+        "low": "Expected activity with no unusual context.",
+        "medium": "Unusual or repeated activity that needs review.",
+        "high": "Corroborated suspicious activity supported by related evidence."
+      },
+      "recommendations": [
+        "Inspect the original event details and available fields.",
+        "Correlate with related events before assigning a security conclusion."
+      ],
+      "related_events": [],
+      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
+    }
+  },
+  "implementation_notes": {
+    "preserve_original_event": true,
+    "preserve_original_xml": true,
+    "show_only_fields_present_in_event": true,
+    "do_not_invent_missing_values": true,
+    "severity_is_contextual": true
+  }
+}

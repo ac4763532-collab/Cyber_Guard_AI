@@ -1,0 +1,480 @@
+<USER_REQUEST>
+# CYBERGUARD AI — BUILD FULL SECURITY EVENT DETAILS EXPERIENCE
+
+## 1. PROJECT OBJECTIVE
+
+Build a production-quality Security Activity Details interface for CyberGuard AI.
+
+When a user clicks the **"View Full Details"** button on any event in:
+
+1. Personal → My Devices → Device Details → Live Telemetry Stream.
+2. Personal → Log Monitoring → Security Event Feed.
+
+Open a professional, detailed explanation panel that helps ordinary, non-technical users understand exactly what happened on their computer.
+
+The interface must support two viewing modes:
+
+- Simple View — for ordinary computer users.
+- Analyst View — for cybersecurity professionals.
+
+Use the existing Windows Event Explanation Engine, existing 10 JSON knowledge-base files and real collected Windows event records.E:\CyberGuard\backend\app\agents\log_analysis\knowledge_base\windows in this location
+
+Do not create another explanation engine or duplicate backend logic.
+
+## 2. FIRST INSPECT THE EXISTING IMPLEMENTATION
+
+Before writing code, inspect:
+
+### Frontend
+- Device Details page.
+- Live Telemetry Stream component.
+- Log Security Monitoring page.
+- Security Event Feed component.
+- Existing Payload button and modal.
+- Existing event detail components.
+- API service and TypeScript interfaces.
+- Existing modal/drawer components.
+- Tailwind design system.
+
+### Backend
+- Windows Event Explanation Engine.
+- Knowledge Base Loader.
+- Event Definition Resolver.
+- Windows Event Normalizer.
+- Explanation Engine.
+- Severity Evaluator.
+- Pydantic response schemas.
+- Existing event detail APIs.
+- Device ownership and authorization checks.
+
+Reuse existing functionality.
+
+Do not create duplicate parsers, schemas, API endpoints, or services.
+
+## 3. USER INTERACTION
+
+In both Device Details and Log Monitoring:
+
+Replace the technical-looking "Payload" button with:
+
+**View Full Details**
+
+When clicked:
+
+- Open a large right-side drawer on desktop.
+- Use a full-screen panel on mobile.
+- Keep the user on the existing page.
+- Display a loading state while retrieving details.
+- Display a clear error if the event cannot be retrieved.
+- Allow the user to close the panel without losing filters, pagination or scroll position.
+
+Use the existing event ID to retrieve the correct event.
+
+Do not use hardcoded example events.
+
+## 4. FULL DETAILS PANEL DESIGN
+
+Maintain the existing CyberGuard AI visual identity:
+
+- Dark cybersecurity interface.
+- Existing background and card colors.
+- Existing typography.
+- Cyan accent colors.
+- Consistent borders and rounded corners.
+- Professional spacing.
+- Responsive layout.
+- Accessible controls.
+
+### A. Header
+
+Display:
+
+- Security Activity Details.
+- Human-readable event title.
+- Actual severity badge.
+- Assessment badge, if available.
+- Device name.
+- Close button.
+
+Example:
+
+Unsuccessful sign-in
+
+Windows rejected a sign-in attempt.
+
+The title and description must come from the actual event explanation response.
+
+### B. Event Summary Cards
+
+Show a compact information grid:
+
+| Field | Value |
+|---|---|
+| Device | Actual device name |
+| Account | Actual account, if available |
+| Event time | Actual event timestamp |
+| Event ID | Original Windows Event ID |
+| Severity | Actual evaluated severity |
+| Assessment | Actual assessment |
+
+Do not invent missing values.
+
+Display "Not available" only where necessary.
+
+### C. Simple View — Default Mode
+
+This must be the default mode for individual users.
+
+Create six clearly separated sections.
+
+#### 1. What happened?
+
+Explain the activity in simple everyday language.
+
+Use the explanation engine's output.
+
+#### 2. Who was involved?
+
+Display available information:
+
+- Account name.
+- Account type.
+- Initiating user.
+- Program or process.
+- Source identity.
+
+Explain unfamiliar terms in simple language.
+
+#### 3. Where did it happen?
+
+Display:
+
+- Device name.
+- Computer hostname.
+- Source computer.
+- Source IP address, if available.
+- Windows log channel.
+
+Distinguish between the monitored computer and the source computer.
+
+#### 4. When did it happen?
+
+Display:
+
+- Actual event date.
+- Actual event time.
+- Time zone.
+- Relative time, such as "5 minutes ago".
+
+Use the original event timestamp.
+
+#### 5. Why does it matter?
+
+Explain the security significance.
+
+Examples:
+
+- A successful sign-in is not automatically suspicious.
+- One failed sign-in does not prove an attack.
+- A new service installation may be legitimate or suspicious depending on its details.
+- Program execution is normal computer activity unless supporting evidence suggests otherwise.
+
+Never exaggerate the risk.
+
+#### 6. What should I do?
+
+Show contextual recommendations based on the event and available evidence.
+
+Examples:
+
+- If you recognize the activity, no action may be required.
+- If you do not recognize a sign-in, review the account activity.
+- If repeated unfamiliar sign-in failures occur, investigate further.
+- If an unfamiliar service was installed, verify which software created it.
+
+Do not recommend disruptive actions without sufficient evidence.
+
+### D. Analyst View
+
+Provide a Simple View / Analyst View selector.
+
+Analyst View must expose available technical evidence:
+
+- Original Event ID.
+- Event version.
+- Provider name.
+- Channel.
+- Computer name.
+- Record ID.
+- Event timestamp.
+- Account name.
+- Account SID.
+- Logon type.
+- Source IP.
+- Source port.
+- Process ID.
+- Process path.
+- Parent process.
+- Status and substatus codes.
+- Detection rule.
+- Correlation information.
+- MITRE ATT&CK mapping, if verified.
+- Original structured event payload.
+- Original XML, if collected.
+
+Only display fields actually present.
+
+Do not fabricate missing evidence.
+
+### E. Expandable Original Event Evidence
+
+Create an expandable section:
+
+**View Original Windows Event**
+
+Inside display:
+
+1. Original event metadata.
+2. Structured event data.
+3. Original XML, if available.
+
+Use a readable monospace code viewer.
+
+Add a copy button.
+
+Never modify or reconstruct the original XML and present it as collected evidence.
+
+## 5. SEVERITY AND ASSESSMENT DISPLAY
+
+Keep these concepts separate.
+
+### Severity
+
+- Informational.
+- Low.
+- Medium.
+- High.
+- Critical.
+
+### Assessment
+
+- Normal.
+- Unusual.
+- Suspicious.
+- Unknown.
+
+### Threat status
+
+- No threat established.
+- Under investigation.
+- Confirmed threat, only when supported by the existing incident/detection workflow.
+
+Do not infer confirmed threats from Event IDs alone.
+
+If the engine has insufficient evidence, explicitly display:
+
+"Not enough information to determine whether this activity is suspicious."
+
+## 6. EVENT-SPECIFIC EXPLANATIONS
+
+The panel must adapt to the actual event.
+
+Examples:
+
+| Event ID | Example title |
+|---|---|
+| 4624 | Successful sign-in |
+| 4625 | Unsuccessful sign-in |
+| 4688 | A program was started |
+| 7045 | A new Windows service was installed |
+
+These titles are examples only.
+
+Resolve the actual definition using the existing knowledge-base resolver.
+
+Support all 10 existing knowledge-base categories.
+
+For unknown Event IDs:
+
+- Display a safe generic title.
+- Explain that Windows recorded an event whose meaning is not yet available.
+- Show the original Event ID.
+- Do not invent its meaning.
+- Show the definition verification status.
+
+## 7. KNOWLEDGE-BASE VERIFICATION
+
+Show a subtle definition status:
+
+- Verified.
+- Partially verified.
+- Unverified.
+- Unknown definition.
+
+Do not confuse knowledge-base verification with whether the individual event itself is genuine.
+
+An event can be genuinely collected even if its explanation definition is unverified.
+
+## 8. API INTEGRATION
+
+Reuse the existing backend event explanation endpoint.
+
+If no suitable endpoint exists, propose one after inspecting existing routes.
+
+The API must return a validated response containing:
+
+- Event identifier.
+- Device identifier.
+- Event title.
+- Short description.
+- Severity.
+- Assessment.
+- Threat status.
+- Actual timestamp.
+- Available account information.
+- Available device/source information.
+- Simple explanation.
+- Detailed explanation.
+- Recommended actions.
+- Definition verification status.
+- Technical evidence.
+- Original payload reference.
+
+Enforce:
+- Authentication.
+- Device ownership.
+- Organization membership.
+- Tenant isolation.
+- Event-level authorization.
+
+Do not expose an event merely because the caller knows its UUID.
+
+Do not send secrets or unnecessary sensitive telemetry to the frontend.
+
+## 9. FRONTEND COMPONENT ARCHITECTURE
+
+Inspect existing components before deciding filenames.
+
+Prefer reusable components such as:
+
+- SecurityEventDetailsDrawer.
+- EventSummaryHeader.
+- EventInformationGrid.
+- SimpleExplanationView.
+- AnalystExplanationView.
+- EventEvidenceAccordion.
+- SeverityAssessmentBadge.
+
+The same details component should be reusable in Device Details and Log Monitoring.
+
+Use shared TypeScript interfaces based on the actual backend response schema.
+
+Do not duplicate event explanation text in frontend constants.
+
+## 10. FUNCTIONAL REQUIREMENTS
+
+Implement:
+
+- Open full details.
+- Close details.
+- Switch between Simple and Analyst views.
+- Expand and collapse technical evidence.
+- Copy original event information.
+- Loading state.
+- Empty state.
+- API error state.
+- Missing-field handling.
+- Responsive desktop/tablet/mobile layouts.
+- Keyboard-accessible interactions.
+
+Preserve existing search, filters, pagination, sorting and event counts.
+
+## 11. PERFORMANCE AND SECURITY
+
+- Avoid fetching the same event repeatedly without need.
+- Use appropriate caching only if compatible with event updates and authorization.
+- Never cache one tenant's event details for another tenant.
+- Do not expose sensitive event data through browser logs.
+- Escape untrusted event values.
+- Do not render raw HTML from event descriptions.
+- Limit the size of displayed payloads while preserving access to authorized evidence.
+- Use server-side authorization for every request.
+
+## 12. TESTING
+
+Write tests for:
+
+1. Opening the correct event.
+2. Correct event title.
+3. Simple explanation rendering.
+4. Analyst view rendering.
+5. Switching between views.
+6. Expandable technical evidence.
+7. Original XML preservation.
+8. Unknown Event ID.
+9. Unverified definition.
+10. Missing username.
+11. Missing IP address.
+12. Missing process information.
+13. Missing timestamp.
+14. Incorrect event identifier.
+15. Unauthorized event access.
+16. Cross-tenant access.
+17. API failure.
+18. Loading and empty states.
+19. Mobile responsiveness.
+20. Existing filters and pagination still working.
+
+Use controlled test fixtures, not fake production telemetry.
+
+## 13. STRICT RULES
+
+- Do not modify actual Windows event records.
+- Do not generate simulated telemetry.
+- Do not invent event fields.
+- Do not hardcode explanations for the frontend.
+- Do not duplicate the explanation engine.
+- Do not create fake threat findings.
+- Do not mark every event as suspicious.
+- Do not redesign unrelated pages.
+- Do not break existing Log Analysis functionality.
+- Do not claim tests passed without running them.
+
+## 14. DEVELOPMENT PHASES
+
+Phase 1: Inspect current frontend and backend implementation.
+
+Phase 2: Propose exact component structure and API integration.
+
+Phase 3: Implement the full-details drawer.
+
+Phase 4: Integrate Simple View.
+
+Phase 5: Integrate Analyst View and technical evidence.
+
+Phase 6: Connect both Device Details and Log Monitoring.
+
+Phase 7: Run frontend, backend, authorization and regression tests.
+
+Phase 8: Produce a final implementation report.
+
+Stop after Phase 1 and Phase 2 for approval before implementation.
+
+## FINAL ACCEPTANCE CRITERIA
+
+A non-technical user must be able to click "View Full Details" and understand:
+
+1. What happened on their computer?
+2. Who or what was involved?
+3. Where did it happen?
+4. When did it happen?
+5. Why does it matter?
+6. What should they do?
+
+A security analyst must still be able to inspect the original technical evidence.
+
+Both experiences must use the same genuine event record and the same trusted explanation engine.
+</USER_REQUEST>
+<ADDITIONAL_METADATA>
+The current local time is: 2026-11-09T19:53:14+05:30.
+</ADDITIONAL_METADATA>

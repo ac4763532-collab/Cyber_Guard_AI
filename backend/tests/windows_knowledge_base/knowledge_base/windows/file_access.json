@@ -1,0 +1,305 @@
+{
+  "category": "File, Object and Registry Access",
+  "description": "Access, modification, deletion, and auditing of files, folders, registry objects, and other securable objects.",
+  "source": {
+    "inventory_basis": "User-supplied Windows Minimal/Common Event ID lists and detailed event catalogue",
+    "definition_policy": "Only event meanings supported by the supplied catalogue are summarized. Unverified field mappings remain pending verification."
+  },
+  "events": {
+    "4657": {
+      "event_id": 4657,
+      "name": "A registry value was modified",
+      "category": "File, Object and Registry Access",
+      "definition_status": "catalogue_summary_only",
+      "title": "A registry value was modified",
+      "description": "A registry value was modified",
+      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
+      "who": {},
+      "where": {},
+      "when": "Use the timestamp recorded in the original Windows event.",
+      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
+      "severity_guidance": {
+        "low": "Expected activity with no unusual context.",
+        "medium": "Unusual or repeated activity that needs review.",
+        "high": "Corroborated suspicious activity supported by related evidence."
+      },
+      "recommendations": [
+        "Inspect the original event details and available fields.",
+        "Correlate with related events before assigning a security conclusion."
+      ],
+      "related_events": [],
+      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
+    },
+    "4661": {
+      "event_id": 4661,
+      "name": "A handle to an object was requested",
+      "category": "File, Object and Registry Access",
+      "definition_status": "catalogue_summary_only",
+      "title": "A handle to an object was requested",
+      "description": "A handle to an object was requested",
+      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
+      "who": {},
+      "where": {},
+      "when": "Use the timestamp recorded in the original Windows event.",
+      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
+      "severity_guidance": {
+        "low": "Expected activity with no unusual context.",
+        "medium": "Unusual or repeated activity that needs review.",
+        "high": "Corroborated suspicious activity supported by related evidence."
+      },
+      "recommendations": [
+        "Inspect the original event details and available fields.",
+        "Correlate with related events before assigning a security conclusion."
+      ],
+      "related_events": [],
+      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
+    },
+    "4662": {
+      "event_id": 4662,
+      "name": "An operation was performed on an object",
+      "category": "File, Object and Registry Access",
+      "definition_status": "catalogue_summary_only",
+      "title": "An operation was performed on an object",
+      "description": "An operation was performed on an object",
+      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
+      "who": {},
+      "where": {},
+      "when": "Use the timestamp recorded in the original Windows event.",
+      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
+      "severity_guidance": {
+        "low": "Expected activity with no unusual context.",
+        "medium": "Unusual or repeated activity that needs review.",
+        "high": "Corroborated suspicious activity supported by related evidence."
+      },
+      "recommendations": [
+        "Inspect the original event details and available fields.",
+        "Correlate with related events before assigning a security conclusion."
+      ],
+      "related_events": [],
+      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
+    },
+    "4663": {
+      "event_id": 4663,
+      "name": "An attempt was made to access an object",
+      "category": "File, Object and Registry Access",
+      "definition_status": "catalogue_summary_only",
+      "title": "An attempt was made to access an object",
+      "description": "An attempt was made to access an object",
+      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
+      "who": {},
+      "where": {},
+      "when": "Use the timestamp recorded in the original Windows event.",
+      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
+      "severity_guidance": {
+        "low": "Expected activity with no unusual context.",
+        "medium": "Unusual or repeated activity that needs review.",
+        "high": "Corroborated suspicious activity supported by related evidence."
+      },
+      "recommendations": [
+        "Inspect the original event details and available fields.",
+        "Correlate with related events before assigning a security conclusion."
+      ],
+      "related_events": [],
+      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
+    },
+    "4665": {
+      "event_id": 4665,
+      "name": "Event definition pending verification",
+      "category": "File, Object and Registry Access",
+      "definition_status": "pending_verification",
+      "title": "Windows security event",
+      "description": "This Event ID is present in the supplied event inventory; verify its provider-specific meaning before displaying an interpretation.",
+      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
+      "who": {},
+      "where": {},
+      "when": "Use the timestamp recorded in the original Windows event.",
+      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
+      "severity_guidance": {
+        "low": "Expected activity with no unusual context.",
+        "medium": "Unusual or repeated activity that needs review.",
+        "high": "Corroborated suspicious activity supported by related evidence."
+      },
+      "recommendations": [
+        "Inspect the original event details and available fields.",
+        "Correlate with related events before assigning a security conclusion."
+      ],
+      "related_events": [],
+      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
+    },
+    "4666": {
+      "event_id": 4666,
+      "name": "Event definition pending verification",
+      "category": "File, Object and Registry Access",
+      "definition_status": "pending_verification",
+      "title": "Windows security event",
+      "description": "This Event ID is present in the supplied event inventory; verify its provider-specific meaning before displaying an interpretation.",
+      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
+      "who": {},
+      "where": {},
+      "when": "Use the timestamp recorded in the original Windows event.",
+      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
+      "severity_guidance": {
+        "low": "Expected activity with no unusual context.",
+        "medium": "Unusual or repeated activity that needs review.",
+        "high": "Corroborated suspicious activity supported by related evidence."
+      },
+      "recommendations": [
+        "Inspect the original event details and available fields.",
+        "Correlate with related events before assigning a security conclusion."
+      ],
+      "related_events": [],
+      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
+    },
+    "4667": {
+      "event_id": 4667,
+      "name": "Event definition pending verification",
+      "category": "File, Object and Registry Access",
+      "definition_status": "pending_verification",
+      "title": "Windows security event",
+      "description": "This Event ID is present in the supplied event inventory; verify its provider-specific meaning before displaying an interpretation.",
+      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
+      "who": {},
+      "where": {},
+      "when": "Use the timestamp recorded in the original Windows event.",
+      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
+      "severity_guidance": {
+        "low": "Expected activity with no unusual context.",
+        "medium": "Unusual or repeated activity that needs review.",
+        "high": "Corroborated suspicious activity supported by related evidence."
+      },
+      "recommendations": [
+        "Inspect the original event details and available fields.",
+        "Correlate with related events before assigning a security conclusion."
+      ],
+      "related_events": [],
+      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
+    },
+    "4670": {
+      "event_id": 4670,
+      "name": "Permissions on an object were changed",
+      "category": "File, Object and Registry Access",
+      "definition_status": "catalogue_summary_only",
+      "title": "Permissions on an object were changed",
+      "description": "Permissions on an object were changed",
+      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
+      "who": {},
+      "where": {},
+      "when": "Use the timestamp recorded in the original Windows event.",
+      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
+      "severity_guidance": {
+        "low": "Expected activity with no unusual context.",
+        "medium": "Unusual or repeated activity that needs review.",
+        "high": "Corroborated suspicious activity supported by related evidence."
+      },
+      "recommendations": [
+        "Inspect the original event details and available fields.",
+        "Correlate with related events before assigning a security conclusion."
+      ],
+      "related_events": [],
+      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
+    },
+    "4904": {
+      "event_id": 4904,
+      "name": "An attempt was made to register a security event source",
+      "category": "File, Object and Registry Access",
+      "definition_status": "catalogue_summary_only",
+      "title": "An attempt was made to register a security event source",
+      "description": "An attempt was made to register a security event source",
+      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
+      "who": {},
+      "where": {},
+      "when": "Use the timestamp recorded in the original Windows event.",
+      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
+      "severity_guidance": {
+        "low": "Expected activity with no unusual context.",
+        "medium": "Unusual or repeated activity that needs review.",
+        "high": "Corroborated suspicious activity supported by related evidence."
+      },
+      "recommendations": [
+        "Inspect the original event details and available fields.",
+        "Correlate with related events before assigning a security conclusion."
+      ],
+      "related_events": [],
+      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
+    },
+    "4905": {
+      "event_id": 4905,
+      "name": "An attempt was made to unregister a security event source",
+      "category": "File, Object and Registry Access",
+      "definition_status": "catalogue_summary_only",
+      "title": "An attempt was made to unregister a security event source",
+      "description": "An attempt was made to unregister a security event source",
+      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
+      "who": {},
+      "where": {},
+      "when": "Use the timestamp recorded in the original Windows event.",
+      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
+      "severity_guidance": {
+        "low": "Expected activity with no unusual context.",
+        "medium": "Unusual or repeated activity that needs review.",
+        "high": "Corroborated suspicious activity supported by related evidence."
+      },
+      "recommendations": [
+        "Inspect the original event details and available fields.",
+        "Correlate with related events before assigning a security conclusion."
+      ],
+      "related_events": [],
+      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
+    },
+    "4907": {
+      "event_id": 4907,
+      "name": "Auditing settings on an object were changed",
+      "category": "File, Object and Registry Access",
+      "definition_status": "catalogue_summary_only",
+      "title": "Auditing settings on an object were changed",
+      "description": "Auditing settings on an object were changed",
+      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
+      "who": {},
+      "where": {},
+      "when": "Use the timestamp recorded in the original Windows event.",
+      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
+      "severity_guidance": {
+        "low": "Expected activity with no unusual context.",
+        "medium": "Unusual or repeated activity that needs review.",
+        "high": "Corroborated suspicious activity supported by related evidence."
+      },
+      "recommendations": [
+        "Inspect the original event details and available fields.",
+        "Correlate with related events before assigning a security conclusion."
+      ],
+      "related_events": [],
+      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
+    },
+    "4985": {
+      "event_id": 4985,
+      "name": "Event definition pending verification",
+      "category": "File, Object and Registry Access",
+      "definition_status": "pending_verification",
+      "title": "Windows security event",
+      "description": "This Event ID is present in the supplied event inventory; verify its provider-specific meaning before displaying an interpretation.",
+      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
+      "who": {},
+      "where": {},
+      "when": "Use the timestamp recorded in the original Windows event.",
+      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
+      "severity_guidance": {
+        "low": "Expected activity with no unusual context.",
+        "medium": "Unusual or repeated activity that needs review.",
+        "high": "Corroborated suspicious activity supported by related evidence."
+      },
+      "recommendations": [
+        "Inspect the original event details and available fields.",
+        "Correlate with related events before assigning a security conclusion."
+      ],
+      "related_events": [],
+      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
+    }
+  },
+  "implementation_notes": {
+    "preserve_original_event": true,
+    "preserve_original_xml": true,
+    "show_only_fields_present_in_event": true,
+    "do_not_invent_missing_values": true,
+    "severity_is_contextual": true
+  }
+}

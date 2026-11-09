@@ -27,7 +27,6 @@ import {
   Activity,
   FileCheck,
   ShieldAlert,
-  Zap,
   Radio,
   FileText,
   Code,
@@ -46,6 +45,7 @@ import {
   ModalFooter,
 } from "@/components/ui/Modal";
 import { DeviceConnectionWizard } from "@/components/devices/DeviceConnectionWizard";
+import { SecurityEventDetailsDrawer } from "@/components/events/SecurityEventDetailsDrawer";
 import { api } from "@/lib/api";
 import { formatRelativeTime } from "@/lib/utils";
 import { toast } from "sonner";
@@ -104,7 +104,7 @@ export default function DeviceDetails() {
   const [isRenameOpen, setIsRenameOpen] = useState(false);
   const [nameInput, setNameInput] = useState("");
   const [activeTab, setActiveTab] = useState<"telemetry" | "findings">("telemetry");
-  const [selectedEvent, setSelectedEvent] = useState<DeviceEvent | null>(null);
+  const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
 
   const { data: device, isLoading, error } = useQuery<DeviceDetailsData>({
     queryKey: ["device-detail", deviceId],
@@ -156,21 +156,6 @@ export default function DeviceDetails() {
     },
     onError: (err: any) => {
       toast.error(err?.message || "Failed to toggle collection state");
-    },
-  });
-
-  const simulateEventMutation = useMutation({
-    mutationFn: async () => {
-      const { data } = await api.post(`/devices/${deviceId}/simulate-event`, {});
-      return data;
-    },
-    onSuccess: (data: any) => {
-      toast.success(data?.message || "Test security event and detection analysis triggered!");
-      queryClient.invalidateQueries({ queryKey: ["device-detail", deviceId] });
-      queryClient.invalidateQueries({ queryKey: ["devices"] });
-    },
-    onError: (err: any) => {
-      toast.error(err?.message || "Failed to trigger test event");
     },
   });
 
@@ -287,17 +272,6 @@ export default function DeviceDetails() {
         </div>
 
         <div className="flex flex-wrap gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => simulateEventMutation.mutate()}
-            isLoading={simulateEventMutation.isPending}
-            className="border-cyan-500/30 bg-cyan-950/20 text-cyan-300 hover:bg-cyan-500/20 text-xs font-semibold"
-            title="Simulate a real security event and verify AI defense pipeline"
-          >
-            <Zap size={14} className="mr-1.5 text-cyan-400" /> Test Security Event
-          </Button>
-
           <Button
             variant="outline"
             size="sm"
@@ -440,16 +414,6 @@ export default function DeviceDetails() {
                 Security Findings ({device.findings?.length || 0})
               </button>
             </div>
-
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => simulateEventMutation.mutate()}
-              isLoading={simulateEventMutation.isPending}
-              className="text-cyan-400 hover:text-cyan-300 hover:bg-cyan-950/30 text-xs font-medium"
-            >
-              <Zap size={13} className="mr-1 text-cyan-400" /> Simulate Security Event
-            </Button>
           </div>
         </CardHeader>
         <CardContent className="p-0">
@@ -460,17 +424,8 @@ export default function DeviceDetails() {
                   <Activity size={36} className="mx-auto mb-2 text-slate-600 animate-pulse" />
                   <p className="font-medium text-slate-300">Awaiting Live Telemetry Stream</p>
                   <p className="text-xs mt-1 text-slate-500 max-w-sm mx-auto">
-                    The endpoint collector is connected. Streamed events will appear here in real-time.
+                    The endpoint collector is connected. Streamed events will appear here in real-time as your operating system reports activity.
                   </p>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="mt-4 border-cyan-500/30 text-cyan-400 text-xs"
-                    onClick={() => simulateEventMutation.mutate()}
-                    isLoading={simulateEventMutation.isPending}
-                  >
-                    <Zap size={13} className="mr-1.5 text-cyan-400" /> Send Baseline Telemetry Event
-                  </Button>
                 </div>
               ) : (
                 <div className="overflow-x-auto">
@@ -517,10 +472,10 @@ export default function DeviceDetails() {
                           <td className="py-3 px-4 text-right">
                             <button
                               type="button"
-                              onClick={() => setSelectedEvent(evt)}
-                              className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-cyan-400 hover:text-cyan-300 text-[11px] font-sans inline-flex items-center gap-1 transition-colors"
+                              onClick={() => setSelectedEventId(evt.id)}
+                              className="px-2.5 py-1 rounded bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 hover:text-cyan-300 border border-cyan-500/30 text-[11px] font-sans font-semibold inline-flex items-center gap-1.5 transition-colors"
                             >
-                              <Code size={12} /> Payload
+                              <FileText size={12} /> View Full Details
                             </button>
                           </td>
                         </tr>
@@ -539,15 +494,6 @@ export default function DeviceDetails() {
                   <p className="text-xs mt-1 text-slate-400 max-w-md mx-auto">
                     AI Guardian Defense Engine is actively analyzing incoming telemetry from this device. No anomalies or malicious behaviors detected.
                   </p>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="mt-4 border-cyan-500/30 text-cyan-400 text-xs"
-                    onClick={() => simulateEventMutation.mutate()}
-                    isLoading={simulateEventMutation.isPending}
-                  >
-                    <Zap size={13} className="mr-1.5 text-cyan-400" /> Test Security Alert Trigger
-                  </Button>
                 </div>
               ) : (
                 device.findings.map((finding) => (
@@ -591,29 +537,12 @@ export default function DeviceDetails() {
         </CardContent>
       </Card>
 
-      {/* Raw Payload Inspection Modal */}
-      <Modal open={!!selectedEvent} onOpenChange={() => setSelectedEvent(null)}>
-        <ModalContent className="max-w-2xl bg-slate-900 border-slate-800 text-slate-100">
-          <ModalHeader>
-            <ModalTitle className="text-base font-bold flex items-center gap-2 text-cyan-400">
-              <Code size={18} /> Telemetry Event: {selectedEvent?.event_type}
-            </ModalTitle>
-            <ModalDescription className="text-xs text-slate-400">
-              Raw telemetry event received from {selectedEvent?.hostname} at {selectedEvent?.event_time}
-            </ModalDescription>
-          </ModalHeader>
-          <div className="p-4 bg-slate-950 rounded-lg border border-slate-800 overflow-x-auto max-h-96">
-            <pre className="text-xs font-mono text-cyan-300">
-              {JSON.stringify(selectedEvent?.raw_payload || {}, null, 2)}
-            </pre>
-          </div>
-          <ModalFooter>
-            <Button variant="outline" size="sm" onClick={() => setSelectedEvent(null)}>
-              Close
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
+      {/* Security Event Full Details Drawer */}
+      <SecurityEventDetailsDrawer
+        eventId={selectedEventId}
+        isOpen={Boolean(selectedEventId)}
+        onClose={() => setSelectedEventId(null)}
+      />
 
       {/* Collector Uninstall & Maintenance Guidance */}
       <Card className="bg-slate-900 border-slate-800">

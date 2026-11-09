@@ -22,7 +22,7 @@ from typing import Annotated, Any, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, Field
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
 
@@ -455,39 +455,6 @@ def get_device(
         ).scalars().all()
     )
 
-    # If collector is connected but baseline events were empty, seed authentic initial logon event
-    if source.collector_connected and not events_records:
-        now_ts = datetime.now(timezone.utc)
-        is_win = source.source_type == SourceType.WINDOWS
-        init_ev = EventIngestRequest(
-            event_type="windows.security.4624" if is_win else "linux.auth.session_opened",
-            severity=EventSeverity.LOW,
-            category=EventCategory.AUTHENTICATION,
-            event_time=now_ts,
-            hostname=source.hostname or "DESKTOP-ENDPOINT",
-            username="System",
-            process_name="C:\\Windows\\System32\\winlogon.exe" if is_win else "/usr/lib/systemd/systemd",
-            raw_payload={
-                "Channel": "Security" if is_win else "auth.log",
-                "EventID": 4624 if is_win else 1000,
-                "Hostname": source.hostname or "DESKTOP-ENDPOINT",
-                "Status": "Success",
-                "LogonType": 2,
-                "TargetUserName": "System",
-            },
-        )
-        event_ingestion.ingest_batch(db, source=source, payloads=[init_ev])
-        source.last_event_at = now_ts
-        db.commit()
-        events_records = list(
-            db.execute(
-                select(SecurityEvent)
-                .where(SecurityEvent.source_id == source.id)
-                .order_by(SecurityEvent.event_time.desc())
-                .limit(25)
-            ).scalars().all()
-        )
-
     events_list = [
         {
             "id": str(e.id),
@@ -544,84 +511,25 @@ def get_device(
     )
 
 
-@router.post("/{device_id}/simulate-event", summary="Simulate a test security event and detection finding")
-def simulate_device_event(
-    device_id: uuid.UUID,
-    db: DBDep,
-    current_user: CurrentActiveUser,
-):
-    source = db.get(SecuritySource, device_id)
-    if not source:
-        raise NotFoundError(f"Device {device_id} not found")
-    _verify_source_access(db, source, current_user)
-
-    now = datetime.now(timezone.utc)
-    is_win = source.source_type == SourceType.WINDOWS
-
-    test_event = EventIngestRequest(
-        event_type="windows.security.4625" if is_win else "linux.auth.failed_login",
-        severity=EventSeverity.MEDIUM,
-        category=EventCategory.AUTHENTICATION,
-        event_time=now,
-        hostname=source.hostname or "DESKTOP-ENDPOINT",
-        username="Administrator",
-        process_name="C:\\Windows\\System32\\svchost.exe" if is_win else "/usr/sbin/sshd",
-        raw_payload={
-            "Channel": "Security" if is_win else "auth.log",
-            "EventID": 4625 if is_win else 1001,
-            "Hostname": source.hostname or "DESKTOP-ENDPOINT",
-            "TargetUserName": "Administrator",
-            "Status": "Failed",
-            "FailureReason": "Unknown user name or bad password",
-            "IpAddress": "192.168.1.105",
-        },
-    )
-    event_ingestion.ingest_batch(db, source=source, payloads=[test_event])
-    source.last_event_at = now
-
-    # Create corresponding security finding
-    raw_hash = f"finding:{source.id}:{uuid.uuid4()}"
-    fp = hashlib.sha256(raw_hash.encode("utf-8")).hexdigest()
-    finding = AgentFinding(
-        id=uuid.uuid4(),
-        workspace_id=source.workspace_id,
-        source_id=source.id,
-        title="Multiple Failed Logon Attempts Detected" if is_win else "SSH Brute Force Attempt Detected",
-        description=f"Suspicious repeated authentication failures observed for user Administrator on {source.hostname or 'endpoint'}.",
-        severity=EventSeverity.MEDIUM,
-        category=FindingCategory.BRUTE_FORCE,
-        status=FindingStatus.NEW,
-        confidence=0.88,
-        agent_name=AGENT_LOG_ANALYSIS,
-        rule_id="rule.win.4625.burst" if is_win else "rule.linux.ssh.burst",
-        fingerprint=fp,
-        created_at=now,
-        updated_at=now,
-    )
-    db.add(finding)
-    db.commit()
-
-    return {"success": True, "message": "Test security event and detection finding generated successfully"}
-
-
 @router.delete("/{device_id}", status_code=status.HTTP_200_OK, summary="Delete device")
 def delete_device(
     device_id: uuid.UUID,
     db: DBDep,
     current_user: CurrentActiveUser,
 ) -> dict[str, str]:
-    source = db.execute(
-        select(SecuritySource).where(SecuritySource.id == device_id)
-    ).scalar_one_or_none()
-
+    source = db.get(SecuritySource, device_id)
     if not source:
         raise HTTPException(status_code=404, detail="Device not found")
 
     _verify_source_access(db, source, current_user)
 
-    source_service.archive_source(db, actor=current_user, source=source)
+    dev_name = source.name
+    db.execute(delete(CollectorCredential).where(CollectorCredential.source_id == source.id))
+    db.execute(delete(SourceEnrollment).where(SourceEnrollment.source_id == source.id))
+    db.execute(delete(AgentFinding).where(AgentFinding.source_id == source.id))
+    db.delete(source)
     db.commit()
-    return {"status": "deleted"}
+    return {"status": "deleted", "message": f"Device '{dev_name}' successfully removed"}
 
 
 @router.post("/{device_id}/challenge", summary="Generate a fresh enrollment challenge for existing device")

@@ -22,6 +22,8 @@ import { Input } from "@/components/ui/Input";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
+import { FileText } from "lucide-react";
+import { SecurityEventDetailsDrawer } from "@/components/events/SecurityEventDetailsDrawer";
 
 interface LogEventItem {
   id: string;
@@ -43,6 +45,7 @@ interface LogSummaryData {
 
 export default function LogMonitoring() {
   const [searchTerm, setSearchTerm] = useState("");
+  const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
 
   const { data, isLoading, refetch, isFetching } = useQuery<LogSummaryData>({
     queryKey: ["log-summary"],
@@ -166,15 +169,31 @@ export default function LogMonitoring() {
                     </div>
                     <p className="text-slate-300 text-xs font-sans">{log.details}</p>
                   </div>
-                  <span className="text-[11px] text-cyan-400 bg-cyan-500/10 border border-cyan-500/20 px-2 py-0.5 rounded">
-                    {log.event_type}
-                  </span>
+                  <div className="flex items-center gap-2.5 shrink-0">
+                    <span className="text-[11px] text-cyan-400 bg-cyan-500/10 border border-cyan-500/20 px-2 py-0.5 rounded">
+                      {log.event_type}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedEventId(log.id)}
+                      className="px-2.5 py-1 rounded bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 hover:text-cyan-300 border border-cyan-500/30 text-[11px] font-sans font-semibold inline-flex items-center gap-1.5 transition-colors"
+                    >
+                      <FileText size={12} /> View Full Details
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
           )}
         </CardContent>
       </Card>
+
+      {/* Security Event Full Details Drawer */}
+      <SecurityEventDetailsDrawer
+        eventId={selectedEventId}
+        isOpen={Boolean(selectedEventId)}
+        onClose={() => setSelectedEventId(null)}
+      />
     </div>
   );
 }

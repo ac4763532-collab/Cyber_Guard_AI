@@ -1,0 +1,497 @@
+{
+  "category": "Process and Application Activity",
+  "description": "Process creation, termination, application execution, and related tracking events.",
+  "source": {
+    "inventory_basis": "User-supplied Windows Minimal/Common Event ID lists and detailed event catalogue",
+    "definition_policy": "Only event meanings supported by the supplied catalogue are summarized. Unverified field mappings remain pending verification."
+  },
+  "events": {
+    "1": {
+      "event_id": 1,
+      "name": "Event definition pending verification",
+      "category": "Process and Application Activity",
+      "definition_status": "pending_verification",
+      "title": "Windows security event",
+      "description": "This Event ID is present in the supplied event inventory; verify its provider-specific meaning before displaying an interpretation.",
+      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
+      "who": {},
+      "where": {},
+      "when": "Use the timestamp recorded in the original Windows event.",
+      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
+      "severity_guidance": {
+        "low": "Expected activity with no unusual context.",
+        "medium": "Unusual or repeated activity that needs review.",
+        "high": "Corroborated suspicious activity supported by related evidence."
+      },
+      "recommendations": [
+        "Inspect the original event details and available fields.",
+        "Correlate with related events before assigning a security conclusion."
+      ],
+      "related_events": [],
+      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
+    },
+    "299": {
+      "event_id": 299,
+      "name": "Event definition pending verification",
+      "category": "Process and Application Activity",
+      "definition_status": "pending_verification",
+      "title": "Windows security event",
+      "description": "This Event ID is present in the supplied event inventory; verify its provider-specific meaning before displaying an interpretation.",
+      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
+      "who": {},
+      "where": {},
+      "when": "Use the timestamp recorded in the original Windows event.",
+      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
+      "severity_guidance": {
+        "low": "Expected activity with no unusual context.",
+        "medium": "Unusual or repeated activity that needs review.",
+        "high": "Corroborated suspicious activity supported by related evidence."
+      },
+      "recommendations": [
+        "Inspect the original event details and available fields.",
+        "Correlate with related events before assigning a security conclusion."
+      ],
+      "related_events": [],
+      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
+    },
+    "300": {
+      "event_id": 300,
+      "name": "Event definition pending verification",
+      "category": "Process and Application Activity",
+      "definition_status": "pending_verification",
+      "title": "Windows security event",
+      "description": "This Event ID is present in the supplied event inventory; verify its provider-specific meaning before displaying an interpretation.",
+      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
+      "who": {},
+      "where": {},
+      "when": "Use the timestamp recorded in the original Windows event.",
+      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
+      "severity_guidance": {
+        "low": "Expected activity with no unusual context.",
+        "medium": "Unusual or repeated activity that needs review.",
+        "high": "Corroborated suspicious activity supported by related evidence."
+      },
+      "recommendations": [
+        "Inspect the original event details and available fields.",
+        "Correlate with related events before assigning a security conclusion."
+      ],
+      "related_events": [],
+      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
+    },
+    "324": {
+      "event_id": 324,
+      "name": "Event definition pending verification",
+      "category": "Process and Application Activity",
+      "definition_status": "pending_verification",
+      "title": "Windows security event",
+      "description": "This Event ID is present in the supplied event inventory; verify its provider-specific meaning before displaying an interpretation.",
+      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
+      "who": {},
+      "where": {},
+      "when": "Use the timestamp recorded in the original Windows event.",
+      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
+      "severity_guidance": {
+        "low": "Expected activity with no unusual context.",
+        "medium": "Unusual or repeated activity that needs review.",
+        "high": "Corroborated suspicious activity supported by related evidence."
+      },
+      "recommendations": [
+        "Inspect the original event details and available fields.",
+        "Correlate with related events before assigning a security conclusion."
+      ],
+      "related_events": [],
+      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
+    },
+    "340": {
+      "event_id": 340,
+      "name": "Event definition pending verification",
+      "category": "Process and Application Activity",
+      "definition_status": "pending_verification",
+      "title": "Windows security event",
+      "description": "This Event ID is present in the supplied event inventory; verify its provider-specific meaning before displaying an interpretation.",
+      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
+      "who": {},
+      "where": {},
+      "when": "Use the timestamp recorded in the original Windows event.",
+      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
+      "severity_guidance": {
+        "low": "Expected activity with no unusual context.",
+        "medium": "Unusual or repeated activity that needs review.",
+        "high": "Corroborated suspicious activity supported by related evidence."
+      },
+      "recommendations": [
+        "Inspect the original event details and available fields.",
+        "Correlate with related events before assigning a security conclusion."
+      ],
+      "related_events": [],
+      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
+    },
+    "403": {
+      "event_id": 403,
+      "name": "Event definition pending verification",
+      "category": "Process and Application Activity",
+      "definition_status": "pending_verification",
+      "title": "Windows security event",
+      "description": "This Event ID is present in the supplied event inventory; verify its provider-specific meaning before displaying an interpretation.",
+      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
+      "who": {},
+      "where": {},
+      "when": "Use the timestamp recorded in the original Windows event.",
+      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
+      "severity_guidance": {
+        "low": "Expected activity with no unusual context.",
+        "medium": "Unusual or repeated activity that needs review.",
+        "high": "Corroborated suspicious activity supported by related evidence."
+      },
+      "recommendations": [
+        "Inspect the original event details and available fields.",
+        "Correlate with related events before assigning a security conclusion."
+      ],
+      "related_events": [],
+      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
+    },
+    "404": {
+      "event_id": 404,
+      "name": "Event definition pending verification",
+      "category": "Process and Application Activity",
+      "definition_status": "pending_verification",
+      "title": "Windows security event",
+      "description": "This Event ID is present in the supplied event inventory; verify its provider-specific meaning before displaying an interpretation.",
+      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
+      "who": {},
+      "where": {},
+      "when": "Use the timestamp recorded in the original Windows event.",
+      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
+      "severity_guidance": {
+        "low": "Expected activity with no unusual context.",
+        "medium": "Unusual or repeated activity that needs review.",
+        "high": "Corroborated suspicious activity supported by related evidence."
+      },
+      "recommendations": [
+        "Inspect the original event details and available fields.",
+        "Correlate with related events before assigning a security conclusion."
+      ],
+      "related_events": [],
+      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
+    },
+    "410": {
+      "event_id": 410,
+      "name": "Event definition pending verification",
+      "category": "Process and Application Activity",
+      "definition_status": "pending_verification",
+      "title": "Windows security event",
+      "description": "This Event ID is present in the supplied event inventory; verify its provider-specific meaning before displaying an interpretation.",
+      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
+      "who": {},
+      "where": {},
+      "when": "Use the timestamp recorded in the original Windows event.",
+      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
+      "severity_guidance": {
+        "low": "Expected activity with no unusual context.",
+        "medium": "Unusual or repeated activity that needs review.",
+        "high": "Corroborated suspicious activity supported by related evidence."
+      },
+      "recommendations": [
+        "Inspect the original event details and available fields.",
+        "Correlate with related events before assigning a security conclusion."
+      ],
+      "related_events": [],
+      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
+    },
+    "411": {
+      "event_id": 411,
+      "name": "Event definition pending verification",
+      "category": "Process and Application Activity",
+      "definition_status": "pending_verification",
+      "title": "Windows security event",
+      "description": "This Event ID is present in the supplied event inventory; verify its provider-specific meaning before displaying an interpretation.",
+      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
+      "who": {},
+      "where": {},
+      "when": "Use the timestamp recorded in the original Windows event.",
+      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
+      "severity_guidance": {
+        "low": "Expected activity with no unusual context.",
+        "medium": "Unusual or repeated activity that needs review.",
+        "high": "Corroborated suspicious activity supported by related evidence."
+      },
+      "recommendations": [
+        "Inspect the original event details and available fields.",
+        "Correlate with related events before assigning a security conclusion."
+      ],
+      "related_events": [],
+      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
+    },
+    "412": {
+      "event_id": 412,
+      "name": "Event definition pending verification",
+      "category": "Process and Application Activity",
+      "definition_status": "pending_verification",
+      "title": "Windows security event",
+      "description": "This Event ID is present in the supplied event inventory; verify its provider-specific meaning before displaying an interpretation.",
+      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
+      "who": {},
+      "where": {},
+      "when": "Use the timestamp recorded in the original Windows event.",
+      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
+      "severity_guidance": {
+        "low": "Expected activity with no unusual context.",
+        "medium": "Unusual or repeated activity that needs review.",
+        "high": "Corroborated suspicious activity supported by related evidence."
+      },
+      "recommendations": [
+        "Inspect the original event details and available fields.",
+        "Correlate with related events before assigning a security conclusion."
+      ],
+      "related_events": [],
+      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
+    },
+    "413": {
+      "event_id": 413,
+      "name": "Event definition pending verification",
+      "category": "Process and Application Activity",
+      "definition_status": "pending_verification",
+      "title": "Windows security event",
+      "description": "This Event ID is present in the supplied event inventory; verify its provider-specific meaning before displaying an interpretation.",
+      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
+      "who": {},
+      "where": {},
+      "when": "Use the timestamp recorded in the original Windows event.",
+      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
+      "severity_guidance": {
+        "low": "Expected activity with no unusual context.",
+        "medium": "Unusual or repeated activity that needs review.",
+        "high": "Corroborated suspicious activity supported by related evidence."
+      },
+      "recommendations": [
+        "Inspect the original event details and available fields.",
+        "Correlate with related events before assigning a security conclusion."
+      ],
+      "related_events": [],
+      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
+    },
+    "431": {
+      "event_id": 431,
+      "name": "Event definition pending verification",
+      "category": "Process and Application Activity",
+      "definition_status": "pending_verification",
+      "title": "Windows security event",
+      "description": "This Event ID is present in the supplied event inventory; verify its provider-specific meaning before displaying an interpretation.",
+      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
+      "who": {},
+      "where": {},
+      "when": "Use the timestamp recorded in the original Windows event.",
+      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
+      "severity_guidance": {
+        "low": "Expected activity with no unusual context.",
+        "medium": "Unusual or repeated activity that needs review.",
+        "high": "Corroborated suspicious activity supported by related evidence."
+      },
+      "recommendations": [
+        "Inspect the original event details and available fields.",
+        "Correlate with related events before assigning a security conclusion."
+      ],
+      "related_events": [],
+      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
+    },
+    "500": {
+      "event_id": 500,
+      "name": "Event definition pending verification",
+      "category": "Process and Application Activity",
+      "definition_status": "pending_verification",
+      "title": "Windows security event",
+      "description": "This Event ID is present in the supplied event inventory; verify its provider-specific meaning before displaying an interpretation.",
+      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
+      "who": {},
+      "where": {},
+      "when": "Use the timestamp recorded in the original Windows event.",
+      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
+      "severity_guidance": {
+        "low": "Expected activity with no unusual context.",
+        "medium": "Unusual or repeated activity that needs review.",
+        "high": "Corroborated suspicious activity supported by related evidence."
+      },
+      "recommendations": [
+        "Inspect the original event details and available fields.",
+        "Correlate with related events before assigning a security conclusion."
+      ],
+      "related_events": [],
+      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
+    },
+    "501": {
+      "event_id": 501,
+      "name": "Event definition pending verification",
+      "category": "Process and Application Activity",
+      "definition_status": "pending_verification",
+      "title": "Windows security event",
+      "description": "This Event ID is present in the supplied event inventory; verify its provider-specific meaning before displaying an interpretation.",
+      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
+      "who": {},
+      "where": {},
+      "when": "Use the timestamp recorded in the original Windows event.",
+      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
+      "severity_guidance": {
+        "low": "Expected activity with no unusual context.",
+        "medium": "Unusual or repeated activity that needs review.",
+        "high": "Corroborated suspicious activity supported by related evidence."
+      },
+      "recommendations": [
+        "Inspect the original event details and available fields.",
+        "Correlate with related events before assigning a security conclusion."
+      ],
+      "related_events": [],
+      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
+    },
+    "1100": {
+      "event_id": 1100,
+      "name": "Event definition pending verification",
+      "category": "Process and Application Activity",
+      "definition_status": "pending_verification",
+      "title": "Windows security event",
+      "description": "This Event ID is present in the supplied event inventory; verify its provider-specific meaning before displaying an interpretation.",
+      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
+      "who": {},
+      "where": {},
+      "when": "Use the timestamp recorded in the original Windows event.",
+      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
+      "severity_guidance": {
+        "low": "Expected activity with no unusual context.",
+        "medium": "Unusual or repeated activity that needs review.",
+        "high": "Corroborated suspicious activity supported by related evidence."
+      },
+      "recommendations": [
+        "Inspect the original event details and available fields.",
+        "Correlate with related events before assigning a security conclusion."
+      ],
+      "related_events": [],
+      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
+    },
+    "1107": {
+      "event_id": 1107,
+      "name": "Event definition pending verification",
+      "category": "Process and Application Activity",
+      "definition_status": "pending_verification",
+      "title": "Windows security event",
+      "description": "This Event ID is present in the supplied event inventory; verify its provider-specific meaning before displaying an interpretation.",
+      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
+      "who": {},
+      "where": {},
+      "when": "Use the timestamp recorded in the original Windows event.",
+      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
+      "severity_guidance": {
+        "low": "Expected activity with no unusual context.",
+        "medium": "Unusual or repeated activity that needs review.",
+        "high": "Corroborated suspicious activity supported by related evidence."
+      },
+      "recommendations": [
+        "Inspect the original event details and available fields.",
+        "Correlate with related events before assigning a security conclusion."
+      ],
+      "related_events": [],
+      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
+    },
+    "1108": {
+      "event_id": 1108,
+      "name": "Event definition pending verification",
+      "category": "Process and Application Activity",
+      "definition_status": "pending_verification",
+      "title": "Windows security event",
+      "description": "This Event ID is present in the supplied event inventory; verify its provider-specific meaning before displaying an interpretation.",
+      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
+      "who": {},
+      "where": {},
+      "when": "Use the timestamp recorded in the original Windows event.",
+      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
+      "severity_guidance": {
+        "low": "Expected activity with no unusual context.",
+        "medium": "Unusual or repeated activity that needs review.",
+        "high": "Corroborated suspicious activity supported by related evidence."
+      },
+      "recommendations": [
+        "Inspect the original event details and available fields.",
+        "Correlate with related events before assigning a security conclusion."
+      ],
+      "related_events": [],
+      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
+    },
+    "4688": {
+      "event_id": 4688,
+      "name": "A new process was created",
+      "category": "Process and Application Activity",
+      "definition_status": "catalogue_summary_only",
+      "title": "A new process was created",
+      "description": "A new process was created",
+      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
+      "who": {},
+      "where": {},
+      "when": "Use the timestamp recorded in the original Windows event.",
+      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
+      "severity_guidance": {
+        "low": "Expected activity with no unusual context.",
+        "medium": "Unusual or repeated activity that needs review.",
+        "high": "Corroborated suspicious activity supported by related evidence."
+      },
+      "recommendations": [
+        "Inspect the original event details and available fields.",
+        "Correlate with related events before assigning a security conclusion."
+      ],
+      "related_events": [],
+      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
+    },
+    "4689": {
+      "event_id": 4689,
+      "name": "A process exited",
+      "category": "Process and Application Activity",
+      "definition_status": "catalogue_summary_only",
+      "title": "A process exited",
+      "description": "A process exited",
+      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
+      "who": {},
+      "where": {},
+      "when": "Use the timestamp recorded in the original Windows event.",
+      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
+      "severity_guidance": {
+        "low": "Expected activity with no unusual context.",
+        "medium": "Unusual or repeated activity that needs review.",
+        "high": "Corroborated suspicious activity supported by related evidence."
+      },
+      "recommendations": [
+        "Inspect the original event details and available fields.",
+        "Correlate with related events before assigning a security conclusion."
+      ],
+      "related_events": [],
+      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
+    },
+    "4697": {
+      "event_id": 4697,
+      "name": "A service was installed in the system",
+      "category": "Process and Application Activity",
+      "definition_status": "catalogue_summary_only",
+      "title": "A service was installed in the system",
+      "description": "A service was installed in the system",
+      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
+      "who": {},
+      "where": {},
+      "when": "Use the timestamp recorded in the original Windows event.",
+      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
+      "severity_guidance": {
+        "low": "Expected activity with no unusual context.",
+        "medium": "Unusual or repeated activity that needs review.",
+        "high": "Corroborated suspicious activity supported by related evidence."
+      },
+      "recommendations": [
+        "Inspect the original event details and available fields.",
+        "Correlate with related events before assigning a security conclusion."
+      ],
+      "related_events": [],
+      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
+    }
+  },
+  "implementation_notes": {
+    "preserve_original_event": true,
+    "preserve_original_xml": true,
+    "show_only_fields_present_in_event": true,
+    "do_not_invent_missing_values": true,
+    "severity_is_contextual": true
+  }
+}

@@ -64,6 +64,7 @@ from app.schemas.event import (
     EventIngestResult,
     EventList,
     EventRead,
+    EventExplanationResponse,
 )
 from app.services import (
     authorization,
@@ -367,6 +368,41 @@ def get_event(
 
     return EventRead.model_validate(event)
 
+
+
+# ============================================================================
+# QUERY — explanation
+# ============================================================================
+
+@router.get(
+    "/{event_id}/explanation",
+    response_model=EventExplanationResponse,
+    summary="Get human-readable and analyst explanation for an event",
+    description=(
+        "Enriches a genuine collected security event with knowledge-base "
+        "definitions, answering What, Who, Where, When, Why, and What to do, "
+        "plus technical forensic properties and MITRE ATT&CK for analysts. "
+        "Requires `event:read` on the event's workspace."
+    ),
+)
+def get_event_explanation(
+    event_id: uuid.UUID,
+    current_user: CurrentActiveUser,
+    db: DBDep,
+) -> EventExplanationResponse:
+    event = db.get(SecurityEvent, event_id)
+    if event is None:
+        raise EventNotFoundError(
+            message=f"Event {event_id} not found.",
+            details={"event_id": str(event_id)},
+        )
+
+    authorization.check_permission(
+        db, current_user, "event:read", workspace_id=event.workspace_id,
+    )
+
+    from app.services.windows_event_explainer import explain_security_event
+    return explain_security_event(db, event)
 
 # ============================================================================
 # EXPORTS

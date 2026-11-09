@@ -15,9 +15,10 @@
 
 import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
-import { Plus, Monitor, Server, Apple, CheckCircle2, XCircle, AlertCircle } from "lucide-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Plus, Monitor, Server, Apple, CheckCircle2, XCircle, AlertCircle, Trash2 } from "lucide-react";
 import { formatRelativeTime } from "@/lib/utils";
+import { toast } from "sonner";
 
 import { api } from "@/lib/api";
 import { Card, CardContent } from "@/components/ui/Card";
@@ -26,6 +27,14 @@ import { Spinner } from "@/components/ui/Spinner";
 import {
   TableWrapper, Table, TableHeader, TableBody, TableRow, TableHead, TableCell,
 } from "@/components/ui/Table";
+import {
+  Modal,
+  ModalContent,
+  ModalHeader,
+  ModalTitle,
+  ModalDescription,
+  ModalFooter,
+} from "@/components/ui/Modal";
 import { DeviceConnectionWizard } from "@/components/devices/DeviceConnectionWizard";
 
 
@@ -59,8 +68,10 @@ type OS = "windows" | "linux" | "macos";
 
 export default function Devices() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   const [isModalOpen, setIsModalOpen] = useState(searchParams.get("connect") === "true");
+  const [deviceToDelete, setDeviceToDelete] = useState<DeviceItem | null>(null);
 
   useEffect(() => {
     if (searchParams.get("connect") === "true") {
@@ -76,6 +87,26 @@ export default function Devices() {
       return data;
     },
     refetchInterval: 8000, 
+  });
+
+  // ── Remove Device Mutation ────────────────────────────────────────────
+  const deleteDeviceMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { data } = await api.delete(`/devices/${id}`);
+      return data;
+    },
+    onSuccess: () => {
+      toast.success(
+        deviceToDelete
+          ? `Device "${deviceToDelete.name}" removed successfully.`
+          : "Device removed successfully."
+      );
+      setDeviceToDelete(null);
+      queryClient.invalidateQueries({ queryKey: ["devices"] });
+    },
+    onError: (err: any) => {
+      toast.error(err?.message || "Failed to remove device");
+    },
   });
 
   const deviceList: DeviceItem[] = Array.isArray(data)
@@ -125,7 +156,7 @@ export default function Devices() {
                 <TableHead>Type</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="hidden md:table-cell">Last Seen</TableHead>
-                <TableHead className="text-right">Action</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -134,7 +165,7 @@ export default function Devices() {
                   key={device.id}
                   interactive
                   onClick={() => navigate(`/personal/devices/${device.id}`)}
-                  className="cursor-pointer"
+                  className="cursor-pointer hover:bg-slate-800/40 transition-colors"
                 >
                   <TableCell>
                     <div className="flex flex-col">
@@ -173,16 +204,29 @@ export default function Devices() {
                     {device.last_heartbeat ? formatRelativeTime(device.last_heartbeat) : "Never"}
                   </TableCell>
                   <TableCell className="text-right">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        navigate(`/personal/devices/${device.id}`);
-                      }}
+                    <div
+                      className="flex items-center justify-end gap-1.5"
+                      onClick={(e) => e.stopPropagation()}
                     >
-                      View Details
-                    </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => navigate(`/personal/devices/${device.id}`)}
+                        className="text-xs text-slate-300 hover:text-white"
+                      >
+                        View Details
+                      </Button>
+
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setDeviceToDelete(device)}
+                        className="text-xs text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 p-2 transition-colors"
+                        title="Remove Device"
+                      >
+                        <Trash2 size={15} />
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
@@ -190,6 +234,51 @@ export default function Devices() {
           </Table>
         </TableWrapper>
       )}
+
+      {/* Remove Device Confirmation Modal */}
+      <Modal open={!!deviceToDelete} onOpenChange={() => setDeviceToDelete(null)}>
+        <ModalContent className="max-w-md bg-slate-900 border-slate-800 text-slate-100">
+          <ModalHeader>
+            <ModalTitle className="text-base font-bold flex items-center gap-2 text-rose-400">
+              <Trash2 size={18} /> Remove Device
+            </ModalTitle>
+            <ModalDescription className="text-xs text-slate-400">
+              Are you sure you want to remove <span className="font-semibold text-slate-200">"{deviceToDelete?.name}"</span>?
+            </ModalDescription>
+          </ModalHeader>
+          <div className="p-4 bg-slate-950 rounded-lg border border-slate-800 space-y-2 text-xs text-slate-400">
+            <p>
+              This will permanently revoke all endpoint collector credentials and remove this machine from active monitoring.
+            </p>
+            <p className="text-[11px] text-slate-500 font-mono">
+              Hostname: {deviceToDelete?.hostname || deviceToDelete?.source_key}
+            </p>
+          </div>
+          <ModalFooter className="flex justify-end gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setDeviceToDelete(null)}
+              disabled={deleteDeviceMutation.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                if (deviceToDelete) {
+                  deleteDeviceMutation.mutate(deviceToDelete.id);
+                }
+              }}
+              isLoading={deleteDeviceMutation.isPending}
+              className="bg-rose-600 hover:bg-rose-500 text-white border-rose-600 font-semibold text-xs"
+            >
+              Confirm Remove
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
 
       <DeviceConnectionWizard
         isOpen={isModalOpen}

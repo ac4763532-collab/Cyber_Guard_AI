@@ -475,3 +475,23 @@ __all__ = [
     "EventList",
     "EventFilter",
 ]
+
+from app.schemas.event_explanation import (
+    EventExplanationResponse,
+    SimpleViewSchema,
+    AnalystViewSchema,
+    WhoInvolvedSchema,
+    WhereHappenedSchema,
+    WhenHappenedSchema,
+    MitreAttackSchema,
+)
+
+__all__.extend([
+    "EventExplanationResponse",
+    "SimpleViewSchema",
+    "AnalystViewSchema",
+    "WhoInvolvedSchema",
+    "WhereHappenedSchema",
+    "WhenHappenedSchema",
+    "MitreAttackSchema",
+])
