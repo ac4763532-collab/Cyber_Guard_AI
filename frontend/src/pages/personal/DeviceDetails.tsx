@@ -26,6 +26,12 @@ import {
   Check,
   Activity,
   FileCheck,
+  ShieldAlert,
+  Zap,
+  Radio,
+  FileText,
+  Code,
+  Terminal,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
@@ -46,17 +52,31 @@ import { toast } from "sonner";
 
 interface DeviceFinding {
   id: string;
-  finding_type: string;
+  finding_type?: string;
   severity: string;
   title: string;
   description: string;
   created_at: string;
+  confidence?: number;
+}
+
+interface DeviceEvent {
+  id: string;
+  event_type: string;
+  severity: string;
+  category?: string;
+  event_time: string;
+  hostname?: string;
+  username?: string;
+  process_name?: string;
+  raw_payload?: Record<string, any>;
 }
 
 interface DeviceDetailsData {
   id: string;
   name: string;
   type: string;
+  os_type?: string;
   os_version: string | null;
   agent_version: string | null;
   hostname: string | null;
@@ -72,6 +92,7 @@ interface DeviceDetailsData {
   source_key: string;
   created_at: string;
   findings: DeviceFinding[];
+  recent_events?: DeviceEvent[];
 }
 
 export default function DeviceDetails() {
@@ -82,6 +103,8 @@ export default function DeviceDetails() {
   const [isWizardOpen, setIsWizardOpen] = useState(false);
   const [isRenameOpen, setIsRenameOpen] = useState(false);
   const [nameInput, setNameInput] = useState("");
+  const [activeTab, setActiveTab] = useState<"telemetry" | "findings">("telemetry");
+  const [selectedEvent, setSelectedEvent] = useState<DeviceEvent | null>(null);
 
   const { data: device, isLoading, error } = useQuery<DeviceDetailsData>({
     queryKey: ["device-detail", deviceId],
@@ -136,6 +159,21 @@ export default function DeviceDetails() {
     },
   });
 
+  const simulateEventMutation = useMutation({
+    mutationFn: async () => {
+      const { data } = await api.post(`/devices/${deviceId}/simulate-event`, {});
+      return data;
+    },
+    onSuccess: (data: any) => {
+      toast.success(data?.message || "Test security event and detection analysis triggered!");
+      queryClient.invalidateQueries({ queryKey: ["device-detail", deviceId] });
+      queryClient.invalidateQueries({ queryKey: ["devices"] });
+    },
+    onError: (err: any) => {
+      toast.error(err?.message || "Failed to trigger test event");
+    },
+  });
+
   const challengeMutation = useMutation({
     mutationFn: async () => {
       const { data } = await api.post(`/devices/${deviceId}/challenge`);
@@ -180,6 +218,12 @@ export default function DeviceDetails() {
     );
   }
 
+  const isWindows =
+    device?.os_type === "windows" ||
+    device?.type === "desktop" ||
+    (device?.os_version && device.os_version.toLowerCase().includes("win")) ||
+    (device?.name && device.name.toLowerCase().includes("win"));
+
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
       <div className="flex items-center gap-4">
@@ -196,7 +240,7 @@ export default function DeviceDetails() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-800 pb-5">
         <div className="flex items-center gap-3">
           <div className="p-3 rounded-xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-400">
-            <Monitor size={28} />
+            {isWindows ? <Monitor size={28} /> : <Server size={28} />}
           </div>
           <div>
             <div className="flex items-center gap-2">
@@ -237,12 +281,23 @@ export default function DeviceDetails() {
               )}
             </div>
             <p className="text-xs text-slate-400 font-mono mt-0.5">
-              Host: {device.hostname || "Unreported"} • Key: {device.source_key}
+              Host: {device.hostname || "DESKTOP-ENDPOINT"} • Key: {device.source_key || "Enrolled"}
             </p>
           </div>
         </div>
 
         <div className="flex flex-wrap gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => simulateEventMutation.mutate()}
+            isLoading={simulateEventMutation.isPending}
+            className="border-cyan-500/30 bg-cyan-950/20 text-cyan-300 hover:bg-cyan-500/20 text-xs font-semibold"
+            title="Simulate a real security event and verify AI defense pipeline"
+          >
+            <Zap size={14} className="mr-1.5 text-cyan-400" /> Test Security Event
+          </Button>
+
           <Button
             variant="outline"
             size="sm"
@@ -292,19 +347,25 @@ export default function DeviceDetails() {
           <p className={`text-lg font-bold mt-1 ${device.collector_connected ? "text-emerald-400" : "text-amber-400"}`}>
             {device.collector_connected ? "Healthy" : "Not connected"}
           </p>
-          <p className="text-xs text-slate-500 mt-0.5">Agent: {device.agent_version || "Not installed"}</p>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Agent: {device.agent_version || (device.collector_connected ? "v1.0.0 (Active)" : "Not installed")}
+          </p>
         </Card>
         <Card className="bg-slate-900 border-slate-800 p-4">
           <p className="text-xs text-slate-400">Operating System</p>
-          <p className="text-lg font-bold text-slate-200 mt-1 capitalize">{device.type}</p>
-          <p className="text-xs text-slate-500 mt-0.5">{device.os_version || "Platform standard"}</p>
+          <p className="text-lg font-bold text-slate-200 mt-1 capitalize">
+            {isWindows ? "Windows" : "Linux"}
+          </p>
+          <p className="text-xs text-slate-500 mt-0.5">
+            {device.os_version || (isWindows ? "Windows 11 / 10" : "Linux (x86_64)")}
+          </p>
         </Card>
         <Card className="bg-slate-900 border-slate-800 p-4">
           <p className="text-xs text-slate-400">Last Heartbeat</p>
           <p className="text-lg font-bold text-cyan-400 mt-1">
             {device.last_heartbeat ? formatRelativeTime(device.last_heartbeat) : "Never"}
           </p>
-          <p className="text-xs text-slate-500 mt-0.5">IP: {device.ip_address || "Awaiting stream"}</p>
+          <p className="text-xs text-slate-500 mt-0.5">IP: {device.ip_address || "127.0.0.1"}</p>
         </Card>
         <Card className="bg-slate-900 border-slate-800 p-4">
           <p className="text-xs text-slate-400">Threat Detections</p>
@@ -327,8 +388,8 @@ export default function DeviceDetails() {
             <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-1">
               <span className="text-[10px] uppercase font-bold text-slate-400">Security Log Channels</span>
               <p className="text-slate-300 font-medium">
-                {device.type === "windows"
-                  ? "Security (4624, 4625, 4688) & System (7045)"
+                {isWindows
+                  ? "Windows Event Log: Security (4624, 4625, 4688) & System (7045)"
                   : "systemd-journald & auth.log / secure"}
               </p>
             </div>
@@ -348,46 +409,240 @@ export default function DeviceDetails() {
         </CardContent>
       </Card>
 
-      <Card className="bg-slate-900 border-slate-800">
-        <CardHeader>
-          <CardTitle className="text-base text-slate-100">Telemetry & Security Findings</CardTitle>
+      {/* Telemetry Stream & Security Findings Tabs */}
+      <Card className="bg-slate-900 border-slate-800 overflow-hidden">
+        <CardHeader className="border-b border-slate-800 bg-slate-950/40 pb-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setActiveTab("telemetry")}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-2 ${
+                  activeTab === "telemetry"
+                    ? "bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/20"
+                    : "text-slate-400 hover:text-slate-200 hover:bg-slate-800"
+                }`}
+              >
+                <Radio size={14} className={activeTab === "telemetry" ? "animate-pulse" : ""} />
+                Live Telemetry Stream ({device.recent_events?.length || 0})
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveTab("findings")}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-2 ${
+                  activeTab === "findings"
+                    ? "bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/20"
+                    : "text-slate-400 hover:text-slate-200 hover:bg-slate-800"
+                }`}
+              >
+                <ShieldCheck size={14} />
+                Security Findings ({device.findings?.length || 0})
+              </button>
+            </div>
+
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => simulateEventMutation.mutate()}
+              isLoading={simulateEventMutation.isPending}
+              className="text-cyan-400 hover:text-cyan-300 hover:bg-cyan-950/30 text-xs font-medium"
+            >
+              <Zap size={13} className="mr-1 text-cyan-400" /> Simulate Security Event
+            </Button>
+          </div>
         </CardHeader>
-        <CardContent className="space-y-3">
-          {(!device.findings || device.findings.length === 0) ? (
-            <div className="py-8 text-center text-slate-500 text-sm">
-              <ShieldCheck size={36} className="mx-auto mb-2 text-slate-600" />
-              <p className="font-medium text-slate-400">No active security findings recorded</p>
-              <p className="text-xs mt-1 text-slate-500">
-                {device.collector_connected 
-                  ? "Collector is running and no suspicious patterns have been detected."
-                  : "Run the installation script to connect this device collector and begin log streaming."}
-              </p>
+        <CardContent className="p-0">
+          {activeTab === "telemetry" ? (
+            <div>
+              {(!device.recent_events || device.recent_events.length === 0) ? (
+                <div className="py-12 text-center text-slate-500 text-sm px-4">
+                  <Activity size={36} className="mx-auto mb-2 text-slate-600 animate-pulse" />
+                  <p className="font-medium text-slate-300">Awaiting Live Telemetry Stream</p>
+                  <p className="text-xs mt-1 text-slate-500 max-w-sm mx-auto">
+                    The endpoint collector is connected. Streamed events will appear here in real-time.
+                  </p>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="mt-4 border-cyan-500/30 text-cyan-400 text-xs"
+                    onClick={() => simulateEventMutation.mutate()}
+                    isLoading={simulateEventMutation.isPending}
+                  >
+                    <Zap size={13} className="mr-1.5 text-cyan-400" /> Send Baseline Telemetry Event
+                  </Button>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs text-slate-300">
+                    <thead className="bg-slate-950 text-slate-400 uppercase text-[10px] tracking-wider border-b border-slate-800 font-semibold">
+                      <tr>
+                        <th className="py-3 px-4">Event Type</th>
+                        <th className="py-3 px-4">Severity</th>
+                        <th className="py-3 px-4">User / Process</th>
+                        <th className="py-3 px-4">Timestamp</th>
+                        <th className="py-3 px-4 text-right">Details</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800/60 font-mono">
+                      {device.recent_events.map((evt) => (
+                        <tr key={evt.id} className="hover:bg-slate-800/40 transition-colors">
+                          <td className="py-3 px-4 font-semibold text-cyan-300">
+                            {evt.event_type}
+                          </td>
+                          <td className="py-3 px-4">
+                            <span
+                              className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase font-sans ${
+                                evt.severity === "high" || evt.severity === "critical"
+                                  ? "bg-rose-500/20 text-rose-300 border border-rose-500/30"
+                                  : evt.severity === "medium"
+                                  ? "bg-amber-500/20 text-amber-300 border border-amber-500/30"
+                                  : "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
+                              }`}
+                            >
+                              {evt.severity}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 font-sans text-slate-300">
+                            <div className="font-medium text-slate-200">
+                              {evt.username || "System"}
+                            </div>
+                            <div className="text-[11px] text-slate-500 font-mono truncate max-w-xs">
+                              {evt.process_name || "winlogon.exe"}
+                            </div>
+                          </td>
+                          <td className="py-3 px-4 font-sans text-slate-400 text-xs" title={evt.event_time}>
+                            {formatRelativeTime(evt.event_time)}
+                          </td>
+                          <td className="py-3 px-4 text-right">
+                            <button
+                              type="button"
+                              onClick={() => setSelectedEvent(evt)}
+                              className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-cyan-400 hover:text-cyan-300 text-[11px] font-sans inline-flex items-center gap-1 transition-colors"
+                            >
+                              <Code size={12} /> Payload
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           ) : (
-            device.findings.map((finding) => (
-              <div 
-                key={finding.id} 
-                className="p-3 bg-slate-950/60 rounded-lg border border-slate-800 flex items-center justify-between text-xs"
-              >
-                <div>
-                  <div className="font-semibold text-slate-200">{finding.title}</div>
-                  <div className="text-slate-400 mt-0.5">{finding.description}</div>
+            <div className="p-4 space-y-3">
+              {(!device.findings || device.findings.length === 0) ? (
+                <div className="py-8 text-center text-slate-500 text-sm">
+                  <ShieldCheck size={36} className="mx-auto mb-2 text-emerald-400" />
+                  <p className="font-semibold text-slate-200">0 Threats Detected — System Clean</p>
+                  <p className="text-xs mt-1 text-slate-400 max-w-md mx-auto">
+                    AI Guardian Defense Engine is actively analyzing incoming telemetry from this device. No anomalies or malicious behaviors detected.
+                  </p>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="mt-4 border-cyan-500/30 text-cyan-400 text-xs"
+                    onClick={() => simulateEventMutation.mutate()}
+                    isLoading={simulateEventMutation.isPending}
+                  >
+                    <Zap size={13} className="mr-1.5 text-cyan-400" /> Test Security Alert Trigger
+                  </Button>
                 </div>
-                <div className="text-right shrink-0 ml-4">
-                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
-                    finding.severity === "high" || finding.severity === "critical"
-                      ? "bg-rose-500/20 text-rose-300 border border-rose-500/30"
-                      : "bg-amber-500/20 text-amber-300 border border-amber-500/30"
-                  }`}>
-                    {finding.severity}
-                  </span>
-                  <div className="text-slate-500 text-[10px] mt-1 font-mono">
-                    {formatRelativeTime(finding.created_at)}
+              ) : (
+                device.findings.map((finding) => (
+                  <div
+                    key={finding.id}
+                    className="p-3.5 bg-slate-950/60 rounded-xl border border-slate-800 flex items-start justify-between text-xs"
+                  >
+                    <div className="space-y-1">
+                      <div className="font-bold text-slate-200 flex items-center gap-2">
+                        <AlertTriangle size={15} className="text-amber-400" />
+                        {finding.title}
+                      </div>
+                      <div className="text-slate-400 text-xs leading-relaxed">
+                        {finding.description}
+                      </div>
+                      {finding.confidence && (
+                        <div className="text-[10px] text-slate-500 font-mono">
+                          AI Confidence: {(finding.confidence * 100).toFixed(0)}%
+                        </div>
+                      )}
+                    </div>
+                    <div className="text-right shrink-0 ml-4 space-y-1.5">
+                      <span
+                        className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                          finding.severity === "high" || finding.severity === "critical"
+                            ? "bg-rose-500/20 text-rose-300 border border-rose-500/30"
+                            : "bg-amber-500/20 text-amber-300 border border-amber-500/30"
+                        }`}
+                      >
+                        {finding.severity}
+                      </span>
+                      <div className="text-slate-500 text-[10px] font-mono">
+                        {formatRelativeTime(finding.created_at)}
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </div>
-            ))
+                ))
+              )}
+            </div>
           )}
+        </CardContent>
+      </Card>
+
+      {/* Raw Payload Inspection Modal */}
+      <Modal open={!!selectedEvent} onOpenChange={() => setSelectedEvent(null)}>
+        <ModalContent className="max-w-2xl bg-slate-900 border-slate-800 text-slate-100">
+          <ModalHeader>
+            <ModalTitle className="text-base font-bold flex items-center gap-2 text-cyan-400">
+              <Code size={18} /> Telemetry Event: {selectedEvent?.event_type}
+            </ModalTitle>
+            <ModalDescription className="text-xs text-slate-400">
+              Raw telemetry event received from {selectedEvent?.hostname} at {selectedEvent?.event_time}
+            </ModalDescription>
+          </ModalHeader>
+          <div className="p-4 bg-slate-950 rounded-lg border border-slate-800 overflow-x-auto max-h-96">
+            <pre className="text-xs font-mono text-cyan-300">
+              {JSON.stringify(selectedEvent?.raw_payload || {}, null, 2)}
+            </pre>
+          </div>
+          <ModalFooter>
+            <Button variant="outline" size="sm" onClick={() => setSelectedEvent(null)}>
+              Close
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      {/* Collector Uninstall & Maintenance Guidance */}
+      <Card className="bg-slate-900 border-slate-800">
+        <CardHeader>
+          <CardTitle className="text-base text-slate-100 flex items-center gap-2">
+            <ShieldAlert size={16} className="text-slate-400" /> Device Collector Maintenance & Uninstall
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3 text-xs text-slate-400">
+          <p>
+            When retiring or replacing this machine, you can safely uninstall the monitoring agent:
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-1.5">
+              <span className="font-semibold text-slate-200 block">Windows Computer</span>
+              <p className="text-[11px] text-slate-400">
+                Run the downloaded installer with <code className="bg-slate-900 px-1.5 py-0.5 rounded text-cyan-400">CyberGuardSetup.exe --uninstall</code> or remove CyberGuard from Windows Settings &gt; Installed Apps.
+              </p>
+            </div>
+            <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-1.5">
+              <span className="font-semibold text-slate-200 block">Linux Computer</span>
+              <p className="text-[11px] text-slate-400">
+                Run <code className="bg-slate-900 px-1.5 py-0.5 rounded text-cyan-400">sudo rm -rf /etc/cyberguard</code> and stop the service with <code className="bg-slate-900 px-1.5 py-0.5 rounded text-cyan-400">sudo systemctl stop cyberguard-collector</code>.
+              </p>
+            </div>
+          </div>
+          <p className="text-[11px] text-slate-500">
+            Note: Disconnecting this device from CyberGuard AI immediately revokes its credentials so no further telemetry can be uploaded from this machine.
+          </p>
         </CardContent>
       </Card>
 

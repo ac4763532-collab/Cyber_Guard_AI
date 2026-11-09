@@ -45,7 +45,7 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from pydantic import Field, field_validator
+from pydantic import ConfigDict, Field, field_validator
 
 from app.models.enums import EventCategory, EventSeverity
 from app.schemas.common import (
@@ -84,6 +84,13 @@ _NORMALIZED_PAYLOAD_MAX_BYTES = 64 * 1024  # 64 KB per event
 # ============================================================================
 
 class EventIngestRequest(CyberGuardBaseSchema):
+    model_config = ConfigDict(
+        extra="ignore",
+        str_strip_whitespace=True,
+        validate_assignment=True,
+        use_enum_values=True,
+        populate_by_name=True,
+    )
     """
     Single-event ingestion body for ``POST /events``.
 

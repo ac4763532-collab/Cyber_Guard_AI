@@ -41,15 +41,19 @@ def compile_uuid_sqlite(type_, compiler, **kw):
 import os
 os.environ["APP_ENV"] = "test"
 os.environ["AGENT_EXECUTION_ENABLED"] = "false"
+os.environ["FIREBASE_AUTH_ENABLED"] = "false"
 
 from app.core.config import settings
 settings.APP_ENV = "test"
 settings.AGENT_EXECUTION_ENABLED = False
+settings.FIREBASE_AUTH_ENABLED = False
 
 import app.db.session
 app.db.session.health_check = lambda: True
 
+import app.main
 from app.main import app
+import sys; sys.modules["app.main"].health_check = lambda: True
 from app.db.base import Base
 from app.db.session import get_db
 

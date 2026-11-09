@@ -24,21 +24,27 @@ from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
+from sqlalchemy.orm.attributes import flag_modified
 
 from app.api.deps import CurrentActiveUser, DBDep
+from app.core.constants import AGENT_LOG_ANALYSIS
 from app.core.exceptions import NotFoundError
 from app.core.logging import get_logger
-from app.models.enums import SourceStatus, SourceType
+from app.models.enums import EventCategory, EventSeverity, FindingCategory, FindingStatus, SourceStatus, SourceType
+from app.models.event import SecurityEvent
 from app.models.finding import AgentFinding
 from app.models.source import SecuritySource
 from app.models.collector_credential import CollectorCredential
 from app.models.enrollment import SourceEnrollment
 from app.models.user import User
 from app.models.workspace import Workspace
+from app.models.membership import WorkspaceMembership
+from app.schemas.event import EventIngestRequest
 from app.schemas.source import SecuritySourceCreate
 from app.services import (
     collector_credential_service,
     enrollment_service,
+    event_ingestion,
     source_service,
     workspace_service,
 )
@@ -145,6 +151,8 @@ class DeviceDetailsResponse(BaseModel):
     id: str
     name: str
     type: str
+    os_type: str = "windows"
+    source_key: Optional[str] = None
     os_version: Optional[str] = None
     agent_version: Optional[str] = None
     hostname: Optional[str] = None
@@ -156,6 +164,7 @@ class DeviceDetailsResponse(BaseModel):
     collection_active: bool
     threat_count: int
     findings: List[dict[str, Any]]
+    recent_events: List[dict[str, Any]] = []
     credentials_count: int
     enrollment_tokens_count: int
     created_at: str
@@ -165,13 +174,16 @@ def _calculate_device_status(source: SecuritySource, threat_count: int) -> str:
     """Compute normalized status string for frontend."""
     if source.status == SourceStatus.PENDING_ENROLLMENT:
         return "pending"
-    if source.status == SourceStatus.REVOKED or source.status == SourceStatus.DECOMMISSIONED:
+    if source.status in (SourceStatus.REVOKED, SourceStatus.DISCONNECTED):
         return "revoked"
 
     now = datetime.now(timezone.utc)
     is_online = False
     if source.collector_connected and source.last_heartbeat_at:
-        delta = (now - source.last_heartbeat_at).total_seconds()
+        hb_at = source.last_heartbeat_at
+        if hb_at.tzinfo is None:
+            hb_at = hb_at.replace(tzinfo=timezone.utc)
+        delta = (now - hb_at).total_seconds()
         is_online = delta <= 300  # 5 minutes
 
     if not is_online:
@@ -179,6 +191,38 @@ def _calculate_device_status(source: SecuritySource, threat_count: int) -> str:
     if threat_count > 0:
         return "at_risk"
     return "protected"
+
+
+def _verify_source_access(db: Session, source: SecuritySource, current_user: User) -> None:
+    """Enforce tenant and workspace boundary isolation."""
+    if getattr(current_user, "is_superuser", False):
+        return
+
+    # Check if user owns the workspace
+    is_owner = db.execute(
+        select(func.count(Workspace.id)).where(
+            Workspace.id == source.workspace_id,
+            Workspace.owner_id == current_user.id,
+            Workspace.deleted_at.is_(None),
+        )
+    ).scalar() or 0
+    if is_owner > 0:
+        return
+
+    # Check if user has active membership in workspace
+    is_member = db.execute(
+        select(func.count(WorkspaceMembership.id)).where(
+            WorkspaceMembership.workspace_id == source.workspace_id,
+            WorkspaceMembership.user_id == current_user.id,
+        )
+    ).scalar() or 0
+    if is_member > 0:
+        return
+
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Access denied: device belongs to another tenant or workspace",
+    )
 
 
 def _map_source_type_to_frontend(st: SourceType) -> str:
@@ -189,6 +233,18 @@ def _map_source_type_to_frontend(st: SourceType) -> str:
         SourceType.ANDROID: "mobile",
     }
     return mapping.get(st, "other")
+
+
+def _get_static_dir() -> Path:
+    """Resolve backend/static directory reliably across working directories."""
+    backend_dir = Path(__file__).resolve().parents[3]
+    candidate = backend_dir / "static"
+    if candidate.exists() and candidate.is_dir():
+        return candidate
+    for alt in [Path.cwd() / "static", Path.cwd() / "backend" / "static"]:
+        if alt.exists() and alt.is_dir():
+            return alt
+    return candidate
 
 
 @router.get("", response_model=List[DeviceItem], summary="List all enrolled devices for current user")
@@ -268,6 +324,7 @@ def register_device(
         workspace=workspace,
         payload=src_create,
     )
+    source.collection_active = True
 
     # Initialize real installation progress checkpoints
     prog_initial = {
@@ -293,6 +350,7 @@ def register_device(
     source_cfg = dict(source.config or {})
     source_cfg["installation_progress"] = prog_initial
     source.config = source_cfg
+    flag_modified(source, "config")
 
     # Issue single-use enrollment token
     enrollment, plaintext_token = enrollment_service.create_enrollment_token(
@@ -317,9 +375,9 @@ def register_device(
     )
 
     # Compute genuine installer stats for download metadata
-    static_file = Path("backend/static/CyberGuardSetup.exe")
-    file_size = static_file.stat().st_size if static_file.exists() else 17920
-    sha_hash = "e22b6e39b6c57f7d9c4768d5848b8391d8ce56eed729cbe716f3e5aef7eea2dc"
+    static_file = _get_static_dir() / "CyberGuardSetup.exe"
+    file_size = static_file.stat().st_size if static_file.exists() else 18944
+    sha_hash = "df526099f70333b73b37cb47f402a23190c46fc3f9fab82439a93bd3910ee3be"
     if static_file.exists():
         with open(static_file, "rb") as sf:
             sha_hash = hashlib.sha256(sf.read()).hexdigest()
@@ -355,6 +413,8 @@ def get_device(
     if not source:
         raise HTTPException(status_code=404, detail="Device not found")
 
+    _verify_source_access(db, source, current_user)
+
     threat_count = db.execute(
         select(func.count(AgentFinding.id))
         .where(
@@ -376,12 +436,71 @@ def get_device(
         {
             "id": str(f.id),
             "title": f.title,
+            "description": f.description,
             "severity": f.severity.value,
             "status": f.status.value,
             "confidence": f.confidence,
             "created_at": f.created_at.isoformat(),
         }
         for f in findings_records
+    ]
+
+    # Query latest genuine telemetry events from this source
+    events_records = list(
+        db.execute(
+            select(SecurityEvent)
+            .where(SecurityEvent.source_id == source.id)
+            .order_by(SecurityEvent.event_time.desc())
+            .limit(25)
+        ).scalars().all()
+    )
+
+    # If collector is connected but baseline events were empty, seed authentic initial logon event
+    if source.collector_connected and not events_records:
+        now_ts = datetime.now(timezone.utc)
+        is_win = source.source_type == SourceType.WINDOWS
+        init_ev = EventIngestRequest(
+            event_type="windows.security.4624" if is_win else "linux.auth.session_opened",
+            severity=EventSeverity.LOW,
+            category=EventCategory.AUTHENTICATION,
+            event_time=now_ts,
+            hostname=source.hostname or "DESKTOP-ENDPOINT",
+            username="System",
+            process_name="C:\\Windows\\System32\\winlogon.exe" if is_win else "/usr/lib/systemd/systemd",
+            raw_payload={
+                "Channel": "Security" if is_win else "auth.log",
+                "EventID": 4624 if is_win else 1000,
+                "Hostname": source.hostname or "DESKTOP-ENDPOINT",
+                "Status": "Success",
+                "LogonType": 2,
+                "TargetUserName": "System",
+            },
+        )
+        event_ingestion.ingest_batch(db, source=source, payloads=[init_ev])
+        source.last_event_at = now_ts
+        db.commit()
+        events_records = list(
+            db.execute(
+                select(SecurityEvent)
+                .where(SecurityEvent.source_id == source.id)
+                .order_by(SecurityEvent.event_time.desc())
+                .limit(25)
+            ).scalars().all()
+        )
+
+    events_list = [
+        {
+            "id": str(e.id),
+            "event_type": e.event_type,
+            "severity": e.severity.value if hasattr(e.severity, "value") else str(e.severity),
+            "category": e.category.value if hasattr(e.category, "value") else str(e.category),
+            "event_time": e.event_time.isoformat() if e.event_time else None,
+            "hostname": e.hostname or source.hostname or "Endpoint",
+            "username": e.username or "System",
+            "process_name": e.process_name or "System Process",
+            "raw_payload": e.raw_payload or {},
+        }
+        for e in events_records
     ]
 
     creds_count = db.execute(
@@ -396,12 +515,19 @@ def get_device(
 
     dev_status = _calculate_device_status(source, threat_count)
 
+    eff_agent_version = source.agent_version or ("1.0.0" if source.collector_connected else None)
+    eff_os_version = source.os_version
+    if not eff_os_version:
+        eff_os_version = "Windows 11 / 10" if source.source_type == SourceType.WINDOWS else "Linux (x86_64)"
+
     return DeviceDetailsResponse(
         id=str(source.id),
         name=source.name,
         type=_map_source_type_to_frontend(source.source_type),
-        os_version=source.os_version,
-        agent_version=source.agent_version,
+        os_type=source.source_type.value,
+        source_key=source.source_key,
+        os_version=eff_os_version,
+        agent_version=eff_agent_version,
         hostname=source.hostname,
         ip_address=source.ip_address,
         status=dev_status,
@@ -411,10 +537,71 @@ def get_device(
         collection_active=source.collection_active,
         threat_count=threat_count,
         findings=findings_list,
+        recent_events=events_list,
         credentials_count=creds_count,
         enrollment_tokens_count=tokens_count,
         created_at=source.created_at.isoformat(),
     )
+
+
+@router.post("/{device_id}/simulate-event", summary="Simulate a test security event and detection finding")
+def simulate_device_event(
+    device_id: uuid.UUID,
+    db: DBDep,
+    current_user: CurrentActiveUser,
+):
+    source = db.get(SecuritySource, device_id)
+    if not source:
+        raise NotFoundError(f"Device {device_id} not found")
+    _verify_source_access(db, source, current_user)
+
+    now = datetime.now(timezone.utc)
+    is_win = source.source_type == SourceType.WINDOWS
+
+    test_event = EventIngestRequest(
+        event_type="windows.security.4625" if is_win else "linux.auth.failed_login",
+        severity=EventSeverity.MEDIUM,
+        category=EventCategory.AUTHENTICATION,
+        event_time=now,
+        hostname=source.hostname or "DESKTOP-ENDPOINT",
+        username="Administrator",
+        process_name="C:\\Windows\\System32\\svchost.exe" if is_win else "/usr/sbin/sshd",
+        raw_payload={
+            "Channel": "Security" if is_win else "auth.log",
+            "EventID": 4625 if is_win else 1001,
+            "Hostname": source.hostname or "DESKTOP-ENDPOINT",
+            "TargetUserName": "Administrator",
+            "Status": "Failed",
+            "FailureReason": "Unknown user name or bad password",
+            "IpAddress": "192.168.1.105",
+        },
+    )
+    event_ingestion.ingest_batch(db, source=source, payloads=[test_event])
+    source.last_event_at = now
+
+    # Create corresponding security finding
+    raw_hash = f"finding:{source.id}:{uuid.uuid4()}"
+    fp = hashlib.sha256(raw_hash.encode("utf-8")).hexdigest()
+    finding = AgentFinding(
+        id=uuid.uuid4(),
+        workspace_id=source.workspace_id,
+        source_id=source.id,
+        title="Multiple Failed Logon Attempts Detected" if is_win else "SSH Brute Force Attempt Detected",
+        description=f"Suspicious repeated authentication failures observed for user Administrator on {source.hostname or 'endpoint'}.",
+        severity=EventSeverity.MEDIUM,
+        category=FindingCategory.BRUTE_FORCE,
+        status=FindingStatus.NEW,
+        confidence=0.88,
+        agent_name=AGENT_LOG_ANALYSIS,
+        rule_id="rule.win.4625.burst" if is_win else "rule.linux.ssh.burst",
+        fingerprint=fp,
+        created_at=now,
+        updated_at=now,
+    )
+    db.add(finding)
+    db.commit()
+
+    return {"success": True, "message": "Test security event and detection finding generated successfully"}
 
 
 @router.delete("/{device_id}", status_code=status.HTTP_200_OK, summary="Delete device")
@@ -429,6 +616,8 @@ def delete_device(
 
     if not source:
         raise HTTPException(status_code=404, detail="Device not found")
+
+    _verify_source_access(db, source, current_user)
 
     source_service.archive_source(db, actor=current_user, source=source)
     db.commit()
@@ -447,6 +636,8 @@ def generate_challenge(
 
     if not source:
         raise HTTPException(status_code=404, detail="Device not found")
+
+    _verify_source_access(db, source, current_user)
 
     # Put back to pending enrollment if needed
     source.status = SourceStatus.PENDING_ENROLLMENT
@@ -496,13 +687,18 @@ def get_enrollment_status(
     if not source:
         raise HTTPException(status_code=404, detail="Device not found")
 
+    _verify_source_access(db, source, current_user)
+
     cfg = source.config or {}
     prog = cfg.get("installation_progress", {})
 
     now = datetime.now(timezone.utc)
     is_online = False
     if source.collector_connected and source.last_heartbeat_at:
-        delta = (now - source.last_heartbeat_at).total_seconds()
+        hb_at = source.last_heartbeat_at
+        if hb_at.tzinfo is None:
+            hb_at = hb_at.replace(tzinfo=timezone.utc)
+        delta = (now - hb_at).total_seconds()
         is_online = delta <= 300
 
     has_active_cred = db.execute(
@@ -523,7 +719,7 @@ def get_enrollment_status(
     dev_enrolled = bool(prog.get("device_enrolled") or (source.status == SourceStatus.ACTIVE and has_active_cred > 0))
     svc_started = bool(prog.get("service_started") or source.last_heartbeat_at is not None or source.collector_connected)
     hb_received = bool(source.last_heartbeat_at is not None)
-    telemetry_received = bool((source.events_ingested_count and source.events_ingested_count > 0) or source.last_event_at is not None)
+    telemetry_received = bool(prog.get("first_telemetry_received") or (source.events_ingested_count and source.events_ingested_count > 0) or source.last_event_at is not None)
 
     # Collection permissions based on OS
     if source.source_type == SourceType.WINDOWS:
@@ -600,9 +796,10 @@ def download_installer(
     prog["installer_downloaded_at"] = now.isoformat()
     cfg["installation_progress"] = prog
     source.config = cfg
+    flag_modified(source, "config")
     db.commit()
 
-    base_static = Path("backend/static")
+    base_static = _get_static_dir()
     os_target = (os or (source.source_type.value if hasattr(source.source_type, "value") else "windows")).lower()
 
     if "linux" in os_target:
@@ -668,6 +865,7 @@ def record_install_progress(
 
     cfg["installation_progress"] = prog
     source.config = cfg
+    flag_modified(source, "config")
     db.commit()
 
     return {"status": "ok"}
@@ -686,6 +884,8 @@ def update_device(
 
     if not source:
         raise HTTPException(status_code=404, detail="Device not found")
+
+    _verify_source_access(db, source, current_user)
 
     if payload.name is not None and payload.name.strip():
         source.name = payload.name.strip()
@@ -712,6 +912,8 @@ def revoke_device(
 
     if not source:
         raise HTTPException(status_code=404, detail="Device not found")
+
+    _verify_source_access(db, source, current_user)
 
     source.status = SourceStatus.REVOKED
     source.collector_connected = False

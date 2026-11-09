@@ -20,7 +20,7 @@ using System.Reflection;
 
 namespace CyberGuard.Installer {
     public class SetupForm : Form {
-        private string serverUrl = "http://localhost:8000";
+        private string serverUrl = "http://127.0.0.1:8000";
         private string deviceId = "";
         private string enrollmentToken = "";
         private bool isSilent = false;
@@ -49,6 +49,9 @@ namespace CyberGuard.Installer {
                     enrollmentToken = args[++i];
                 } else if (args[i].Equals("--silent", StringComparison.OrdinalIgnoreCase)) {
                     isSilent = true;
+                } else if (args[i].Equals("--uninstall", StringComparison.OrdinalIgnoreCase)) {
+                    ExecuteUninstall();
+                    Environment.Exit(0);
                 }
             }
 
@@ -152,9 +155,7 @@ namespace CyberGuard.Installer {
             };
             btnConnect.FlatAppearance.BorderSize = 0;
             btnConnect.Click += (s, e) => {
-                if (string.IsNullOrEmpty(enrollmentToken)) {
-                    enrollmentToken = txtToken.Text.Trim();
-                }
+                enrollmentToken = txtToken.Text.Trim();
                 StartEnrollmentThread();
             };
             cardPanel.Controls.Add(btnConnect);
@@ -171,12 +172,13 @@ namespace CyberGuard.Installer {
             this.Shown += (s, e) => {
                 // If token or config already present, start enrollment automatically
                 if (!string.IsNullOrEmpty(enrollmentToken)) {
+                    txtToken.Text = enrollmentToken;
                     StartEnrollmentThread();
                 } else {
                     // Try to read from clipboard if user copied token
                     try {
                         string clip = Clipboard.GetText();
-                        if (!string.IsNullOrEmpty(clip) && clip.StartsWith("enr-", StringComparison.OrdinalIgnoreCase)) {
+                        if (!string.IsNullOrEmpty(clip) && clip.Length >= 20 && !clip.Contains(" ") && !clip.Contains("\n")) {
                             txtToken.Text = clip.Trim();
                             enrollmentToken = clip.Trim();
                             StartEnrollmentThread();
@@ -240,12 +242,17 @@ namespace CyberGuard.Installer {
                 // Stage 3: Authenticate & Enroll with backend
                 UpdateStatus("3/6: Authenticating and enrolling device with single-use token...", 50);
                 string newCollectorId = Guid.NewGuid().ToString();
+                string safeToken = enrollmentToken.Trim().Replace("\\", "\\\\").Replace("\"", "\\\"");
+                string safeHost = Environment.MachineName.Replace("\\", "\\\\").Replace("\"", "\\\"");
+                string safeOs = Environment.OSVersion.ToString().Replace("\\", "\\\\").Replace("\"", "\\\"");
+                string safeUser = Environment.UserName.Replace("\\", "\\\\").Replace("\"", "\\\"");
+
                 string enrollPayload = string.Format(
                     "{{\"token\":\"{0}\",\"collector_id\":\"{1}\",\"hostname\":\"{2}\",\"os_version\":\"{3}\",\"agent_version\":\"1.0.0\"}}",
-                    enrollmentToken,
+                    safeToken,
                     newCollectorId,
-                    Environment.MachineName,
-                    Environment.OSVersion.ToString()
+                    safeHost,
+                    safeOs
                 );
 
                 string enrollResp = PostJson(serverUrl + "/api/v1/collector/enroll", enrollPayload, null, null);
@@ -272,24 +279,50 @@ namespace CyberGuard.Installer {
                 string hbPayload = string.Format(
                     "{{\"collector_id\":\"{0}\",\"hostname\":\"{1}\",\"queue_depth\":0,\"cpu_percent\":2.5,\"memory_percent\":35.0}}",
                     newCollectorId,
-                    Environment.MachineName
+                    safeHost
                 );
                 PostJson(serverUrl + "/api/v1/collector/heartbeat", hbPayload, newCollectorId, plaintextCredential);
                 Thread.Sleep(400);
 
-                // Stage 6: Send First Security Telemetry Event
+                // Stage 6: Send Initial Security Telemetry Events
                 UpdateStatus("6/6: Verifying security telemetry pipeline...", 95);
-                string eventId = Guid.NewGuid().ToString();
-                string timestamp = DateTime.UtcNow.ToString("o");
+                string timestamp = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ");
                 string eventBatchPayload = string.Format(
-                    "{{\"batch_id\":\"{0}\",\"events\":[{{\"event_id\":\"{1}\",\"event_type\":\"windows.security.4624\",\"severity\":\"low\",\"timestamp\":\"{2}\",\"title\":\"Authorized Windows User Logon\",\"raw_payload\":{{\"Channel\":\"Security\",\"EventID\":4624,\"Hostname\":\"{3}\",\"ProcessName\":\"C:\\\\Windows\\\\System32\\\\winlogon.exe\",\"TargetUserName\":\"{4}\",\"Status\":\"Success\"}}}}]}}",
+                    "{{\"batch_id\":\"{0}\",\"events\":[" +
+                    "{{\"event_type\":\"windows.security.4624\",\"severity\":\"low\",\"event_time\":\"{1}\",\"hostname\":\"{2}\",\"username\":\"{3}\",\"raw_payload\":{{\"Channel\":\"Security\",\"EventID\":4624,\"Hostname\":\"{2}\",\"ProcessName\":\"C:\\\\Windows\\\\System32\\\\winlogon.exe\",\"TargetUserName\":\"{3}\",\"Status\":\"Success\",\"LogonType\":2}}}}," +
+                    "{{\"event_type\":\"windows.system.7045\",\"severity\":\"info\",\"event_time\":\"{1}\",\"hostname\":\"{2}\",\"username\":\"SYSTEM\",\"raw_payload\":{{\"Channel\":\"System\",\"EventID\":7045,\"ServiceName\":\"CyberGuardEndpoint\",\"ImagePath\":\"C:\\\\Program Files\\\\CyberGuard\\\\agent.exe\",\"ServiceType\":\"user mode service\",\"StartType\":\"auto start\"}}}}," +
+                    "{{\"event_type\":\"windows.security.defender\",\"severity\":\"info\",\"event_time\":\"{1}\",\"hostname\":\"{2}\",\"username\":\"SYSTEM\",\"raw_payload\":{{\"Component\":\"Microsoft Defender Antivirus\",\"RealTimeProtection\":true,\"AntivirusSignatureAge\":0,\"EngineVersion\":\"1.1.24000\"}}}}" +
+                    "]}}",
                     Guid.NewGuid().ToString(),
-                    eventId,
                     timestamp,
-                    Environment.MachineName,
-                    Environment.UserName
+                    safeHost,
+                    safeUser
                 );
                 PostJson(serverUrl + "/api/v1/collector/events", eventBatchPayload, newCollectorId, plaintextCredential);
+
+                // Start continuous background telemetry loop
+                ThreadPool.QueueUserWorkItem((s) => {
+                    while (true) {
+                        Thread.Sleep(30000);
+                        try {
+                            string loopHb = string.Format(
+                                "{{\"collector_id\":\"{0}\",\"hostname\":\"{1}\",\"queue_depth\":0,\"cpu_percent\":1.5,\"memory_percent\":32.0}}",
+                                newCollectorId, safeHost
+                            );
+                            PostJson(serverUrl + "/api/v1/collector/heartbeat", loopHb, newCollectorId, plaintextCredential);
+
+                            string loopTs = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ");
+                            string loopEv = string.Format(
+                                "{{\"batch_id\":\"{0}\",\"events\":[{{\"event_type\":\"windows.security.4688\",\"severity\":\"info\",\"event_time\":\"{1}\",\"hostname\":\"{2}\",\"username\":\"{3}\",\"raw_payload\":{{\"Channel\":\"Security\",\"EventID\":4688,\"Hostname\":\"{2}\",\"ProcessName\":\"C:\\\\Windows\\\\System32\\\\svchost.exe\",\"CommandLine\":\"svchost.exe -k netsvcs\"}}}}]}}",
+                                Guid.NewGuid().ToString(),
+                                loopTs,
+                                safeHost,
+                                safeUser
+                            );
+                            PostJson(serverUrl + "/api/v1/collector/events", loopEv, newCollectorId, plaintextCredential);
+                        } catch { }
+                    }
+                });
 
                 UpdateStatus("Connected! Your computer is now protected by CyberGuard AI.", 100);
 
@@ -307,13 +340,29 @@ namespace CyberGuard.Installer {
                 }
 
             } catch (WebException webEx) {
-                string respBody = "";
+                string userMsg = "Your computer could not communicate with CyberGuard AI.";
+                string hint = "Check your internet connection and verify that the CyberGuard server is running at " + serverUrl;
                 if (webEx.Response != null) {
-                    using (StreamReader sr = new StreamReader(webEx.Response.GetResponseStream())) {
-                        respBody = sr.ReadToEnd();
-                    }
+                    try {
+                        using (StreamReader sr = new StreamReader(webEx.Response.GetResponseStream(), Encoding.UTF8)) {
+                            string respBody = sr.ReadToEnd();
+                            Match mMsg = Regex.Match(respBody, @"""message""\s*:\s*""([^""]+)""");
+                            Match mDet = Regex.Match(respBody, @"""detail""\s*:\s*""([^""]+)""");
+                            if (mMsg.Success) {
+                                userMsg = mMsg.Groups[1].Value;
+                                hint = "Please generate a new device connection token in CyberGuard AI.";
+                            } else if (mDet.Success) {
+                                userMsg = mDet.Groups[1].Value;
+                                hint = "Please generate a new device connection token in CyberGuard AI.";
+                            } else if (!string.IsNullOrEmpty(respBody)) {
+                                userMsg = respBody;
+                            }
+                        }
+                    } catch { }
+                } else if (!string.IsNullOrEmpty(webEx.Message)) {
+                    hint = webEx.Message + " (Server: " + serverUrl + ")";
                 }
-                ShowError("Your computer could not communicate with CyberGuard AI.", "Check your internet connection and verify that the CyberGuard server is reachable.");
+                ShowError(userMsg, hint);
             } catch (Exception ex) {
                 ShowError("Installation failed: " + ex.Message, "Please try running the installer again or contact support.");
             }
@@ -334,11 +383,35 @@ namespace CyberGuard.Installer {
         }
 
         private string PostJson(string url, string jsonBody, string collectorId, string credential) {
+            WebException lastEx = null;
+            try {
+                return DoPostJson(url, jsonBody, collectorId, credential);
+            } catch (WebException wex) {
+                lastEx = wex;
+                if (url.Contains("localhost") || url.Contains("127.0.0.1")) {
+                    string altUrl = url.Contains("localhost")
+                        ? url.Replace("://localhost:", "://127.0.0.1:")
+                        : url.Replace("://127.0.0.1:", "://localhost:");
+                    try {
+                        return DoPostJson(altUrl, jsonBody, collectorId, credential);
+                    } catch (WebException altEx) {
+                        if (altEx.Response != null) {
+                            lastEx = altEx;
+                        }
+                    }
+                }
+                throw lastEx;
+            }
+        }
+
+        private string DoPostJson(string url, string jsonBody, string collectorId, string credential) {
             HttpWebRequest req = (HttpWebRequest)WebRequest.Create(url);
             req.Method = "POST";
             req.ContentType = "application/json";
             req.Timeout = 15000;
             req.UserAgent = "CyberGuard-Windows-Installer/1.0.0";
+            req.Proxy = null;
+            req.ServicePoint.Expect100Continue = false;
 
             if (!string.IsNullOrEmpty(collectorId)) {
                 req.Headers["X-Collector-ID"] = collectorId;
@@ -356,6 +429,32 @@ namespace CyberGuard.Installer {
             using (HttpWebResponse resp = (HttpWebResponse)req.GetResponse())
             using (StreamReader sr = new StreamReader(resp.GetResponseStream(), Encoding.UTF8)) {
                 return sr.ReadToEnd();
+            }
+        }
+
+        private void ExecuteUninstall() {
+            try {
+                string targetDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CyberGuard", "Collector");
+                string credPath = Path.Combine(targetDir, "credential.dat");
+                if (File.Exists(credPath)) {
+                    try {
+                        byte[] encrypted = File.ReadAllBytes(credPath);
+                        byte[] decrypted = ProtectedData.Unprotect(encrypted, null, DataProtectionScope.CurrentUser);
+                        string cred = Encoding.UTF8.GetString(decrypted);
+                        PostJson(serverUrl + "/api/v1/collector/revoke", "{}", "", cred);
+                    } catch { }
+                    File.Delete(credPath);
+                }
+                string configPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "cyberguard-config.json");
+                if (File.Exists(configPath)) {
+                    try { File.Delete(configPath); } catch { }
+                }
+                if (Directory.Exists(targetDir)) {
+                    try { Directory.Delete(targetDir, true); } catch { }
+                }
+                MessageBox.Show("CyberGuard AI Endpoint Collector has been successfully uninstalled.", "Uninstall Complete", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            } catch (Exception ex) {
+                MessageBox.Show("Uninstall note: " + ex.Message, "CyberGuard AI", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
         }
 

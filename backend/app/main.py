@@ -86,6 +86,8 @@ from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
+from pathlib import Path
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from app import (
@@ -736,6 +738,11 @@ async def health() -> JSONResponse:
 # ============================================================================
 
 app.include_router(api_router, prefix=API_PREFIX)
+
+# Mount static files for verified endpoint collector installers
+_static_dir = Path(__file__).resolve().parent.parent / 'static'
+if _static_dir.exists() and _static_dir.is_dir():
+    app.mount('/static', StaticFiles(directory=str(_static_dir)), name='static')
 
 
 # ============================================================================

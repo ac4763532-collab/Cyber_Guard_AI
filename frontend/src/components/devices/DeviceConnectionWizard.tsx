@@ -35,6 +35,7 @@ import {
   HelpCircle,
   Info,
   ChevronRight,
+  ChevronDown,
   ShieldAlert,
 } from "lucide-react";
 import {
@@ -126,6 +127,34 @@ export function DeviceConnectionWizard({
   const [copiedHash, setCopiedHash] = useState(false);
   const [copiedToken, setCopiedToken] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
+
+  const formatFriendlyError = (errStr: string | null | undefined) => {
+    if (!errStr) return { title: "", hint: "" };
+    const lower = errStr.toLowerCase();
+    if (lower.includes("token") || lower.includes("invalid") || lower.includes("expired")) {
+      return {
+        title: "We couldn't securely connect this computer.",
+        hint: "Return to CyberGuard AI and try connecting again.",
+      };
+    }
+    if (lower.includes("heartbeat") || lower.includes("timeout") || lower.includes("unreachable")) {
+      return {
+        title: "Your computer is not currently communicating with CyberGuard AI.",
+        hint: "Check its internet connection.",
+      };
+    }
+    if (lower.includes("permission") || lower.includes("denied") || lower.includes("admin")) {
+      return {
+        title: "Windows needs permission to install the security monitoring service.",
+        hint: "When prompted by Windows, click 'Yes' to allow the installation.",
+      };
+    }
+    return {
+      title: errStr,
+      hint: "Please ensure your computer is powered on and connected to the internet.",
+    };
+  };
 
   // If reopening for an existing device
   useEffect(() => {
@@ -200,15 +229,14 @@ export function DeviceConnectionWizard({
     setIsDownloading(true);
     const id = deviceData?.id || preselectedDevice?.id;
     try {
-      const response = await fetch(`/api/v1/devices/${id}/installer?os=${os}`, {
-        method: "GET",
+      const tokenParam = deviceData?.enrollment_token ? `&token=${encodeURIComponent(deviceData.enrollment_token)}` : "";
+      const res = await api.get(`/devices/${id}/installer?os=${os}${tokenParam}`, {
+        responseType: "blob",
       });
 
-      if (!response.ok) {
-        throw new Error("Download request failed from server");
-      }
-
-      const blob = await response.blob();
+      const blob = new Blob([res.data], {
+        type: os === "windows" ? "application/vnd.microsoft.portable-executable" : "text/x-shellscript",
+      });
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -228,6 +256,30 @@ export function DeviceConnectionWizard({
       if (deviceData?.enrollment_token) {
         try {
           await navigator.clipboard.writeText(deviceData.enrollment_token);
+        } catch { }
+      }
+
+      // Auto-download companion config file for zero-click Windows setup
+      if (os === "windows" && deviceData?.enrollment_token) {
+        try {
+          const configJson = JSON.stringify(
+            {
+              server_url: "http://127.0.0.1:8000",
+              device_id: id,
+              enrollment_token: deviceData.enrollment_token,
+            },
+            null,
+            2
+          );
+          const cfgBlob = new Blob([configJson], { type: "application/json" });
+          const cfgUrl = window.URL.createObjectURL(cfgBlob);
+          const cfgA = document.createElement("a");
+          cfgA.href = cfgUrl;
+          cfgA.download = "cyberguard-config.json";
+          document.body.appendChild(cfgA);
+          cfgA.click();
+          cfgA.remove();
+          window.URL.revokeObjectURL(cfgUrl);
         } catch { }
       }
 
@@ -722,19 +774,20 @@ export function DeviceConnectionWizard({
               </div>
 
               {/* Error Explanation & Recovery Hint */}
-              {statusData?.error_message && (
-                <div className="p-4 rounded-xl bg-rose-950/30 border border-rose-500/40 text-rose-200 space-y-2">
-                  <div className="flex items-center gap-2 font-bold text-xs text-rose-300">
-                    <AlertCircle size={16} /> Connection Assistance
-                  </div>
-                  <p className="text-xs">{statusData.error_message}</p>
-                  {statusData.recovery_hint && (
-                    <p className="text-xs text-slate-300 bg-rose-950/60 p-2 rounded border border-rose-500/20">
-                      💡 {statusData.recovery_hint}
+              {statusData?.error_message && (() => {
+                const friendly = formatFriendlyError(statusData.error_message);
+                return (
+                  <div className="p-4 rounded-xl bg-rose-950/30 border border-rose-500/40 text-rose-200 space-y-2">
+                    <div className="flex items-center gap-2 font-bold text-xs text-rose-300">
+                      <AlertCircle size={16} /> Connection Assistance
+                    </div>
+                    <p className="text-xs font-semibold text-rose-200">{friendly.title}</p>
+                    <p className="text-xs text-slate-300 bg-rose-950/60 p-2.5 rounded-lg border border-rose-500/20">
+                      💡 {statusData.recovery_hint || friendly.hint}
                     </p>
-                  )}
-                </div>
-              )}
+                  </div>
+                );
+              })()}
             </div>
           )}
 
@@ -822,6 +875,52 @@ export function DeviceConnectionWizard({
               </div>
             </div>
           )}
+
+          {/* ── Collapsible Help & Troubleshooting Section ── */}
+          <div className="mt-4 pt-3 border-t border-slate-800/80">
+            <button
+              type="button"
+              onClick={() => setShowHelp(!showHelp)}
+              className="flex items-center justify-between w-full text-xs font-medium text-slate-400 hover:text-cyan-400 transition-colors py-1"
+            >
+              <span className="flex items-center gap-1.5">
+                <HelpCircle size={14} className="text-cyan-400" />
+                Need Help Connecting Your Device?
+              </span>
+              <span className="text-[11px] text-slate-500 underline">
+                {showHelp ? "Hide troubleshooting tips" : "Show troubleshooting guide"}
+              </span>
+            </button>
+
+            {showHelp && (
+              <div className="mt-3 p-3.5 rounded-xl bg-slate-950/70 border border-slate-800 text-xs text-slate-300 space-y-3">
+                <div>
+                  <h5 className="font-semibold text-slate-200">
+                    Windows asked for administrator permission?
+                  </h5>
+                  <p className="text-slate-400 text-[11px] mt-0.5">
+                    Windows needs permission to install the security monitoring service. When prompted by Windows User Account Control (UAC), click <strong>Yes</strong> to allow the installation.
+                  </p>
+                </div>
+                <div>
+                  <h5 className="font-semibold text-slate-200">
+                    Is your computer stuck on "Waiting for first heartbeat"?
+                  </h5>
+                  <p className="text-slate-400 text-[11px] mt-0.5">
+                    Your computer is not currently communicating with CyberGuard AI. Check its internet connection and verify that the installer finished running.
+                  </p>
+                </div>
+                <div>
+                  <h5 className="font-semibold text-slate-200">
+                    Did the connection token expire?
+                  </h5>
+                  <p className="text-slate-400 text-[11px] mt-0.5">
+                    We couldn't securely connect this computer. Return to CyberGuard AI and generate a fresh connection to try again.
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* ── Wizard Footer Navigation ────────────────────────────────── */}

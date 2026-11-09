@@ -123,7 +123,6 @@ curl -s -X POST "$SERVER_URL/api/v1/collector/heartbeat" \
   -d "$HB_PAYLOAD" > /dev/null
 
 # Stage 6: First Telemetry Batch
-EVENT_ID=$(cat /proc/sys/kernel/random/uuid 2>/dev/null || python3 -c 'import uuid; print(uuid.uuid4())')
 TS=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
 EVENT_PAYLOAD=$(cat <<EOF
@@ -131,11 +130,11 @@ EVENT_PAYLOAD=$(cat <<EOF
   "batch_id": "$COLLECTOR_ID",
   "events": [
     {
-      "event_id": "$EVENT_ID",
       "event_type": "linux.auth.session_opened",
       "severity": "low",
-      "timestamp": "$TS",
-      "title": "Authorized Linux User Session Opened",
+      "event_time": "$TS",
+      "hostname": "$HOSTNAME",
+      "username": "${USER:-root}",
       "raw_payload": {
         "service": "sshd",
         "hostname": "$HOSTNAME",

@@ -12,9 +12,10 @@ from datetime import datetime, timezone
 from typing import Annotated, List, Optional
 
 from fastapi import APIRouter, Depends, Header, Request, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
+from sqlalchemy.orm.attributes import flag_modified
 
 from app.api.deps import DBDep
 from app.core.constants import HEADER_COLLECTOR_CREDENTIAL, HEADER_COLLECTOR_ID
@@ -33,6 +34,7 @@ router = APIRouter(
 
 
 class CollectorEventBatchRequest(BaseModel):
+    model_config = ConfigDict(extra="ignore")
     batch_id: uuid.UUID = Field(default_factory=uuid.uuid4)
     events: List[EventIngestRequest]
 
@@ -83,12 +85,17 @@ def ingest_collector_events(
         prog["first_telemetry_at"] = prog.get("first_telemetry_at") or now_iso
         cfg["installation_progress"] = prog
         source.config = cfg
+        flag_modified(source, "config")
 
     batch_res = event_ingestion.ingest_batch(
         db,
         source=source,
         payloads=payload.events,
     )
+    if batch_res.ingested > 0:
+        source.events_ingested_count = (source.events_ingested_count or 0) + batch_res.ingested
+        source.last_event_at = datetime.now(timezone.utc)
+
     db.commit()
 
     return CollectorEventBatchResponse(
