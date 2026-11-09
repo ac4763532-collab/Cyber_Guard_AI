@@ -123,6 +123,19 @@ def enroll_collector(
         redeemed_ip=client_ip,
         redeemed_user_agent=user_agent,
     )
+
+    # Record real installation progress checkpoints
+    now_iso = datetime.now(timezone.utc).isoformat()
+    if isinstance(result.source.config, dict):
+        cfg = dict(result.source.config)
+        prog = cfg.get("installation_progress", {})
+        prog["device_authenticated"] = True
+        prog["device_authenticated_at"] = now_iso
+        prog["device_enrolled"] = True
+        prog["device_enrolled_at"] = now_iso
+        cfg["installation_progress"] = prog
+        result.source.config = cfg
+
     db.commit()
 
     return CollectorEnrollResponse(
@@ -156,6 +169,17 @@ def heartbeat_collector(
     verified.source.collector_connected = True
     if payload.hostname:
         verified.source.hostname = payload.hostname
+
+    now_iso = now.isoformat()
+    if isinstance(verified.source.config, dict):
+        cfg = dict(verified.source.config)
+        prog = cfg.get("installation_progress", {})
+        prog["service_started"] = True
+        prog["service_started_at"] = prog.get("service_started_at") or now_iso
+        prog["first_heartbeat_received"] = True
+        prog["first_heartbeat_at"] = prog.get("first_heartbeat_at") or now_iso
+        cfg["installation_progress"] = prog
+        verified.source.config = cfg
 
     db.flush()
     db.commit()

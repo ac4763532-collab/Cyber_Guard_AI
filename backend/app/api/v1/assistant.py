@@ -144,13 +144,14 @@ def send_assistant_message(
 
     # 2. Check if an LLM provider is configured
     provider = getattr(settings, "LLM_PROVIDER", "none").lower()
+    is_ollama = (provider == "ollama")
     has_api_key = bool(
         getattr(settings, "GEMINI_API_KEY", None)
         or getattr(settings, "OPENAI_API_KEY", None)
         or getattr(settings, "ANTHROPIC_API_KEY", None)
     )
 
-    if provider in ["none", "disabled", ""] or not has_api_key:
+    if provider in ["none", "disabled", ""] or (not is_ollama and not has_api_key):
         reply_text = "AI provider unavailable. Configure a supported provider to enable AI assistance."
         asst_msg = CaseMessage(
             conversation_id=conv.id,
@@ -210,10 +211,43 @@ def send_assistant_message(
     evidence_ref = active_findings[0].rule_id if active_findings else None
 
     # Construct evidence-grounded response
-    if not evidence_items:
-        reply_text = f"Based on your verified telemetry: You currently have {sources_count} enrolled device(s). No active security alerts or uncontained findings were detected in your workspace."
-    else:
-        reply_text = f"Based on your verified telemetry: Found {len(active_alerts)} active alert(s) and {len(active_findings)} finding(s). Recent evidence: {evidence_str}."
+    evidence_summary = (
+        f"Verified Workspace Telemetry: {sources_count} enrolled device(s). "
+        f"{len(active_alerts)} active alert(s), {len(active_findings)} active finding(s). Evidence: {evidence_str}."
+    )
+
+    reply_text = ""
+    if is_ollama:
+        try:
+            import httpx
+            system_prompt = (
+                "You are CyberGuard AI, an elite cybersecurity assistant. "
+                "Answer the user's inquiry strictly grounded in their real security telemetry:\n"
+                f"{evidence_summary}\n"
+                "Be concise, actionable, and clear. Do not invent unverified incidents."
+            )
+            with httpx.Client(timeout=10.0) as client:
+                res = client.post(
+                    f"{settings.OLLAMA_BASE_URL.rstrip('/')}/api/generate",
+                    json={
+                        "model": settings.OLLAMA_MODEL,
+                        "prompt": f"User question: {payload.message}",
+                        "system": system_prompt,
+                        "stream": False,
+                    },
+                )
+                if res.status_code == 200:
+                    reply_text = res.json().get("response", "").strip()
+        except Exception as exc:
+            logger.warning("Ollama call failed or timed out", extra={"error": str(exc)[:200]})
+
+    if not reply_text:
+        if not evidence_items:
+            reply_text = f"Based on your verified telemetry: You currently have {sources_count} enrolled device(s). No active security alerts or uncontained findings were detected in your workspace."
+        else:
+            reply_text = f"Based on your verified telemetry: Found {len(active_alerts)} active alert(s) and {len(active_findings)} finding(s). Recent evidence: {evidence_str}."
+        if is_ollama:
+            reply_text += " (Note: Local Ollama daemon was unreachable at " + settings.OLLAMA_BASE_URL + " — start with: ollama run " + settings.OLLAMA_MODEL + ")"
 
     asst_msg = CaseMessage(
         conversation_id=conv.id,

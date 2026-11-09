@@ -95,7 +95,7 @@ export default function TeamMembers() {
       {/* ── Table ──────────────────────────────────────────────────────── */}
       {isLoading ? (
         <Card><CardContent className="p-12"><Spinner size="lg" label="Loading team..." /></CardContent></Card>
-      ) : data?.items.length === 0 ? (
+      ) : (!data?.items || data.items.length === 0) ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center p-12 text-center">
             <Users size={48} className="text-slate-300 dark:text-slate-600 mb-4" />
@@ -121,7 +121,7 @@ export default function TeamMembers() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {data?.items.map((member) => (
+              {(data?.items || []).map((member) => (
                 <TableRow key={member.id}>
                   <TableCell>
                     <div className="flex items-center gap-3">

@@ -131,7 +131,7 @@ export default function AuditLogs() {
         <Card><CardContent className="p-12"><Spinner size="lg" label="Loading audit logs..." /></CardContent></Card>
       ) : isError ? (
         <Card><CardContent className="p-12 text-center text-red-500">Failed to load audit logs. You may lack permission.</CardContent></Card>
-      ) : data?.items.length === 0 ? (
+      ) : (!data?.items || data.items.length === 0) ? (
         <Card>
           <CardContent className="p-12 text-center text-slate-500">
             No audit logs found for the selected filters.
@@ -151,7 +151,7 @@ export default function AuditLogs() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {data?.items.map((log) => (
+                {(data?.items || []).map((log) => (
                   <TableRow key={log.id}>
                     <TableCell className="text-xs text-slate-500 font-mono">
                       {formatDate(log.timestamp)}

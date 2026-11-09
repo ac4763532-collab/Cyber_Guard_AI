@@ -91,7 +91,7 @@ export default function PersonalDashboard() {
   });
 
   const handleAddDevice = () => {
-    navigate("/devices");
+    navigate("/personal/devices?connect=true");
   };
 
   const handleQuickScan = () => {

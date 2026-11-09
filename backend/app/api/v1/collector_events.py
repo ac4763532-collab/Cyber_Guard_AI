@@ -8,6 +8,7 @@ batches of telemetry events directly to the ingestion pipeline.
 from __future__ import annotations
 
 import uuid
+from datetime import datetime, timezone
 from typing import Annotated, List, Optional
 
 from fastapi import APIRouter, Depends, Header, Request, status
@@ -66,28 +67,22 @@ def ingest_collector_events(
 
     verified = collector_credential_service.verify_credential(
         db,
-        collector_id=collector_uuid,
-        plaintext_credential=x_collector_credential,
+        x_collector_credential,
     )
     if not verified:
         raise CollectorAuthError("Invalid or expired collector credential")
 
-    # Find or bind the DataSource for this collector
-    source = db.execute(
-        select(DataSource).where(DataSource.id == collector_uuid)
-    ).scalar_one_or_none()
+    source = verified.source
 
-    if not source:
-        # Create lightweight source record if first event batch
-        source = DataSource(
-            id=collector_uuid,
-            workspace_id=verified.workspace_id,
-            name=f"Collector-{str(collector_uuid)[:8]}",
-            source_type="endpoint_collector",
-            status="active",
-        )
-        db.add(source)
-        db.flush()
+    # Update first telemetry progress checkpoint
+    now_iso = datetime.now(timezone.utc).isoformat()
+    if isinstance(source.config, dict):
+        cfg = dict(source.config)
+        prog = cfg.get("installation_progress", {})
+        prog["first_telemetry_received"] = True
+        prog["first_telemetry_at"] = prog.get("first_telemetry_at") or now_iso
+        cfg["installation_progress"] = prog
+        source.config = cfg
 
     batch_res = event_ingestion.ingest_batch(
         db,

@@ -17,12 +17,14 @@ from app.agents.threat_intelligence.providers.base import (
     ThreatIntelProvider,
 )
 from app.agents.threat_intelligence.providers.abuseipdb import AbuseIPDBProvider
+from app.agents.threat_intelligence.providers.otx import OTXProvider
 from app.agents.threat_intelligence.providers.virustotal import VirusTotalProvider
 
 __all__ = [
     "ProviderResult",
     "ThreatIntelProvider",
     "AbuseIPDBProvider",
+    "OTXProvider",
     "VirusTotalProvider",
     # The following are imported lazily by the agent to avoid hard
     # dependencies on optional modules during incremental delivery:

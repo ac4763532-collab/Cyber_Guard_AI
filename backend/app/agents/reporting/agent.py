@@ -440,7 +440,7 @@ class ReportingAgent(BaseAgent):
 
         report = report_service.request_report(
             db,
-            actor_id=None,   # system-generated
+            actor=None,   # system-generated
             payload=payload,
         )
 

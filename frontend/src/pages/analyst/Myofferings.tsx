@@ -93,7 +93,7 @@ export default function MyOfferings() {
       {/* ── Offerings List ─────────────────────────────────────────────── */}
       {isLoading ? (
         <Card><CardContent className="p-12"><Spinner size="lg" label="Loading your offerings..." /></CardContent></Card>
-      ) : data?.items.length === 0 ? (
+      ) : (!data?.items || data.items.length === 0) ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center p-12 text-center">
             <Briefcase size={48} className="text-slate-300 dark:text-slate-600 mb-4" />
@@ -108,7 +108,7 @@ export default function MyOfferings() {
         </Card>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {data?.items.map((offering) => (
+          {(data?.items || []).map((offering) => (
             <Card key={offering.id}>
               <CardContent className="p-6">
                 <div className="flex justify-between items-start mb-4">

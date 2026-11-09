@@ -142,6 +142,20 @@ class ThreatIntelligenceAgent(BaseAgent):
                 extra={"error": str(exc)[:200]},
             )
 
+        # AlienVault OTX (optional API key)
+        try:
+            from app.agents.threat_intelligence.providers.otx import OTXProvider
+            otx = OTXProvider(
+                api_key=self._config.get("otx_api_key") or None,
+                rate_limit_rpm=int(self._config.get("otx_rpm", 30)),
+            )
+            providers.append(otx)
+        except Exception as exc:  # noqa: BLE001
+            self._logger.warning(
+                "OTX provider unavailable",
+                extra={"error": str(exc)[:200]},
+            )
+
         # URLhaus (no API key required)
         if self._config.get("urlhaus_enabled", True):
             try:

@@ -87,7 +87,7 @@ export default function AnalystVerification() {
       {/* ── Table ──────────────────────────────────────────────────────── */}
       {isLoading ? (
         <Card><CardContent className="p-12"><Spinner size="lg" label="Loading applications..." /></CardContent></Card>
-      ) : data?.items.length === 0 ? (
+      ) : (!data?.items || data.items.length === 0) ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center p-12 text-center">
             <ShieldCheck size={48} className="text-green-500 mb-4" />
@@ -110,7 +110,7 @@ export default function AnalystVerification() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {data?.items.map((app) => (
+              {(data?.items || []).map((app) => (
                 <TableRow key={app.id} interactive>
                   <TableCell>
                     <div className="flex flex-col">

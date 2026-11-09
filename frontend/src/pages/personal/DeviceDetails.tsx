@@ -5,6 +5,7 @@
  * and security posture backed by real database records.
  */
 
+import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { 
@@ -18,11 +19,27 @@ import {
   Monitor,
   CheckCircle2,
   XCircle,
-  AlertCircle
+  AlertCircle,
+  Edit2,
+  Pause,
+  Play,
+  Check,
+  Activity,
+  FileCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
 import { Spinner } from "@/components/ui/Spinner";
+import { Input } from "@/components/ui/Input";
+import {
+  Modal,
+  ModalContent,
+  ModalHeader,
+  ModalTitle,
+  ModalDescription,
+  ModalFooter,
+} from "@/components/ui/Modal";
+import { DeviceConnectionWizard } from "@/components/devices/DeviceConnectionWizard";
 import { api } from "@/lib/api";
 import { formatRelativeTime } from "@/lib/utils";
 import { toast } from "sonner";
@@ -47,8 +64,11 @@ interface DeviceDetailsData {
   status: string;
   last_heartbeat: string | null;
   last_event_at: string | null;
-  threat_count: number;
   collector_connected: boolean;
+  collection_active: boolean;
+  threat_count: number;
+  credentials_count?: number;
+  enrollment_tokens_count?: number;
   source_key: string;
   created_at: string;
   findings: DeviceFinding[];
@@ -59,13 +79,17 @@ export default function DeviceDetails() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
+  const [isWizardOpen, setIsWizardOpen] = useState(false);
+  const [isRenameOpen, setIsRenameOpen] = useState(false);
+  const [nameInput, setNameInput] = useState("");
+
   const { data: device, isLoading, error } = useQuery<DeviceDetailsData>({
     queryKey: ["device-detail", deviceId],
     queryFn: async () => {
       const { data } = await api.get<DeviceDetailsData>(`/devices/${deviceId}`);
       return data;
     },
-    refetchInterval: 10000,
+    refetchInterval: 8000,
   });
 
   const disconnectMutation = useMutation({
@@ -79,6 +103,36 @@ export default function DeviceDetails() {
     },
     onError: (err: any) => {
       toast.error(err?.message || "Failed to remove device");
+    },
+  });
+
+  const renameMutation = useMutation({
+    mutationFn: async (newName: string) => {
+      const { data } = await api.patch(`/devices/${deviceId}`, { name: newName });
+      return data;
+    },
+    onSuccess: () => {
+      toast.success("Device renamed successfully.");
+      setIsRenameOpen(false);
+      queryClient.invalidateQueries({ queryKey: ["device-detail", deviceId] });
+      queryClient.invalidateQueries({ queryKey: ["devices"] });
+    },
+    onError: (err: any) => {
+      toast.error(err?.message || "Failed to rename device");
+    },
+  });
+
+  const toggleCollectionMutation = useMutation({
+    mutationFn: async (active: boolean) => {
+      const { data } = await api.patch(`/devices/${deviceId}`, { collection_active: active });
+      return data;
+    },
+    onSuccess: (res: any) => {
+      toast.success(res.collection_active ? "Telemetry collection resumed." : "Telemetry collection paused.");
+      queryClient.invalidateQueries({ queryKey: ["device-detail", deviceId] });
+    },
+    onError: (err: any) => {
+      toast.error(err?.message || "Failed to toggle collection state");
     },
   });
 
@@ -147,6 +201,17 @@ export default function DeviceDetails() {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-2xl font-bold text-slate-100">{device.name}</h1>
+              <button
+                type="button"
+                onClick={() => {
+                  setNameInput(device.name);
+                  setIsRenameOpen(true);
+                }}
+                className="text-slate-400 hover:text-cyan-400 p-1 rounded hover:bg-slate-800 transition-colors"
+                title="Rename Device"
+              >
+                <Edit2 size={14} />
+              </button>
               {device.collector_connected ? (
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
                   <CheckCircle2 size={12} className="text-emerald-400" /> Online
@@ -160,6 +225,16 @@ export default function DeviceDetails() {
                   <XCircle size={12} className="text-slate-400" /> Offline
                 </span>
               )}
+
+              {device.collection_active !== undefined && (
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                  device.collection_active
+                    ? "bg-cyan-500/10 text-cyan-300 border-cyan-500/30"
+                    : "bg-slate-800 text-slate-400 border-slate-700"
+                }`}>
+                  {device.collection_active ? "Collecting" : "Collection Paused"}
+                </span>
+              )}
             </div>
             <p className="text-xs text-slate-400 font-mono mt-0.5">
               Host: {device.hostname || "Unreported"} • Key: {device.source_key}
@@ -167,21 +242,39 @@ export default function DeviceDetails() {
           </div>
         </div>
 
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button
             variant="outline"
             size="sm"
-            onClick={() => challengeMutation.mutate()}
-            isLoading={challengeMutation.isPending}
+            onClick={() => toggleCollectionMutation.mutate(!device.collection_active)}
+            isLoading={toggleCollectionMutation.isPending}
             className="border-slate-700 text-slate-300 hover:bg-slate-800 text-xs"
           >
-            <RefreshCw size={14} className="mr-1.5" /> Re-enroll Challenge
+            {device.collection_active ? (
+              <>
+                <Pause size={14} className="mr-1.5 text-amber-400" /> Pause Collection
+              </>
+            ) : (
+              <>
+                <Play size={14} className="mr-1.5 text-emerald-400" /> Resume Collection
+              </>
+            )}
           </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setIsWizardOpen(true)}
+            className="border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/10 text-xs font-semibold"
+          >
+            <RefreshCw size={14} className="mr-1.5" /> Re-enroll Device
+          </Button>
+
           <Button
             variant="outline"
             size="sm"
             onClick={() => {
-              if (confirm("Are you sure you want to disconnect this device and revoke its tokens?")) {
+              if (confirm("Are you sure you want to disconnect this device and revoke all its security credentials?")) {
                 disconnectMutation.mutate();
               }
             }}
@@ -221,6 +314,39 @@ export default function DeviceDetails() {
           <p className="text-xs text-slate-500 mt-0.5">Findings: {device.findings?.length || 0}</p>
         </Card>
       </div>
+
+      {/* Collection Scopes & Telemetry Pipeline */}
+      <Card className="bg-slate-900 border-slate-800">
+        <CardHeader>
+          <CardTitle className="text-base text-slate-100 flex items-center gap-2">
+            <Activity size={16} className="text-cyan-400" /> Authorized Collection Scopes & Pipeline
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+            <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-1">
+              <span className="text-[10px] uppercase font-bold text-slate-400">Security Log Channels</span>
+              <p className="text-slate-300 font-medium">
+                {device.type === "windows"
+                  ? "Security (4624, 4625, 4688) & System (7045)"
+                  : "systemd-journald & auth.log / secure"}
+              </p>
+            </div>
+            <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-1">
+              <span className="text-[10px] uppercase font-bold text-slate-400">Process & Execution Audit</span>
+              <p className="text-slate-300 font-medium">
+                Process creation, hashes, and command-line arguments
+              </p>
+            </div>
+            <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-1">
+              <span className="text-[10px] uppercase font-bold text-slate-400">Last Telemetry Upload</span>
+              <p className="text-slate-300 font-medium">
+                {device.last_event_at ? formatRelativeTime(device.last_event_at) : "Awaiting first event batch"}
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       <Card className="bg-slate-900 border-slate-800">
         <CardHeader>
@@ -264,6 +390,50 @@ export default function DeviceDetails() {
           )}
         </CardContent>
       </Card>
+
+      {/* Rename Device Modal */}
+      <Modal open={isRenameOpen} onOpenChange={setIsRenameOpen}>
+        <ModalContent className="max-w-md bg-slate-900 border-slate-800 text-slate-100">
+          <ModalHeader>
+            <ModalTitle>Rename Device</ModalTitle>
+            <ModalDescription className="text-slate-400 text-xs">
+              Give this device a recognizable friendly name for alerts and reports.
+            </ModalDescription>
+          </ModalHeader>
+          <div className="py-4">
+            <Input
+              label="Device Name"
+              value={nameInput}
+              onChange={(e) => setNameInput(e.target.value)}
+              placeholder="e.g. CEO Laptop or Production Web Server"
+            />
+          </div>
+          <ModalFooter>
+            <Button variant="ghost" size="sm" onClick={() => setIsRenameOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              className="bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold"
+              onClick={() => renameMutation.mutate(nameInput)}
+              isLoading={renameMutation.isPending}
+            >
+              Save Name
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      {/* Device Connection Wizard for Re-enrollment */}
+      <DeviceConnectionWizard
+        isOpen={isWizardOpen}
+        onClose={() => setIsWizardOpen(false)}
+        preselectedDevice={{
+          id: device.id,
+          name: device.name,
+          os_type: device.type,
+        }}
+      />
     </div>
   );
 }

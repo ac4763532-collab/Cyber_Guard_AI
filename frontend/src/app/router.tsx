@@ -45,7 +45,7 @@ import EvidenceLibrary from "@/pages/analyst/EvidenceLibrary";
 import AIInvestigation from "@/pages/analyst/AIInvestigation";
 import AnalystMessages from "@/pages/analyst/AnalystMessages";
 import AnalystReports from "@/pages/analyst/AnalystReports";
-import MyOfferings from "@/pages/analyst/Myofferings";
+import MyOfferings from "@/pages/analyst/MyOfferings";
 import AnalystProfile from "@/pages/analyst/AnalystProfile";
 import Earnings from "@/pages/analyst/Earnings";
 import AnalystSettings from "@/pages/analyst/AnalystSettings";

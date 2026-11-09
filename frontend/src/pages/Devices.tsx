@@ -13,23 +13,20 @@
  *       3. Displays the exact installation command for the user to copy.
  */
 
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Monitor, Server, Apple, Copy, CheckCircle2, XCircle, AlertCircle } from "lucide-react";
-import { toast } from "sonner";
+import { useState, useEffect } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import { Plus, Monitor, Server, Apple, CheckCircle2, XCircle, AlertCircle } from "lucide-react";
 import { formatRelativeTime } from "@/lib/utils";
 
 import { api } from "@/lib/api";
-import type { PaginatedResponse } from "@/types";
 import { Card, CardContent } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
 import { Spinner } from "@/components/ui/Spinner";
-import { Modal, ModalContent, ModalHeader, ModalTitle, ModalDescription, ModalFooter } from "@/components/ui/Modal";
 import {
   TableWrapper, Table, TableHeader, TableBody, TableRow, TableHead, TableCell,
 } from "@/components/ui/Table";
+import { DeviceConnectionWizard } from "@/components/devices/DeviceConnectionWizard";
 
 
 // ============================================================================
@@ -62,17 +59,28 @@ type OS = "windows" | "linux" | "macos";
 
 export default function Devices() {
   const navigate = useNavigate();
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [isModalOpen, setIsModalOpen] = useState(searchParams.get("connect") === "true");
+
+  useEffect(() => {
+    if (searchParams.get("connect") === "true") {
+      setIsModalOpen(true);
+    }
+  }, [searchParams]);
 
   // ── Fetch Devices ─────────────────────────────────────────────────────
-  const { data, isLoading } = useQuery<{ items: DeviceItem[]; total: number }>({
+  const { data, isLoading } = useQuery<DeviceItem[] | { items: DeviceItem[]; total?: number }>({
     queryKey: ["devices"],
     queryFn: async () => {
-      const { data } = await api.get<{ items: DeviceItem[]; total: number }>("/devices");
+      const { data } = await api.get<DeviceItem[] | { items: DeviceItem[]; total?: number }>("/devices");
       return data;
     },
     refetchInterval: 8000, 
   });
+
+  const deviceList: DeviceItem[] = Array.isArray(data)
+    ? data
+    : (data?.items ?? []);
 
   return (
     <div className="space-y-6">
@@ -95,7 +103,7 @@ export default function Devices() {
       {/* ── Device Table ───────────────────────────────────────────────── */}
       {isLoading ? (
         <Card><CardContent className="p-12"><Spinner size="lg" label="Loading devices..." /></CardContent></Card>
-      ) : data?.items.length === 0 ? (
+      ) : deviceList.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center p-12 text-center">
             <Monitor size={48} className="text-slate-300 dark:text-slate-600 mb-4" />
@@ -121,7 +129,7 @@ export default function Devices() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {data?.items.map((device) => (
+              {deviceList.map((device) => (
                 <TableRow
                   key={device.id}
                   interactive
@@ -183,173 +191,13 @@ export default function Devices() {
         </TableWrapper>
       )}
 
-      <ConnectDeviceModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
+      <DeviceConnectionWizard
+        isOpen={isModalOpen}
+        onClose={() => {
+          setIsModalOpen(false);
+          setSearchParams({});
+        }}
+      />
     </div>
-  );
-}
-
-
-// ============================================================================
-// CONNECT DEVICE MODAL (The Onboarding Flow)
-// ============================================================================
-
-interface DeviceCreated {
-  id: string;
-  source_key: string;
-  name: string;
-  os_type: string;
-  status: string;
-  enrollment_token: string;
-  expires_at: string;
-  powershell_install_command: string;
-  bash_install_command: string;
-}
-
-function ConnectDeviceModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
-  const queryClient = useQueryClient();
-  const [os, setOs] = useState<OS>("windows");
-  const [deviceName, setDeviceName] = useState("");
-  const [createdDevice, setCreatedDevice] = useState<DeviceCreated | null>(null);
-
-  // ── Mutation: Register Device + Get Token + Commands ─────────────────
-  const createDeviceMutation = useMutation({
-    mutationFn: async () => {
-      const { data } = await api.post<DeviceCreated>("/devices", {
-        name: deviceName || `My ${os.charAt(0).toUpperCase() + os.slice(1)} Device`,
-        os_type: os,
-      });
-      return data;
-    },
-    onSuccess: (data) => {
-      setCreatedDevice(data);
-      queryClient.invalidateQueries({ queryKey: ["devices"] });
-    },
-    onError: (err: any) => {
-      toast.error(err.message || "Failed to generate enrollment token");
-    },
-  });
-
-  // Reset state when modal closes
-  const handleClose = () => {
-    setTimeout(() => {
-      setCreatedDevice(null);
-      setDeviceName("");
-      setOs("windows");
-    }, 200);
-    onClose();
-  };
-
-  const getCommand = () => {
-    if (!createdDevice) return "";
-    if (os === "windows") {
-      return createdDevice.powershell_install_command;
-    }
-    return createdDevice.bash_install_command;
-  };
-
-  const copyToClipboard = () => {
-    navigator.clipboard.writeText(getCommand());
-    toast.success("Command copied to clipboard");
-  };
-
-  return (
-    <Modal open={isOpen} onOpenChange={handleClose}>
-      <ModalContent className="max-w-2xl">
-        
-        {/* ── Step 1: Configure ─────────────────────────────────────────── */}
-        {!createdDevice ? (
-          <>
-            <ModalHeader>
-              <ModalTitle>Connect a Device</ModalTitle>
-              <ModalDescription>
-                Choose your operating system and we'll generate an installation command.
-              </ModalDescription>
-            </ModalHeader>
-
-            <div className="py-6 space-y-6">
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Operating System</label>
-                <div className="grid grid-cols-3 gap-3">
-                  <button
-                    onClick={() => setOs("windows")}
-                    className={`flex flex-col items-center justify-center gap-2 rounded-lg border p-4 transition-colors ${os === "windows" ? "border-brand-500 bg-brand-50 text-brand-700 dark:bg-brand-900/20 dark:text-brand-400" : "border-slate-200 hover:border-slate-300 dark:border-slate-700 dark:hover:border-slate-600"}`}
-                  >
-                    <Monitor size={24} />
-                    <span className="text-sm font-medium">Windows</span>
-                  </button>
-                  <button
-                    onClick={() => setOs("linux")}
-                    className={`flex flex-col items-center justify-center gap-2 rounded-lg border p-4 transition-colors ${os === "linux" ? "border-brand-500 bg-brand-50 text-brand-700 dark:bg-brand-900/20 dark:text-brand-400" : "border-slate-200 hover:border-slate-300 dark:border-slate-700 dark:hover:border-slate-600"}`}
-                  >
-                    <Server size={24} />
-                    <span className="text-sm font-medium">Linux</span>
-                  </button>
-                  <button
-                    onClick={() => setOs("macos")}
-                    className={`flex flex-col items-center justify-center gap-2 rounded-lg border p-4 transition-colors ${os === "macos" ? "border-brand-500 bg-brand-50 text-brand-700 dark:bg-brand-900/20 dark:text-brand-400" : "border-slate-200 hover:border-slate-300 dark:border-slate-700 dark:hover:border-slate-600"}`}
-                  >
-                    <Apple size={24} />
-                    <span className="text-sm font-medium">macOS</span>
-                  </button>
-                </div>
-              </div>
-
-              <Input
-                label="Device Name (Optional)"
-                placeholder="e.g. Production Web Server"
-                value={deviceName}
-                onChange={(e) => setDeviceName(e.target.value)}
-                helperText="If left blank, we'll use your hostname."
-              />
-            </div>
-
-            <ModalFooter>
-              <Button variant="ghost" onClick={handleClose}>Cancel</Button>
-              <Button onClick={() => createDeviceMutation.mutate()} isLoading={createDeviceMutation.isPending}>
-                Generate Command
-              </Button>
-            </ModalFooter>
-          </>
-        ) : (
-          
-          /* ── Step 2: Show Command ────────────────────────────────────── */
-          <>
-            <ModalHeader>
-              <ModalTitle>Run the Installation Command</ModalTitle>
-              <ModalDescription>
-                Copy and run this command on your device. This token expires in 15 minutes.
-              </ModalDescription>
-            </ModalHeader>
-
-            <div className="py-6 space-y-4">
-              <div className="relative">
-                <pre className="rounded-lg bg-slate-900 p-4 text-sm text-green-400 overflow-x-auto dark:bg-slate-950 font-mono">
-                  {getCommand()}
-                </pre>
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  className="absolute right-2 top-2"
-                  onClick={copyToClipboard}
-                  leftIcon={<Copy size={14} />}
-                >
-                  Copy
-                </Button>
-              </div>
-
-              <div className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800 dark:bg-amber-900/30 dark:text-amber-300 flex items-start gap-2">
-                <AlertCircle size={16} className="mt-0.5 shrink-0" />
-                <p>The device status will automatically change to <strong>Online</strong> once the collector connects. You can close this window safely.</p>
-              </div>
-            </div>
-
-            <ModalFooter>
-              <Button onClick={handleClose}>Done</Button>
-            </ModalFooter>
-          </>
-        )}
-
-      </ModalContent>
-    </Modal>
   );
 }

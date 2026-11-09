@@ -271,6 +271,27 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     if db_ok:
         logger.info("Database reachable at startup")
 
+        # ── Initialize Firebase Admin (if enabled)
+        if getattr(settings, "FIREBASE_AUTH_ENABLED", False):
+            try:
+                import firebase_admin
+                from firebase_admin import credentials
+                from pathlib import Path
+                cred_path = Path(settings.FIREBASE_CREDENTIALS_PATH)
+                if not cred_path.is_absolute():
+                    cred_path = Path(__file__).resolve().parent.parent / settings.FIREBASE_CREDENTIALS_PATH
+                if cred_path.exists():
+                    cred = credentials.Certificate(str(cred_path))
+                    firebase_admin.initialize_app(cred)
+                    logger.info("Firebase Admin initialized successfully")
+                else:
+                    logger.warning("Firebase credentials file not found at %s", cred_path)
+            except ValueError:
+                # Already initialized
+                pass
+            except Exception as exc:
+                logger.warning("Failed to initialize Firebase Admin: %s", exc)
+
         # ── Start agent runtime (if enabled)
         if settings.AGENT_EXECUTION_ENABLED:
             try:

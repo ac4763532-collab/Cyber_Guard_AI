@@ -1,11 +1,11 @@
 import { ReactNode } from "react";
-import { Navigate, useLocation } from "react-router-dom";
+import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "./AuthProvider";
 import { Spinner } from "@/components/ui/Spinner";
 
 interface ProtectedRouteProps {
-  children: ReactNode;
-  allowedRoles?: ("individual" | "analyst" | "organizer" | "admin")[];
+  children?: ReactNode;
+  allowedRoles?: string[];
 }
 
 export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) {
@@ -41,7 +41,7 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
     }
   }
 
-  return <>{children}</>;
+  return <>{children ?? <Outlet />}</>;
 }
 
 export default ProtectedRoute;

@@ -311,7 +311,8 @@ def _resolve_sections(report: SecurityReport) -> list[str]:
 def request_report(
     db: Session,
     *,
-    actor: User | None,
+    actor: User | None = None,
+    actor_id: Any | None = None,
     payload: ReportCreate,
     request: Any | None = None,
 ) -> SecurityReport:
@@ -408,14 +409,14 @@ def request_report(
 
 def _resolve_workspace_for_scope(
     db: Session,
-    actor: User,
+    actor: User | None,
     *,
     scope_type: str,
     scope_id: uuid.UUID | None,
 ) -> uuid.UUID:
     """
     Determine which workspace the report belongs to, based on scope.
-    Also verifies the actor has access to the scoped entity.
+    Also verifies the actor has access to the scoped entity (if actor is provided).
     """
     if scope_type in ("workspace", "custom"):
         if scope_id is not None:
@@ -425,9 +426,15 @@ def _resolve_workspace_for_scope(
                     message=f"Workspace {scope_id} not found.",
                     code="WORKSPACE_NOT_FOUND",
                 )
-            authorization.require_workspace_member(db, actor, ws.id)
+            if actor is not None:
+                authorization.require_workspace_member(db, actor, ws.id)
             return ws.id
         # No scope_id → use the actor's personal workspace
+        if actor is None:
+            raise ValidationError(
+                message="scope_id is required when requesting report without user context.",
+                code="WORKSPACE_CONTEXT_REQUIRED",
+            )
         from app.services import workspace_service
         personal_ws = workspace_service.get_personal_workspace_optional(
             db, actor.id,
@@ -454,7 +461,8 @@ def _resolve_workspace_for_scope(
                 message=f"Incident {scope_id} not found.",
                 code="INCIDENT_NOT_FOUND",
             )
-        authorization.require_workspace_member(db, actor, incident.workspace_id)
+        if actor is not None:
+            authorization.require_workspace_member(db, actor, incident.workspace_id)
         return incident.workspace_id
 
     if scope_type == "case":
@@ -470,9 +478,10 @@ def _resolve_workspace_for_scope(
                 code="CASE_NOT_FOUND",
             )
         from app.models.enums import AccessGrantScope
-        authorization.require_case_access(
-            db, actor, case, minimum_scope=AccessGrantScope.CASE_READ,
-        )
+        if actor is not None:
+            authorization.require_case_access(
+                db, actor, case, minimum_scope=AccessGrantScope.CASE_READ,
+            )
         return case.workspace_id
 
     if scope_type == "organization":
@@ -481,7 +490,8 @@ def _resolve_workspace_for_scope(
                 message="scope_id is required for organization reports.",
                 code="SCOPE_ID_REQUIRED",
             )
-        authorization.require_org_member(db, actor, scope_id)
+        if actor is not None:
+            authorization.require_org_member(db, actor, scope_id)
         # Find a default workspace for the org
         from app.models.workspace import Workspace as _WS
         from app.models.enums import WorkspaceType
