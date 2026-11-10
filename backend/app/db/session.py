@@ -139,8 +139,12 @@ def _build_engine() -> Engine:
     mode, override by passing ``poolclass=NullPool`` — not done here to
     keep behavior predictable.
     """
+    db_url = str(settings.DATABASE_URL)
+    if db_url.startswith("postgresql://") and "+psycopg" not in db_url:
+        db_url = db_url.replace("postgresql://", "postgresql+psycopg://", 1)
+
     return create_engine(
-        str(settings.DATABASE_URL),
+        db_url,
         pool_size=settings.DB_POOL_SIZE,
         max_overflow=settings.DB_MAX_OVERFLOW,
         pool_timeout=settings.DB_POOL_TIMEOUT,

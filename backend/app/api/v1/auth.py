@@ -74,8 +74,9 @@ from datetime import datetime, timezone
 from typing import Optional
 from fastapi import APIRouter, HTTPException, Request, status
 from fastapi.responses import RedirectResponse
+from pydantic import BaseModel
 from app.models.user import User
-from app.services import workspace_service
+from app.services import user_service, workspace_service
 
 
 from app.api.deps import CurrentUser, DBDep
@@ -431,11 +432,13 @@ async def google_auth_callback(
         user = user_service.get_by_email_optional(db, email=google_email)
         now = datetime.now(timezone.utc)
         if not user:
+            from app.utils.id_generator import generate_public_slug
             user = User(
                 email=google_email,
+                public_user_id=generate_public_slug(google_name or google_email, role="individual"),
                 full_name=google_name,
                 role="individual",
-                is_active=True,
+                status=UserStatus.ACTIVE,
                 email_verified_at=now,
             )
             db.add(user)

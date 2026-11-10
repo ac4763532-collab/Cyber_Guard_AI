@@ -20,7 +20,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useNavigate, useLocation, Link } from "react-router-dom";
-import { ShieldCheck, Mail, Lock, ArrowLeft, KeyRound } from "lucide-react";
+import { ShieldCheck, Mail, Lock, ArrowLeft, KeyRound, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 
 import { useAuth } from "@/auth/AuthProvider";
@@ -137,6 +137,13 @@ export default function Login() {
     }
   };
 
+  // One-Click Instant Demo Login
+  const handleDemoLogin = async (demoEmail: string) => {
+    setValue("email", demoEmail);
+    setValue("password", "CyberGuard2026!");
+    await onSubmit({ email: demoEmail, password: "CyberGuard2026!" });
+  };
+
   // Password Recovery Submit
   const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -197,6 +204,46 @@ export default function Login() {
         {/* ── Login Card ──────────────────────────────────────────────── */}
         <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8 dark:border-slate-800 dark:bg-slate-900">
           
+          {/* ── One-Click Instant Demo Access ────────────────────────── */}
+          <div className="mb-6 rounded-lg border border-cyan-500/30 bg-cyan-950/20 p-3.5 dark:border-cyan-500/25 dark:bg-cyan-950/30">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-semibold text-cyan-400 flex items-center gap-1.5">
+                <Sparkles size={14} className="text-cyan-400" />
+                Instant 1-Click Demo Access
+              </span>
+              <span className="text-[10px] text-cyan-500/80 font-mono">Pre-seeded</span>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              <button
+                type="button"
+                onClick={() => handleDemoLogin("analyst@cyberguard.ai")}
+                disabled={isSubmitting}
+                className="flex flex-col items-center justify-center rounded-md border border-cyan-500/40 bg-slate-900/80 px-2 py-2 text-xs font-medium text-slate-200 hover:border-cyan-400 hover:bg-cyan-950/50 hover:text-white transition shadow-sm"
+              >
+                <span className="font-semibold text-cyan-300">🛡️ Analyst</span>
+                <span className="text-[10px] text-slate-400">SOC Portal</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDemoLogin("user@cyberguard.ai")}
+                disabled={isSubmitting}
+                className="flex flex-col items-center justify-center rounded-md border border-slate-700 bg-slate-900/80 px-2 py-2 text-xs font-medium text-slate-200 hover:border-cyan-400 hover:bg-cyan-950/50 hover:text-white transition shadow-sm"
+              >
+                <span className="font-semibold text-slate-200">👤 User</span>
+                <span className="text-[10px] text-slate-400">Personal</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDemoLogin("admin@cyberguard.ai")}
+                disabled={isSubmitting}
+                className="flex flex-col items-center justify-center rounded-md border border-slate-700 bg-slate-900/80 px-2 py-2 text-xs font-medium text-slate-200 hover:border-cyan-400 hover:bg-cyan-950/50 hover:text-white transition shadow-sm"
+              >
+                <span className="font-semibold text-slate-200">🏢 Admin</span>
+                <span className="text-[10px] text-slate-400">SecOps Org</span>
+              </button>
+            </div>
+          </div>
+
           {/* ── Google SSO Button ──────────────────────────────────────── */}
           <button
             type="button"
