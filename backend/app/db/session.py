@@ -110,14 +110,16 @@ def _build_connect_args() -> dict[str, object]:
     Return PostgreSQL-specific connect args. These are ignored by non-PG
     engines, so tests using SQLite are unaffected.
     """
-    return {
-        # Shows up in pg_stat_activity — invaluable during incidents.
-        "application_name": "cyberguard-api",
-        # Server-side kill for runaway queries.
-        "options": f"-c statement_timeout={settings.DB_POOL_TIMEOUT * 1000}",
+    args: dict[str, object] = {
         # Fast fail connection timeout (seconds) to prevent startup hangs if DB is offline.
         "connect_timeout": 10,
     }
+    # Neon Serverless connection pooler (PgBouncer) rejects custom startup 'options'
+    db_url = str(settings.DATABASE_URL)
+    if "neon.tech" not in db_url and "pooler" not in db_url:
+        args["application_name"] = "cyberguard-api"
+        args["options"] = f"-c statement_timeout={settings.DB_POOL_TIMEOUT * 1000}"
+    return args
 
 
 def _build_engine() -> Engine:
