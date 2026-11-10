@@ -175,6 +175,13 @@ class Settings(BaseSettings):
     MITRE_ATTACK_ENABLED: bool = True
 
     # ────────────────────────────────────────────────────────────────────
+    # ────────────────────────────────────────────────────────────────────
+    # HUGGING FACE CLOUD INFERENCE (Option 1: 0 MB Download to Local Machine)
+    # ────────────────────────────────────────────────────────────────────
+    HUGGINGFACE_API_KEY: SecretStr = Field(default=SecretStr(""))
+    HUGGINGFACE_MODEL_REPO: str = "chavanabhi045/cyberguard-ai-models"
+    USE_HUGGINGFACE_CLOUD_INFERENCE: bool = True
+
     # AI / LLM
     # ────────────────────────────────────────────────────────────────────
     LLM_PROVIDER: LLMProvider = "none"

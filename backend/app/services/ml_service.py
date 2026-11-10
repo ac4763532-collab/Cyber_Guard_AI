@@ -240,6 +240,49 @@ class MLSecurityEngine:
     # INFERENCE PIPELINES
     # ──────────────────────────────────────────────────────────────────────────
 
+    def query_huggingface_cloud(
+        self,
+        text_payload: str,
+    ) -> Optional[dict[str, Any]]:
+        """
+        Executes Option 1: Live Cloud Inference via Hugging Face Serverless API.
+        Does NOT download model weights onto the local laptop.
+        """
+        try:
+            import httpx
+            from app.core.config import settings
+
+            if not getattr(settings, "USE_HUGGINGFACE_CLOUD_INFERENCE", True):
+                return None
+
+            repo = getattr(settings, "HUGGINGFACE_MODEL_REPO", "chavanabhi045/cyberguard-ai-models")
+            hf_key = (
+                os.getenv("HUGGINGFACE_API_KEY")
+                or os.getenv("HF_TOKEN")
+                or (
+                    settings.HUGGINGFACE_API_KEY.get_secret_value()
+                    if hasattr(settings, "HUGGINGFACE_API_KEY")
+                    else ""
+                )
+            )
+
+            headers = {"Content-Type": "application/json"}
+            if hf_key:
+                headers["Authorization"] = f"Bearer {hf_key}"
+
+            url = f"https://api-inference.huggingface.co/models/{repo}"
+
+            with httpx.Client(timeout=8.0) as client:
+                res = client.post(url, json={"inputs": text_payload}, headers=headers)
+                if res.status_code == 200:
+                    resp_json = res.json()
+                    return {"success": True, "data": resp_json, "provider": f"huggingface/{repo}"}
+                else:
+                    logger.debug(f"Hugging Face cloud status {res.status_code}: {res.text[:120]}")
+        except Exception as exc:
+            logger.debug(f"Hugging Face cloud inference exception: {exc}")
+        return None
+
     def predict_email_phishing(
         self,
         subject: str,
@@ -457,6 +500,11 @@ class MLSecurityEngine:
                 },
             },
             "total_inferences": self.inference_count,
+            "cloud_inference": {
+                "huggingface_repo": "chavanabhi045/cyberguard-ai-models",
+                "mode": "Option 1: Live Cloud Inference (0 MB Local Download)",
+                "status": "configured",
+            },
         }
 
 
