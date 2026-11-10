@@ -63,6 +63,12 @@ interface DeviceFinding {
 interface DeviceEvent {
   id: string;
   event_type: string;
+  title?: string;
+  event_id?: string;
+  plain_english?: string;
+  category_label?: string;
+  process_display?: string;
+  badge_label?: string;
   severity: string;
   category?: string;
   event_time: string;
@@ -432,22 +438,32 @@ export default function DeviceDetails() {
                   <table className="w-full text-left text-xs text-slate-300">
                     <thead className="bg-slate-950 text-slate-400 uppercase text-[10px] tracking-wider border-b border-slate-800 font-semibold">
                       <tr>
-                        <th className="py-3 px-4">Event Type</th>
+                        <th className="py-3 px-4">Activity & Event</th>
                         <th className="py-3 px-4">Severity</th>
-                        <th className="py-3 px-4">User / Process</th>
-                        <th className="py-3 px-4">Timestamp</th>
+                        <th className="py-3 px-4">User / Application</th>
+                        <th className="py-3 px-4">Detected</th>
                         <th className="py-3 px-4 text-right">Details</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-800/60 font-mono">
+                    <tbody className="divide-y divide-slate-800/60 font-sans">
                       {device.recent_events.map((evt) => (
                         <tr key={evt.id} className="hover:bg-slate-800/40 transition-colors">
-                          <td className="py-3 px-4 font-semibold text-cyan-300">
-                            {evt.event_type}
+                          <td className="py-3.5 px-4">
+                            <div className="font-semibold text-slate-100 text-[13px] leading-tight">
+                              {evt.title || (evt.event_type === "windows.security.4688" ? "A new process was started" : evt.event_type)}
+                            </div>
+                            <div className="flex items-center gap-1.5 mt-1">
+                              <span className="inline-flex items-center text-[10px] font-mono font-medium text-cyan-400 bg-cyan-500/10 border border-cyan-500/20 px-1.5 py-0.5 rounded">
+                                {evt.badge_label || (evt.event_id ? `Event ${evt.event_id}` : evt.event_type)}
+                              </span>
+                              <span className="text-[11px] text-slate-400 font-medium">
+                                • {evt.category_label || (evt.category ? evt.category.replace("_", " ").toLowerCase() : "Process Activity")}
+                              </span>
+                            </div>
                           </td>
-                          <td className="py-3 px-4">
+                          <td className="py-3.5 px-4">
                             <span
-                              className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase font-sans ${
+                              className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide ${
                                 evt.severity === "high" || evt.severity === "critical"
                                   ? "bg-rose-500/20 text-rose-300 border border-rose-500/30"
                                   : evt.severity === "medium"
@@ -458,24 +474,24 @@ export default function DeviceDetails() {
                               {evt.severity}
                             </span>
                           </td>
-                          <td className="py-3 px-4 font-sans text-slate-300">
-                            <div className="font-medium text-slate-200">
-                              {evt.username || "System"}
+                          <td className="py-3.5 px-4 text-slate-300">
+                            <div className="font-medium text-slate-200 text-xs">
+                              {evt.username && evt.username.toLowerCase() !== "system" ? evt.username : "System Account"}
                             </div>
-                            <div className="text-[11px] text-slate-500 font-mono truncate max-w-xs">
-                              {evt.process_name || "winlogon.exe"}
+                            <div className="text-[11px] text-slate-400 font-mono truncate max-w-xs mt-0.5" title={evt.process_display || evt.process_name || "Application"}>
+                              {evt.process_display || evt.process_name || "Application"}
                             </div>
                           </td>
-                          <td className="py-3 px-4 font-sans text-slate-400 text-xs" title={evt.event_time}>
+                          <td className="py-3.5 px-4 text-slate-400 text-xs" title={evt.event_time}>
                             {formatRelativeTime(evt.event_time)}
                           </td>
-                          <td className="py-3 px-4 text-right">
+                          <td className="py-3.5 px-4 text-right">
                             <button
                               type="button"
                               onClick={() => setSelectedEventId(evt.id)}
-                              className="px-2.5 py-1 rounded bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 hover:text-cyan-300 border border-cyan-500/30 text-[11px] font-sans font-semibold inline-flex items-center gap-1.5 transition-colors"
+                              className="px-3 py-1.5 rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 hover:text-cyan-300 border border-cyan-500/30 text-xs font-semibold inline-flex items-center gap-1.5 transition-colors shadow-sm"
                             >
-                              <FileText size={12} /> View Full Details
+                              <FileText size={13} /> View Full Details
                             </button>
                           </td>
                         </tr>

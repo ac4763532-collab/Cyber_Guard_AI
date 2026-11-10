@@ -2,297 +2,143 @@
   "category": "File, Object and Registry Access",
   "description": "Access, modification, deletion, and auditing of files, folders, registry objects, and other securable objects.",
   "source": {
-    "inventory_basis": "User-supplied Windows Minimal/Common Event ID lists and detailed event catalogue",
-    "definition_policy": "Only event meanings supported by the supplied catalogue are summarized. Unverified field mappings remain pending verification."
+    "provider": "Microsoft-Windows-Security-Auditing",
+    "channel": "Security",
+    "note": "Object access events require the 'Audit Object Access' policy and object SACLs to be configured."
   },
   "events": {
     "4657": {
-      "event_id": 4657,
-      "name": "A registry value was modified",
-      "category": "File, Object and Registry Access",
-      "definition_status": "catalogue_summary_only",
-      "title": "A registry value was modified",
-      "description": "A registry value was modified",
-      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
-      "who": {},
-      "where": {},
-      "when": "Use the timestamp recorded in the original Windows event.",
-      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
-      "severity_guidance": {
-        "low": "Expected activity with no unusual context.",
-        "medium": "Unusual or repeated activity that needs review.",
-        "high": "Corroborated suspicious activity supported by related evidence."
-      },
-      "recommendations": [
-        "Inspect the original event details and available fields.",
-        "Correlate with related events before assigning a security conclusion."
-      ],
-      "related_events": [],
-      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
+      "event_id": 4657, "provider": "Microsoft-Windows-Security-Auditing", "channel": "Security", "verified": true, "category": "File, Object and Registry Access",
+      "headline": "A registry value was modified",
+      "plain_english": "A registry setting was changed. Registry entries control many Windows behaviours — attackers use them for persistence and to disable security features.",
+      "technical_description": "Security event 4657: registry value modified. ObjectName is the key path; OperationType indicates new/updated/deleted value.",
+      "who": {"SubjectUserName": "Account that made the change", "SubjectLogonId": "Session of the changer"},
+      "target": {"ObjectName": "Registry key path that changed"},
+      "where": {"ProcessName": "Process that made the change", "Computer": "Machine where the change was recorded"},
+      "when": "Time Windows recorded the change.",
+      "why_it_matters": "Registry is a common persistence and defence-evasion target.",
+      "normal_when": ["Software installation or update", "Documented configuration change"],
+      "suspicious_when": ["Changes to Run/RunOnce, Services, or Defender keys by an unusual process", "Unexplained changes by non-admin accounts"],
+      "what_to_do": ["Identify the process that made the change", "Check whether the key is one attackers commonly modify", "Correlate with 4688 for the process"],
+      "severity": {"low": "Documented change", "medium": "Unexplained change", "high": "Change to persistence or defence-evasion keys"},
+      "related_events": [4663, 4688],
+      "important_note": "Review together with the process that made the change."
     },
     "4661": {
-      "event_id": 4661,
-      "name": "A handle to an object was requested",
-      "category": "File, Object and Registry Access",
-      "definition_status": "catalogue_summary_only",
-      "title": "A handle to an object was requested",
-      "description": "A handle to an object was requested",
-      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
-      "who": {},
-      "where": {},
-      "when": "Use the timestamp recorded in the original Windows event.",
-      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
-      "severity_guidance": {
-        "low": "Expected activity with no unusual context.",
-        "medium": "Unusual or repeated activity that needs review.",
-        "high": "Corroborated suspicious activity supported by related evidence."
-      },
-      "recommendations": [
-        "Inspect the original event details and available fields.",
-        "Correlate with related events before assigning a security conclusion."
-      ],
-      "related_events": [],
-      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
+      "event_id": 4661, "provider": "Microsoft-Windows-Security-Auditing", "channel": "Security", "verified": true, "category": "File, Object and Registry Access",
+      "headline": "A handle to an object was requested",
+      "plain_english": "A program asked for access to a securable object (file, registry key, service, etc.). Shows what access was requested and whether it was granted.",
+      "technical_description": "Security event 4661: handle to an object requested (object type varies: file, key, service, etc.).",
+      "who": {"SubjectUserName": "Account that requested the handle", "SubjectLogonId": "Session"},
+      "target": {"ObjectName": "Object whose handle was requested", "ObjectType": "Type of object"},
+      "where": {"ProcessName": "Process that requested the handle", "Computer": "Machine that recorded the event"},
+      "when": "Time Windows recorded the request.",
+      "why_it_matters": "Shows attempted access to sensitive objects even when read-only.",
+      "normal_when": ["Expected application behaviour"],
+      "suspicious_when": ["Unexpected process requesting handles to sensitive objects", "Access requests at scale"],
+      "what_to_do": ["Check whether the process is expected to access that object"],
+      "severity": {"low": "Expected access", "medium": "Unusual process/object", "high": "Access to LSASS, SAM, or other credential stores"},
+      "related_events": [4662, 4663],
+      "important_note": "Handle request does not mean the access succeeded."
     },
     "4662": {
-      "event_id": 4662,
-      "name": "An operation was performed on an object",
-      "category": "File, Object and Registry Access",
-      "definition_status": "catalogue_summary_only",
-      "title": "An operation was performed on an object",
-      "description": "An operation was performed on an object",
-      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
-      "who": {},
-      "where": {},
-      "when": "Use the timestamp recorded in the original Windows event.",
-      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
-      "severity_guidance": {
-        "low": "Expected activity with no unusual context.",
-        "medium": "Unusual or repeated activity that needs review.",
-        "high": "Corroborated suspicious activity supported by related evidence."
-      },
-      "recommendations": [
-        "Inspect the original event details and available fields.",
-        "Correlate with related events before assigning a security conclusion."
-      ],
-      "related_events": [],
-      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
+      "event_id": 4662, "provider": "Microsoft-Windows-Security-Auditing", "channel": "Security", "verified": true, "category": "File, Object and Registry Access",
+      "headline": "An operation was performed on an object",
+      "plain_english": "An operation was performed on a directory service (AD) object. Useful for tracking changes to users, groups, computers, and GPOs.",
+      "technical_description": "Security event 4662: operation performed on an AD object (typically on domain controllers). Properties show which attributes were accessed.",
+      "who": {"SubjectUserName": "Account that performed the operation"},
+      "target": {"ObjectName": "DN of the target object"},
+      "where": {"Computer": "Domain controller that recorded the event"},
+      "when": "Time Windows recorded the operation.",
+      "why_it_matters": "AD object changes include privilege escalation (e.g. adding to admin group, modifying ACLs, DCSync).",
+      "normal_when": ["Routine AD administration"],
+      "suspicious_when": ["Access to ms-DS-ReplicationGetChanges (DCSync)", "Read of sensitive attributes (ms-Mcs-AdmPwd)", "Changes to ACLs on AD objects"],
+      "what_to_do": ["Review which properties were accessed", "Correlate with 4624 and 4768", "If DCSync-related, treat as credential dumping"],
+      "severity": {"low": "Routine admin", "medium": "Unusual object access", "high": "Access matching known attack patterns (DCSync, LAPS password read)"},
+      "related_events": [4661, 4663, 5136, 5137],
+      "important_note": "This is a broad event — the accessed Properties field is key."
     },
     "4663": {
-      "event_id": 4663,
-      "name": "An attempt was made to access an object",
-      "category": "File, Object and Registry Access",
-      "definition_status": "catalogue_summary_only",
-      "title": "An attempt was made to access an object",
-      "description": "An attempt was made to access an object",
-      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
-      "who": {},
-      "where": {},
-      "when": "Use the timestamp recorded in the original Windows event.",
-      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
-      "severity_guidance": {
-        "low": "Expected activity with no unusual context.",
-        "medium": "Unusual or repeated activity that needs review.",
-        "high": "Corroborated suspicious activity supported by related evidence."
-      },
-      "recommendations": [
-        "Inspect the original event details and available fields.",
-        "Correlate with related events before assigning a security conclusion."
-      ],
-      "related_events": [],
-      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
+      "event_id": 4663, "provider": "Microsoft-Windows-Security-Auditing", "channel": "Security", "verified": true, "category": "File, Object and Registry Access",
+      "headline": "An attempt was made to access an object",
+      "plain_english": "A program tried to access a specific file, folder, or registry key. Whether the access succeeded is recorded in the event.",
+      "technical_description": "Security event 4663: attempted access to a securable object (file, directory, registry key). Includes AccessMask and AccessList.",
+      "who": {"SubjectUserName": "Account that attempted access"},
+      "target": {"ObjectName": "Object being accessed", "ObjectType": "Type of object"},
+      "where": {"ProcessName": "Process attempting the access", "Computer": "Machine that recorded the event"},
+      "when": "Time Windows recorded the attempt.",
+      "why_it_matters": "Shows who tried to read or modify a sensitive file — even if the attempt failed.",
+      "normal_when": ["Normal application or user access"],
+      "suspicious_when": ["Attempted access outside business hours", "Attempts to access files the user doesn't normally open", "Access attempts on files like NTDS.dit, SAM, or shadow copies"],
+      "what_to_do": ["Check whether the accessing account and process are expected", "Correlate with subsequent 4663 events for the same account"],
+      "severity": {"low": "Expected access", "medium": "Unexplained access", "high": "Access to sensitive files or correlated with other suspicious activity"},
+      "related_events": [4661, 4662, 4688],
+      "important_note": "Depends entirely on which object was accessed — context matters."
     },
     "4665": {
-      "event_id": 4665,
-      "name": "Event definition pending verification",
-      "category": "File, Object and Registry Access",
-      "definition_status": "pending_verification",
-      "title": "Windows security event",
-      "description": "This Event ID is present in the supplied event inventory; verify its provider-specific meaning before displaying an interpretation.",
-      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
-      "who": {},
-      "where": {},
-      "when": "Use the timestamp recorded in the original Windows event.",
-      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
-      "severity_guidance": {
-        "low": "Expected activity with no unusual context.",
-        "medium": "Unusual or repeated activity that needs review.",
-        "high": "Corroborated suspicious activity supported by related evidence."
-      },
-      "recommendations": [
-        "Inspect the original event details and available fields.",
-        "Correlate with related events before assigning a security conclusion."
-      ],
-      "related_events": [],
-      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
+      "event_id": 4665, "provider": "Microsoft-Windows-Security-Auditing", "channel": "Security", "verified": true, "category": "File, Object and Registry Access",
+      "headline": "An application client context was created",
+      "plain_english": "An application created a client authentication context. Used by applications doing custom authentication.",
+      "technical_description": "Security event 4665: application tried to create a client context (authentication-related).",
+      "who": {"SubjectUserName": "Account associated with the creation"},
+      "where": {"ProcessName": "Application that created the context", "Computer": "Machine that recorded the event"},
+      "when": "Time Windows recorded the creation.",
+      "why_it_matters": "Low-signal on its own; relevant when correlated with other authentication anomalies.",
+      "normal_when": ["Known application doing custom auth"],
+      "suspicious_when": ["Unexpected process creating contexts"],
+      "what_to_do": ["Identify the process", "Confirm it should be doing custom auth"],
+      "severity": {"low": "Expected", "medium": "Unexpected process", "high": "Correlated with other suspicious activity"},
+      "related_events": [4666, 4667],
+      "important_note": "Low-signal without context."
     },
     "4666": {
-      "event_id": 4666,
-      "name": "Event definition pending verification",
-      "category": "File, Object and Registry Access",
-      "definition_status": "pending_verification",
-      "title": "Windows security event",
-      "description": "This Event ID is present in the supplied event inventory; verify its provider-specific meaning before displaying an interpretation.",
-      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
-      "who": {},
-      "where": {},
-      "when": "Use the timestamp recorded in the original Windows event.",
-      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
-      "severity_guidance": {
-        "low": "Expected activity with no unusual context.",
-        "medium": "Unusual or repeated activity that needs review.",
-        "high": "Corroborated suspicious activity supported by related evidence."
-      },
-      "recommendations": [
-        "Inspect the original event details and available fields.",
-        "Correlate with related events before assigning a security conclusion."
-      ],
-      "related_events": [],
-      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
+      "event_id": 4666, "provider": "Microsoft-Windows-Security-Auditing", "channel": "Security", "verified": true, "category": "File, Object and Registry Access",
+      "headline": "An application attempted an operation",
+      "plain_english": "An application performed a security-sensitive operation. Which operation depends on the event fields.",
+      "technical_description": "Security event 4666: application attempted a security operation (e.g. impersonation, token manipulation).",
+      "who": {"SubjectUserName": "Account associated with the operation"},
+      "where": {"ProcessName": "Application that performed the operation", "Computer": "Machine that recorded the event"},
+      "when": "Time Windows recorded the operation.",
+      "why_it_matters": "Some application operations (impersonation, token manipulation) are used by attackers.",
+      "normal_when": ["Expected application operations"],
+      "suspicious_when": ["Unexpected impersonation or token manipulation"],
+      "what_to_do": ["Identify the process", "Confirm the operation is expected"],
+      "severity": {"low": "Expected", "medium": "Unexpected operation", "high": "Impersonation or token manipulation by an unusual process"},
+      "related_events": [4665, 4667, 4672],
+      "important_note": "Read the event's operation field for the specific action."
     },
     "4667": {
-      "event_id": 4667,
-      "name": "Event definition pending verification",
-      "category": "File, Object and Registry Access",
-      "definition_status": "pending_verification",
-      "title": "Windows security event",
-      "description": "This Event ID is present in the supplied event inventory; verify its provider-specific meaning before displaying an interpretation.",
-      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
-      "who": {},
-      "where": {},
-      "when": "Use the timestamp recorded in the original Windows event.",
-      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
-      "severity_guidance": {
-        "low": "Expected activity with no unusual context.",
-        "medium": "Unusual or repeated activity that needs review.",
-        "high": "Corroborated suspicious activity supported by related evidence."
-      },
-      "recommendations": [
-        "Inspect the original event details and available fields.",
-        "Correlate with related events before assigning a security conclusion."
-      ],
-      "related_events": [],
-      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
+      "event_id": 4667, "provider": "Microsoft-Windows-Security-Auditing", "channel": "Security", "verified": true, "category": "File, Object and Registry Access",
+      "headline": "An application client context was deleted",
+      "plain_english": "An application cleaned up its client authentication context.",
+      "technical_description": "Security event 4667: application client context deleted.",
+      "who": {"SubjectUserName": "Account associated with the deletion"},
+      "where": {"ProcessName": "Application that deleted the context", "Computer": "Machine that recorded the event"},
+      "when": "Time Windows recorded the deletion.",
+      "why_it_matters": "Low-signal on its own.",
+      "normal_when": ["Normal cleanup"],
+      "suspicious_when": ["Unexpected deletion"],
+      "what_to_do": ["Correlate with 4665 and 4666"],
+      "severity": {"low": "Normal cleanup", "medium": "Unexplained", "high": "Part of a suspicious sequence"},
+      "related_events": [4665, 4666],
+      "important_note": "Low-signal without context."
     },
     "4670": {
-      "event_id": 4670,
-      "name": "Permissions on an object were changed",
-      "category": "File, Object and Registry Access",
-      "definition_status": "catalogue_summary_only",
-      "title": "Permissions on an object were changed",
-      "description": "Permissions on an object were changed",
-      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
-      "who": {},
-      "where": {},
-      "when": "Use the timestamp recorded in the original Windows event.",
-      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
-      "severity_guidance": {
-        "low": "Expected activity with no unusual context.",
-        "medium": "Unusual or repeated activity that needs review.",
-        "high": "Corroborated suspicious activity supported by related evidence."
-      },
-      "recommendations": [
-        "Inspect the original event details and available fields.",
-        "Correlate with related events before assigning a security conclusion."
-      ],
-      "related_events": [],
-      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
-    },
-    "4904": {
-      "event_id": 4904,
-      "name": "An attempt was made to register a security event source",
-      "category": "File, Object and Registry Access",
-      "definition_status": "catalogue_summary_only",
-      "title": "An attempt was made to register a security event source",
-      "description": "An attempt was made to register a security event source",
-      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
-      "who": {},
-      "where": {},
-      "when": "Use the timestamp recorded in the original Windows event.",
-      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
-      "severity_guidance": {
-        "low": "Expected activity with no unusual context.",
-        "medium": "Unusual or repeated activity that needs review.",
-        "high": "Corroborated suspicious activity supported by related evidence."
-      },
-      "recommendations": [
-        "Inspect the original event details and available fields.",
-        "Correlate with related events before assigning a security conclusion."
-      ],
-      "related_events": [],
-      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
-    },
-    "4905": {
-      "event_id": 4905,
-      "name": "An attempt was made to unregister a security event source",
-      "category": "File, Object and Registry Access",
-      "definition_status": "catalogue_summary_only",
-      "title": "An attempt was made to unregister a security event source",
-      "description": "An attempt was made to unregister a security event source",
-      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
-      "who": {},
-      "where": {},
-      "when": "Use the timestamp recorded in the original Windows event.",
-      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
-      "severity_guidance": {
-        "low": "Expected activity with no unusual context.",
-        "medium": "Unusual or repeated activity that needs review.",
-        "high": "Corroborated suspicious activity supported by related evidence."
-      },
-      "recommendations": [
-        "Inspect the original event details and available fields.",
-        "Correlate with related events before assigning a security conclusion."
-      ],
-      "related_events": [],
-      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
-    },
-    "4907": {
-      "event_id": 4907,
-      "name": "Auditing settings on an object were changed",
-      "category": "File, Object and Registry Access",
-      "definition_status": "catalogue_summary_only",
-      "title": "Auditing settings on an object were changed",
-      "description": "Auditing settings on an object were changed",
-      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
-      "who": {},
-      "where": {},
-      "when": "Use the timestamp recorded in the original Windows event.",
-      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
-      "severity_guidance": {
-        "low": "Expected activity with no unusual context.",
-        "medium": "Unusual or repeated activity that needs review.",
-        "high": "Corroborated suspicious activity supported by related evidence."
-      },
-      "recommendations": [
-        "Inspect the original event details and available fields.",
-        "Correlate with related events before assigning a security conclusion."
-      ],
-      "related_events": [],
-      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
-    },
-    "4985": {
-      "event_id": 4985,
-      "name": "Event definition pending verification",
-      "category": "File, Object and Registry Access",
-      "definition_status": "pending_verification",
-      "title": "Windows security event",
-      "description": "This Event ID is present in the supplied event inventory; verify its provider-specific meaning before displaying an interpretation.",
-      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
-      "who": {},
-      "where": {},
-      "when": "Use the timestamp recorded in the original Windows event.",
-      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
-      "severity_guidance": {
-        "low": "Expected activity with no unusual context.",
-        "medium": "Unusual or repeated activity that needs review.",
-        "high": "Corroborated suspicious activity supported by related evidence."
-      },
-      "recommendations": [
-        "Inspect the original event details and available fields.",
-        "Correlate with related events before assigning a security conclusion."
-      ],
-      "related_events": [],
-      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
+      "event_id": 4670, "provider": "Microsoft-Windows-Security-Auditing", "channel": "Security", "verified": true, "category": "File, Object and Registry Access",
+      "headline": "Permissions on an object were changed",
+      "plain_english": "Someone changed the permissions on a file, folder, or object. This can grant new access — review what was changed and for whom.",
+      "technical_description": "Security event 4670: permissions on an object were changed. OriginalSecurityDescriptor and NewSecurityDescriptor show the change.",
+      "who": {"SubjectUserName": "Account that changed permissions"},
+      "target": {"ObjectName": "Object whose permissions changed"},
+      "where": {"ProcessName": "Process that made the change", "Computer": "Machine that recorded the event"},
+      "when": "Time Windows recorded the change.",
+      "why_it_matters": "Permission changes are a common way to grant or persist access.",
+      "normal_when": ["Documented access change", "Folder restructuring"],
+      "suspicious_when": ["Permissions opened up (Everyone/Full Control) on a sensitive object", "Change on a system folder", "Change performed by an unexpected account"],
+      "what_to_do": ["Compare old and new security descriptors", "Confirm the change was authorized"],
+      "severity": {"low": "Documented change", "medium": "Unexplained change", "high": "Weaker permissions on a sensitive object"},
+      "related_events": [4663, 4907],
+      "important_note": "Always compare the old and new descriptors for the actual change."
     }
   },
   "implementation_notes": {
@@ -300,6 +146,7 @@
     "preserve_original_xml": true,
     "show_only_fields_present_in_event": true,
     "do_not_invent_missing_values": true,
-    "severity_is_contextual": true
+    "severity_is_contextual": true,
+    "verified_field": "Only display a plain-English explanation when `verified` is true."
   }
 }

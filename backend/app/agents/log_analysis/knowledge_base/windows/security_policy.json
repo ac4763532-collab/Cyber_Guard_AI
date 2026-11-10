@@ -1,274 +1,109 @@
 {
   "category": "Security Policy",
-  "description": "Audit policy, security configuration, authentication policy, and security control changes.",
+  "description": "Audit policy, security configuration, and security-control changes.",
   "source": {
-    "inventory_basis": "User-supplied Windows Minimal/Common Event ID lists and detailed event catalogue",
-    "definition_policy": "Only event meanings supported by the supplied catalogue are summarized. Unverified field mappings remain pending verification."
+    "provider": "Microsoft-Windows-Security-Auditing",
+    "channel": "Security",
+    "note": "Availability depends on audit policy configuration and role (domain controller vs. member server)."
   },
   "events": {
     "1102": {
-      "event_id": 1102,
-      "name": "The audit log was cleared",
-      "category": "Security Policy",
-      "definition_status": "catalogue_summary_only",
-      "title": "The audit log was cleared",
-      "description": "The audit log was cleared",
-      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
-      "who": {},
-      "where": {},
-      "when": "Use the timestamp recorded in the original Windows event.",
-      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
-      "severity_guidance": {
-        "low": "Expected activity with no unusual context.",
-        "medium": "Unusual or repeated activity that needs review.",
-        "high": "Corroborated suspicious activity supported by related evidence."
-      },
-      "recommendations": [
-        "Inspect the original event details and available fields.",
-        "Correlate with related events before assigning a security conclusion."
-      ],
-      "related_events": [],
-      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
+      "event_id": 1102, "provider": "Microsoft-Windows-Security-Auditing", "channel": "Security", "verified": true, "category": "Security Policy",
+      "headline": "The Security audit log was cleared",
+      "plain_english": "Someone cleared the Windows Security audit log. This erases the record of activity on this computer. Attackers do this to cover their tracks — treat it as an emergency unless you specifically requested it.",
+      "technical_description": "Security event 1102: the Security audit log was cleared.",
+      "who": {"SubjectUserName": "Account that cleared the log", "SubjectDomainName": "Domain of the account", "SubjectLogonId": "Session ID"},
+      "where": {"Computer": "Machine whose log was cleared"},
+      "when": "Time Windows recorded the log-clearing event.",
+      "why_it_matters": "Log clearing is one of the strongest single indicators of malicious activity — it destroys evidence.",
+      "normal_when": ["Authorized log rotation with a change ticket"],
+      "suspicious_when": ["Cleared by a non-IT account", "Cleared off-hours", "Cleared after suspicious activity"],
+      "what_to_do": ["Identify who cleared the log", "Check whether logs are forwarded to a central system (SIEM) — retrieve from there", "Initiate incident response if not authorized"],
+      "severity": {"low": "Authorized log rotation with change ticket", "medium": "Cleared by IT admin without a clear reason", "high": "Cleared by non-IT account, or followed by suspicious activity"},
+      "related_events": [4719, 4902],
+      "important_note": "Central log aggregation is the only reliable defence against 1102."
     },
     "4719": {
-      "event_id": 4719,
-      "name": "System audit policy was changed",
-      "category": "Security Policy",
-      "definition_status": "catalogue_summary_only",
-      "title": "System audit policy was changed",
-      "description": "System audit policy was changed",
-      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
-      "who": {},
-      "where": {},
-      "when": "Use the timestamp recorded in the original Windows event.",
-      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
-      "severity_guidance": {
-        "low": "Expected activity with no unusual context.",
-        "medium": "Unusual or repeated activity that needs review.",
-        "high": "Corroborated suspicious activity supported by related evidence."
-      },
-      "recommendations": [
-        "Inspect the original event details and available fields.",
-        "Correlate with related events before assigning a security conclusion."
-      ],
-      "related_events": [],
-      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
+      "event_id": 4719, "provider": "Microsoft-Windows-Security-Auditing", "channel": "Security", "verified": true, "category": "Security Policy",
+      "headline": "The system audit policy was changed",
+      "plain_english": "The rules that decide which Windows events get recorded were changed. If audit is turned off for important events, attackers can act without leaving a trace.",
+      "technical_description": "Security event 4719: system audit policy was changed. Records the category, subcategory, and old/new auditing settings.",
+      "who": {"SubjectUserName": "Account that made the change"},
+      "target": {"CategoryId": "Audit category", "SubcategoryId": "Audit subcategory"},
+      "where": {"Computer": "Machine whose audit policy changed", "AuditPolicyChanges": "Old → new auditing setting"},
+      "when": "Time Windows recorded the change.",
+      "why_it_matters": "Disabling audit is a known defence-evasion technique.",
+      "normal_when": ["Documented audit policy update", "GPO-driven policy refresh"],
+      "suspicious_when": ["Audit turned off for logon, process, or object access categories", "Change by an unexpected account", "Change off-hours"],
+      "what_to_do": ["Compare old and new audit settings", "Confirm the change was authorized", "If audit was disabled for important categories, treat as high priority"],
+      "severity": {"low": "Documented audit change", "medium": "Unexplained change", "high": "Audit disabled for critical categories without authorization"},
+      "related_events": [1102, 4902, 4739],
+      "important_note": "Read the AuditPolicyChanges field to know exactly what changed."
     },
     "4902": {
-      "event_id": 4902,
-      "name": "The per-user audit policy table was created",
-      "category": "Security Policy",
-      "definition_status": "catalogue_summary_only",
-      "title": "The per-user audit policy table was created",
-      "description": "The per-user audit policy table was created",
-      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
+      "event_id": 4902, "provider": "Microsoft-Windows-Security-Auditing", "channel": "Security", "verified": true, "category": "Security Policy",
+      "headline": "The per-user audit policy table was created",
+      "plain_english": "Windows built a table of per-user auditing rules. This is usually routine (happens at policy refresh) but can indicate audit policy changes.",
+      "technical_description": "Security event 4902: per-user audit policy table was created.",
       "who": {},
-      "where": {},
-      "when": "Use the timestamp recorded in the original Windows event.",
-      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
-      "severity_guidance": {
-        "low": "Expected activity with no unusual context.",
-        "medium": "Unusual or repeated activity that needs review.",
-        "high": "Corroborated suspicious activity supported by related evidence."
-      },
-      "recommendations": [
-        "Inspect the original event details and available fields.",
-        "Correlate with related events before assigning a security conclusion."
-      ],
-      "related_events": [],
-      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
+      "where": {"Computer": "Machine where the table was created"},
+      "when": "Time Windows recorded the creation.",
+      "why_it_matters": "Changes to per-user audit policy can alter visibility.",
+      "normal_when": ["Routine policy refresh at boot or GPO update"],
+      "suspicious_when": ["Unexpected creation timing", "Correlated with audit disablement (4719)"],
+      "what_to_do": ["Check whether it correlates with an authorized GPO update"],
+      "severity": {"low": "Routine refresh", "medium": "Unexpected timing", "high": "Correlated with audit policy changes"},
+      "related_events": [4719],
+      "important_note": "Low-signal without context."
     },
     "4904": {
-      "event_id": 4904,
-      "name": "An attempt was made to register a security event source",
-      "category": "Security Policy",
-      "definition_status": "catalogue_summary_only",
-      "title": "An attempt was made to register a security event source",
-      "description": "An attempt was made to register a security event source",
-      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
-      "who": {},
-      "where": {},
-      "when": "Use the timestamp recorded in the original Windows event.",
-      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
-      "severity_guidance": {
-        "low": "Expected activity with no unusual context.",
-        "medium": "Unusual or repeated activity that needs review.",
-        "high": "Corroborated suspicious activity supported by related evidence."
-      },
-      "recommendations": [
-        "Inspect the original event details and available fields.",
-        "Correlate with related events before assigning a security conclusion."
-      ],
-      "related_events": [],
-      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
+      "event_id": 4904, "provider": "Microsoft-Windows-Security-Auditing", "channel": "Security", "verified": true, "category": "Security Policy",
+      "headline": "An attempt was made to register a security event source",
+      "plain_english": "A program tried to register itself as a source of security events. Legitimate programs register at install; unexpected registrations can indicate tampering.",
+      "technical_description": "Security event 4904: an attempt to register a security event source.",
+      "who": {"SubjectUserName": "Account that triggered the attempt"},
+      "where": {"ProcessName": "Process that attempted registration", "Computer": "Machine that recorded the event"},
+      "when": "Time Windows recorded the attempt.",
+      "why_it_matters": "Unexpected event-source registration can indicate tampering with the event pipeline.",
+      "normal_when": ["Software installation or update"],
+      "suspicious_when": ["Registration by an unknown process", "Registration off-hours"],
+      "what_to_do": ["Identify the registering process", "Confirm it is expected"],
+      "severity": {"low": "Documented install", "medium": "Unexpected registration", "high": "Correlated with other tampering"},
+      "related_events": [4905, 4907],
+      "important_note": "Low-signal unless correlated."
     },
     "4905": {
-      "event_id": 4905,
-      "name": "An attempt was made to unregister a security event source",
-      "category": "Security Policy",
-      "definition_status": "catalogue_summary_only",
-      "title": "An attempt was made to unregister a security event source",
-      "description": "An attempt was made to unregister a security event source",
-      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
-      "who": {},
-      "where": {},
-      "when": "Use the timestamp recorded in the original Windows event.",
-      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
-      "severity_guidance": {
-        "low": "Expected activity with no unusual context.",
-        "medium": "Unusual or repeated activity that needs review.",
-        "high": "Corroborated suspicious activity supported by related evidence."
-      },
-      "recommendations": [
-        "Inspect the original event details and available fields.",
-        "Correlate with related events before assigning a security conclusion."
-      ],
-      "related_events": [],
-      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
+      "event_id": 4905, "provider": "Microsoft-Windows-Security-Auditing", "channel": "Security", "verified": true, "category": "Security Policy",
+      "headline": "An attempt was made to unregister a security event source",
+      "plain_english": "A program tried to unregister itself as a source of security events. This can be routine during software removal, or an attempt to stop logging from a program.",
+      "technical_description": "Security event 4905: an attempt to unregister a security event source.",
+      "who": {"SubjectUserName": "Account that triggered the attempt"},
+      "where": {"ProcessName": "Process that attempted unregistration", "Computer": "Machine that recorded the event"},
+      "when": "Time Windows recorded the attempt.",
+      "why_it_matters": "Unexpected unregistration can reduce visibility.",
+      "normal_when": ["Software uninstall"],
+      "suspicious_when": ["Unregistration by an unknown process", "Unregistration off-hours", "Correlated with audit changes"],
+      "what_to_do": ["Identify the process", "Confirm it is expected"],
+      "severity": {"low": "Documented uninstall", "medium": "Unexpected unregistration", "high": "Correlated with other tampering"},
+      "related_events": [4904, 4907],
+      "important_note": "Low-signal unless correlated."
     },
     "4907": {
-      "event_id": 4907,
-      "name": "Auditing settings on an object were changed",
-      "category": "Security Policy",
-      "definition_status": "catalogue_summary_only",
-      "title": "Auditing settings on an object were changed",
-      "description": "Auditing settings on an object were changed",
-      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
-      "who": {},
-      "where": {},
-      "when": "Use the timestamp recorded in the original Windows event.",
-      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
-      "severity_guidance": {
-        "low": "Expected activity with no unusual context.",
-        "medium": "Unusual or repeated activity that needs review.",
-        "high": "Corroborated suspicious activity supported by related evidence."
-      },
-      "recommendations": [
-        "Inspect the original event details and available fields.",
-        "Correlate with related events before assigning a security conclusion."
-      ],
-      "related_events": [],
-      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
-    },
-    "4931": {
-      "event_id": 4931,
-      "name": "A replica of a directory partition was modified",
-      "category": "Security Policy",
-      "definition_status": "catalogue_summary_only",
-      "title": "A replica of a directory partition was modified",
-      "description": "A replica of a directory partition was modified",
-      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
-      "who": {},
-      "where": {},
-      "when": "Use the timestamp recorded in the original Windows event.",
-      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
-      "severity_guidance": {
-        "low": "Expected activity with no unusual context.",
-        "medium": "Unusual or repeated activity that needs review.",
-        "high": "Corroborated suspicious activity supported by related evidence."
-      },
-      "recommendations": [
-        "Inspect the original event details and available fields.",
-        "Correlate with related events before assigning a security conclusion."
-      ],
-      "related_events": [],
-      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
-    },
-    "4932": {
-      "event_id": 4932,
-      "name": "Synchronization of a directory service replica began",
-      "category": "Security Policy",
-      "definition_status": "catalogue_summary_only",
-      "title": "Synchronization of a directory service replica began",
-      "description": "Synchronization of a directory service replica began",
-      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
-      "who": {},
-      "where": {},
-      "when": "Use the timestamp recorded in the original Windows event.",
-      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
-      "severity_guidance": {
-        "low": "Expected activity with no unusual context.",
-        "medium": "Unusual or repeated activity that needs review.",
-        "high": "Corroborated suspicious activity supported by related evidence."
-      },
-      "recommendations": [
-        "Inspect the original event details and available fields.",
-        "Correlate with related events before assigning a security conclusion."
-      ],
-      "related_events": [],
-      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
-    },
-    "4933": {
-      "event_id": 4933,
-      "name": "Synchronization of a directory service replica ended",
-      "category": "Security Policy",
-      "definition_status": "catalogue_summary_only",
-      "title": "Synchronization of a directory service replica ended",
-      "description": "Synchronization of a directory service replica ended",
-      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
-      "who": {},
-      "where": {},
-      "when": "Use the timestamp recorded in the original Windows event.",
-      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
-      "severity_guidance": {
-        "low": "Expected activity with no unusual context.",
-        "medium": "Unusual or repeated activity that needs review.",
-        "high": "Corroborated suspicious activity supported by related evidence."
-      },
-      "recommendations": [
-        "Inspect the original event details and available fields.",
-        "Correlate with related events before assigning a security conclusion."
-      ],
-      "related_events": [],
-      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
-    },
-    "4946": {
-      "event_id": 4946,
-      "name": "A change was made to the Windows Firewall exception list",
-      "category": "Security Policy",
-      "definition_status": "catalogue_summary_only",
-      "title": "A change was made to the Windows Firewall exception list",
-      "description": "A change was made to the Windows Firewall exception list",
-      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
-      "who": {},
-      "where": {},
-      "when": "Use the timestamp recorded in the original Windows event.",
-      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
-      "severity_guidance": {
-        "low": "Expected activity with no unusual context.",
-        "medium": "Unusual or repeated activity that needs review.",
-        "high": "Corroborated suspicious activity supported by related evidence."
-      },
-      "recommendations": [
-        "Inspect the original event details and available fields.",
-        "Correlate with related events before assigning a security conclusion."
-      ],
-      "related_events": [],
-      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
-    },
-    "4948": {
-      "event_id": 4948,
-      "name": "A change was made to the Windows Firewall exception list; a rule was deleted",
-      "category": "Security Policy",
-      "definition_status": "catalogue_summary_only",
-      "title": "A change was made to the Windows Firewall exception list; a rule was deleted",
-      "description": "A change was made to the Windows Firewall exception list; a rule was deleted",
-      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
-      "who": {},
-      "where": {},
-      "when": "Use the timestamp recorded in the original Windows event.",
-      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
-      "severity_guidance": {
-        "low": "Expected activity with no unusual context.",
-        "medium": "Unusual or repeated activity that needs review.",
-        "high": "Corroborated suspicious activity supported by related evidence."
-      },
-      "recommendations": [
-        "Inspect the original event details and available fields.",
-        "Correlate with related events before assigning a security conclusion."
-      ],
-      "related_events": [],
-      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
+      "event_id": 4907, "provider": "Microsoft-Windows-Security-Auditing", "channel": "Security", "verified": true, "category": "Security Policy",
+      "headline": "Auditing settings on an object were changed",
+      "plain_english": "The auditing settings for a specific file, folder, registry key, or other object were changed. This affects whether activity on that object gets recorded — turning audit off is a defence-evasion technique.",
+      "technical_description": "Security event 4907: auditing settings on an object were changed. OriginalSecurityDescriptor and NewSecurityDescriptor show the change.",
+      "who": {"SubjectUserName": "Account that made the change"},
+      "target": {"ObjectName": "Object whose audit settings changed"},
+      "where": {"ProcessName": "Process that made the change", "Computer": "Machine that recorded the event"},
+      "when": "Time Windows recorded the change.",
+      "why_it_matters": "Attackers turn off object auditing to hide access to sensitive files.",
+      "normal_when": ["Documented audit policy update"],
+      "suspicious_when": ["Audit removed from a sensitive object (e.g. NTDS.dit, SAM, sensitive share)", "Change by an unexpected account"],
+      "what_to_do": ["Compare old and new security descriptors to see what was removed", "Confirm the change was authorized", "If audit was disabled for a sensitive object, treat as high priority"],
+      "severity": {"low": "Documented change", "medium": "Unexplained change", "high": "Audit disabled on a sensitive object"},
+      "related_events": [4719, 4904, 4905],
+      "important_note": "Compare old and new descriptors for the actual change."
     }
   },
   "implementation_notes": {
@@ -276,6 +111,7 @@
     "preserve_original_xml": true,
     "show_only_fields_present_in_event": true,
     "do_not_invent_missing_values": true,
-    "severity_is_contextual": true
+    "severity_is_contextual": true,
+    "verified_field": "Only display a plain-English explanation when `verified` is true."
   }
 }

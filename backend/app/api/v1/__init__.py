@@ -206,6 +206,7 @@ api_router.include_router(devices.router)
 # ── Email Security & EML Ingestion ─────────────────────────────────────────
 from app.api.v1 import email
 api_router.include_router(email.router)
+api_router.include_router(email.gmail_callback_router)
 
 # ── Network Telemetry & Flow Monitoring ────────────────────────────────────
 from app.api.v1 import network
@@ -226,6 +227,14 @@ api_router.include_router(dashboard.router)
 # ── Direct User Messaging ──────────────────────────────────────────────────
 from app.api.v1 import direct_messages
 api_router.include_router(direct_messages.router)
+# ── Security Analysts Directory ────────────────────────────────────────────
+from app.api.v1 import analysts
+api_router.include_router(analysts.router)
+# ── Plain-English Event Explainer ─────────────────────────────────────────
+from app.api.v1 import explain
+api_router.include_router(explain.router)
+
+
 
 
 

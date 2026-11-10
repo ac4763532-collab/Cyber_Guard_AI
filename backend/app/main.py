@@ -501,6 +501,7 @@ app.add_middleware(BodySizeLimitMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins_list,
+    allow_origin_regex=r"^https://.*\.pages\.dev$",
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["*"],
@@ -639,7 +640,7 @@ async def unhandled_exception_handler(
 # ============================================================================
 
 @app.get(
-    "/",
+    "/api",
     tags=["meta"],
     summary="API information",
 )

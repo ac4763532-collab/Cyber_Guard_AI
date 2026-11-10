@@ -16,7 +16,7 @@ export default function AnalystReports() {
       id: "REP-2026-0042",
       case_id: "CASE-2026-0042",
       title: "Executive Spearphishing Attack Forensics & Remediation Advisory",
-      author: "Aarav Mehta (Analyst)",
+      author: "Assigned Analyst",
       status: "submitted",
       date: "2026-11-08",
       version: "v1.0",

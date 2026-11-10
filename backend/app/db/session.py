@@ -116,7 +116,7 @@ def _build_connect_args() -> dict[str, object]:
         # Server-side kill for runaway queries.
         "options": f"-c statement_timeout={settings.DB_POOL_TIMEOUT * 1000}",
         # Fast fail connection timeout (seconds) to prevent startup hangs if DB is offline.
-        "connect_timeout": 2,
+        "connect_timeout": 10,
     }
 
 

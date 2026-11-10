@@ -93,7 +93,7 @@ export default function AIAssistant() {
       };
       setMessages((prev) => [...prev, assistantMsg]);
     } catch (err: any) {
-      const errorMsg = err.response?.data?.detail || "AI provider unavailable. Configure a supported provider to enable AI assistance.";
+      const errorMsg = err.response?.data?.error?.message || err.response?.data?.detail || "AI assistant encountered an issue processing your request. Please try again.";
       setMessages((prev) => [
         ...prev,
         {
@@ -121,9 +121,14 @@ export default function AIAssistant() {
             <span className="text-xs font-bold uppercase tracking-wider text-cyan-400">
               Evidence-Grounded Intelligence
             </span>
-            <h1 className="text-xl font-black text-slate-100 tracking-tight flex items-center gap-2">
+            <h1 className="text-xl font-black text-slate-100 tracking-tight flex items-center gap-2 flex-wrap">
               CyberGuard AI Security Assistant
               <span className={`h-2 w-2 rounded-full ${providerAvailable ? "bg-emerald-500 animate-pulse" : "bg-amber-500"}`} />
+              {statusData?.provider && (
+                <span className="text-xs font-mono font-medium text-cyan-400 bg-cyan-500/10 border border-cyan-500/20 px-2 py-0.5 rounded-md">
+                  {statusData.provider}
+                </span>
+              )}
             </h1>
           </div>
         </div>
@@ -144,7 +149,7 @@ export default function AIAssistant() {
       {!providerAvailable && !isStatusLoading && (
         <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl flex items-center gap-3 text-xs text-amber-300">
           <AlertTriangle size={18} className="shrink-0 text-amber-400" />
-          <span>AI provider unavailable. Configure a supported provider to enable AI assistance.</span>
+          <span>{statusData?.message || "Local AI model is offline. Run 'ollama run llama3.1:8b' to activate local AI assistance."}</span>
         </div>
       )}
 

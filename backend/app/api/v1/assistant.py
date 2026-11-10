@@ -20,7 +20,10 @@ from app.api.deps import CurrentActiveUser, DBDep
 from app.core.config import settings
 from app.core.logging import get_logger
 from app.models.alert import SecurityAlert
+from app.models.case import SecurityCase
+from app.models.enums import CasePriority, FindingCategory
 from app.models.conversation import CaseConversation, CaseMessage
+from app.models.enums import ConversationStatus, MessageType
 from app.models.finding import AgentFinding
 from app.models.source import SecuritySource
 from app.models.user import User
@@ -57,17 +60,40 @@ def _get_or_create_assistant_conversation(db: Session, workspace: Workspace, use
         select(CaseConversation).where(
             CaseConversation.workspace_id == workspace.id,
             CaseConversation.conversation_type == "system",
-            CaseConversation.created_by_id == user.id,
         )
-    ).scalar_one_or_none()
+    ).scalars().first()
 
     if not conv:
-        conv = CaseConversation(
+        # Check or create system security case
+        sec_case = db.execute(
+            select(SecurityCase).where(
+                SecurityCase.workspace_id == workspace.id,
+                SecurityCase.title == "AI Security Assistant",
+            )
+        ).scalars().first()
+
+        if not sec_case:
+            import random
+            case_num = f"CG-{datetime.now().year}-{random.randint(100000, 999999)}"
+            sec_case = SecurityCase.build(
+                workspace_id=workspace.id,
+                case_number=case_num,
+                title="AI Security Assistant",
+                description="Automated AI assistant conversation session",
+                created_by_id=user.id,
+                priority=CasePriority.LOW,
+                severity=EventSeverity.LOW,
+                category=FindingCategory.OTHER,
+            )
+            db.add(sec_case)
+            db.flush()
+
+        conv = CaseConversation.build(
             workspace_id=workspace.id,
+            case_id=sec_case.id,
             conversation_type="system",
             title="AI Security Assistant",
             created_by_id=user.id,
-            status="active",
         )
         db.add(conv)
         db.flush()
@@ -79,16 +105,45 @@ def _get_or_create_assistant_conversation(db: Session, workspace: Workspace, use
 def get_assistant_status(
     current_user: CurrentActiveUser,
 ) -> dict[str, Any]:
-    provider = getattr(settings, "LLM_PROVIDER", "none")
-    is_available = provider.lower() not in ["none", "disabled", ""]
+    from app.llm import free_llm
+    if free_llm.is_configured:
+        active_model = free_llm.gemini_model if free_llm.gemini_key.startswith("AIza") else free_llm.groq_model
+        display_name = "Google Gemini Flash" if free_llm.gemini_key.startswith("AIza") else "Groq LPU"
+        return {
+            "provider": display_name,
+            "available": True,
+            "model": active_model,
+            "message": f"AI provider '{display_name}' is connected and ready.",
+        }
+
+    provider = getattr(settings, "LLM_PROVIDER", "none").lower()
+    is_available = False
+    display_name = provider
+
+    if provider == "ollama":
+        display_name = f"Ollama ({settings.OLLAMA_MODEL})"
+        try:
+            import httpx
+            with httpx.Client(timeout=3.0) as client:
+                r = client.get(f"{settings.OLLAMA_BASE_URL.rstrip('/')}/api/tags")
+                if r.status_code == 200:
+                    is_available = True
+        except Exception:
+            is_available = False
+    elif provider in ["gemini", "anthropic", "openai"]:
+        is_available = bool(getattr(settings, f"{provider.upper()}_API_KEY", None))
+        display_name = provider.capitalize()
+    else:
+        is_available = False
 
     return {
-        "provider": provider,
+        "provider": display_name,
         "available": is_available,
+        "model": settings.OLLAMA_MODEL if provider == "ollama" else getattr(settings, f"{provider.upper()}_MODEL", None),
         "message": (
-            f"AI provider '{provider}' is configured and ready."
+            f"AI provider '{display_name}' is connected and ready."
             if is_available
-            else "AI provider unavailable. Configure a supported provider to enable AI assistance."
+            else f"AI provider '{display_name}' is currently unavailable. Ensure Ollama is running with model {settings.OLLAMA_MODEL}."
         ),
     }
 
@@ -137,7 +192,7 @@ def send_assistant_message(
         conversation_id=conv.id,
         sender_id=current_user.id,
         body=payload.message,
-        message_type="chat",
+        message_type=MessageType.TEXT,
     )
     db.add(user_msg)
     db.flush()
@@ -151,13 +206,14 @@ def send_assistant_message(
         or getattr(settings, "ANTHROPIC_API_KEY", None)
     )
 
-    if provider in ["none", "disabled", ""] or (not is_ollama and not has_api_key):
+    from app.llm import free_llm
+    if not free_llm.is_configured and (provider in ["none", "disabled", ""] or (not is_ollama and not has_api_key)):
         reply_text = "AI provider unavailable. Configure a supported provider to enable AI assistance."
         asst_msg = CaseMessage(
             conversation_id=conv.id,
             sender_id=None,
             body=reply_text,
-            message_type="system",
+            message_type=MessageType.TEXT,
             metadata_json={"evidence_ref": None},
         )
         db.add(asst_msg)
@@ -217,16 +273,32 @@ def send_assistant_message(
     )
 
     reply_text = ""
-    if is_ollama:
+    from app.llm import free_llm
+    if free_llm.is_configured:
+        try:
+            system_prompt = (
+                "You are CyberGuard AI, an elite cybersecurity assistant. "
+                "Answer the user's inquiry strictly grounded in their real security telemetry:\n"
+                f"{evidence_summary}\n"
+                "CRITICAL: Keep your response extremely concise, direct, and actionable (maximum 2 to 3 sentences). Do not use filler greetings or disclaimers."
+            )
+            reply_text = free_llm.explain(
+                system_prompt=system_prompt,
+                user_prompt=f"User question: {payload.message}",
+                max_tokens=200,
+            )
+        except Exception as exc:
+            logger.warning("FreeLLM call failed", extra={"error": str(exc)[:200]})
+    elif is_ollama:
         try:
             import httpx
             system_prompt = (
                 "You are CyberGuard AI, an elite cybersecurity assistant. "
                 "Answer the user's inquiry strictly grounded in their real security telemetry:\n"
                 f"{evidence_summary}\n"
-                "Be concise, actionable, and clear. Do not invent unverified incidents."
+                "CRITICAL: Keep your response extremely concise, direct, and actionable (maximum 2 to 3 sentences). Do not use filler greetings or disclaimers."
             )
-            with httpx.Client(timeout=10.0) as client:
+            with httpx.Client(timeout=120.0) as client:
                 res = client.post(
                     f"{settings.OLLAMA_BASE_URL.rstrip('/')}/api/generate",
                     json={
@@ -234,6 +306,13 @@ def send_assistant_message(
                         "prompt": f"User question: {payload.message}",
                         "system": system_prompt,
                         "stream": False,
+                        "keep_alive": "60m",
+                        "options": {
+                            "num_predict": 120,
+                            "temperature": 0.2,
+                            "top_k": 20,
+                            "num_thread": 8,
+                        },
                     },
                 )
                 if res.status_code == 200:
@@ -253,7 +332,7 @@ def send_assistant_message(
         conversation_id=conv.id,
         sender_id=None,
         body=reply_text,
-        message_type="system",
+        message_type=MessageType.TEXT,
         metadata_json={"evidence_ref": evidence_ref},
     )
     db.add(asst_msg)

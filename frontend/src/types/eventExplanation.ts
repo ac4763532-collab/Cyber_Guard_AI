@@ -31,6 +31,8 @@ export interface SimpleView {
   when: WhenHappened;
   why_it_matters: string;
   what_should_i_do: string[];
+  normal_when?: string[];
+  suspicious_when?: string[];
 }
 
 export interface MitreAttack {

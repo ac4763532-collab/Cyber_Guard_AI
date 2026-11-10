@@ -4,630 +4,312 @@
   "source": {
     "provider": "Microsoft-Windows-Security-Auditing",
     "channel": "Security",
-    "inventory_basis": "User-supplied Minimal/Common Windows Event ID lists and detailed event catalogue",
-    "note": "Event availability depends on Windows version, audit policy, role, and configuration. Validate provider, channel, event version, and field names against collected event XML."
+    "note": "Event availability depends on Windows version, audit policy, role, and configuration."
   },
   "events": {
     "4610": {
-      "event_id": 4610,
-      "name": "Authentication Package Loaded",
-      "category": "Authentication",
-      "title": "An authentication component was loaded",
-      "description": "Windows recorded that an authentication package was loaded by the Local Security Authority.",
-      "what_happened": "An authentication package became available to Windows for handling authentication requests. This can be part of normal system operation.",
-      "who": {
-        "SubjectUserName": "The account associated with the event, if recorded."
-      },
-      "where": {
-        "AuthenticationPackageName": "The authentication package that was loaded, if recorded."
-      },
-      "when": "The time Windows recorded the package load.",
-      "why_it_matters": "Unexpected authentication packages may deserve review, especially if they are unfamiliar or appear after an unexplained system change.",
-      "severity_guidance": {
-        "low": "A known package loads during normal startup or maintenance.",
-        "medium": "An unfamiliar package is loaded and its origin needs verification.",
-        "high": "An unapproved package is correlated with other suspicious changes."
-      },
-      "recommendations": [
-        "Check whether the package is expected on this device.",
-        "Review related system and security changes."
-      ],
-      "related_events": [
-        4611,
-        4622
-      ],
-      "important_note": "A package-load event alone does not prove malicious activity."
+      "event_id": 4610, "provider": "Microsoft-Windows-Security-Auditing", "channel": "Security", "verified": true, "category": "Authentication",
+      "headline": "An authentication component was loaded",
+      "plain_english": "Windows loaded a component that handles logins. This is normal at startup. If an unfamiliar component loads after a change, investigate.",
+      "technical_description": "Security event 4610: authentication package was loaded by the Local Security Authority.",
+      "who": {"SubjectUserName": "Account associated with the event, if recorded"},
+      "where": {"AuthenticationPackageName": "Name of the loaded package", "Computer": "Machine that recorded the load"},
+      "when": "Time Windows recorded the package load.",
+      "why_it_matters": "Unfamiliar authentication packages can be a sign of tampering with the login pipeline.",
+      "normal_when": ["Windows startup", "Standard security package present in baseline"],
+      "suspicious_when": ["A package not present in baseline loads", "Package loads after an unexplained system change"],
+      "what_to_do": ["Verify the package is expected on this machine", "Compare to a known-good baseline"],
+      "severity": {"low": "Known package during startup", "medium": "Unfamiliar package loads", "high": "Unfamiliar package correlated with other suspicious changes"},
+      "related_events": [4611, 4622],
+      "important_note": "Package load alone does not prove malicious activity."
     },
     "4611": {
-      "event_id": 4611,
-      "name": "Trusted Logon Process Registered",
-      "category": "Authentication",
-      "title": "A sign-in component registered with Windows",
-      "description": "Windows recorded registration of a trusted logon process with the Local Security Authority.",
-      "what_happened": "A logon process registered so it can participate in Windows authentication.",
-      "who": {
-        "SubjectUserName": "The account associated with the event, if recorded."
-      },
-      "where": {
-        "LogonProcessName": "The name of the registered logon process, if recorded."
-      },
-      "when": "The time Windows recorded the registration.",
-      "why_it_matters": "An unexpected logon process or unusual registration timing may warrant investigation.",
-      "severity_guidance": {
-        "low": "The process is known and expected.",
-        "medium": "The process is unfamiliar and needs validation.",
-        "high": "The registration is unapproved and linked to other suspicious activity."
-      },
-      "recommendations": [
-        "Verify the process name and its expected role.",
-        "Review related authentication-package and system events."
-      ],
-      "related_events": [
-        4610,
-        4622,
-        4624
-      ],
-      "important_note": "Registration is not, by itself, evidence of compromise."
+      "event_id": 4611, "provider": "Microsoft-Windows-Security-Auditing", "channel": "Security", "verified": true, "category": "Authentication",
+      "headline": "A sign-in component registered with Windows",
+      "plain_english": "A login-process component registered with Windows. Normal for known Windows components; unfamiliar names are worth review.",
+      "technical_description": "Security event 4611: a trusted logon process registered with the Local Security Authority.",
+      "who": {"SubjectUserName": "Account associated with the event"},
+      "where": {"LogonProcessName": "Name of the registered logon process"},
+      "when": "Time Windows recorded the registration.",
+      "why_it_matters": "Unexpected logon processes can indicate tampering with authentication.",
+      "normal_when": ["Known Windows logon process"],
+      "suspicious_when": ["Unfamiliar process name", "Registration at unexpected time"],
+      "what_to_do": ["Verify the process name is expected"],
+      "severity": {"low": "Known process", "medium": "Unfamiliar process", "high": "Unfamiliar process plus other suspicious activity"},
+      "related_events": [4610, 4622, 4624],
+      "important_note": "Registration alone is not evidence of compromise."
     },
     "4622": {
-      "event_id": 4622,
-      "name": "Security Package Loaded",
-      "category": "Authentication",
-      "title": "A Windows security package was loaded",
-      "description": "Windows recorded that a security package was loaded by the Local Security Authority.",
-      "what_happened": "A security package was loaded for use by Windows authentication services.",
-      "who": {
-        "SubjectUserName": "The account associated with the event, if recorded."
-      },
-      "where": {
-        "PackageName": "The security package name, if recorded."
-      },
-      "when": "The time Windows recorded the package load.",
-      "why_it_matters": "Unexpected security packages should be checked against the device's approved configuration.",
-      "severity_guidance": {
-        "low": "A known package loads as expected.",
-        "medium": "An unfamiliar package needs validation.",
-        "high": "An unapproved package is correlated with suspicious system changes."
-      },
-      "recommendations": [
-        "Verify the package name and expected configuration.",
-        "Correlate with related authentication and system events."
-      ],
-      "related_events": [
-        4610,
-        4611
-      ],
-      "important_note": "A package-load event alone does not prove malicious activity."
+      "event_id": 4622, "provider": "Microsoft-Windows-Security-Auditing", "channel": "Security", "verified": true, "category": "Authentication",
+      "headline": "A Windows security package was loaded",
+      "plain_english": "Windows loaded a security package used for authentication. Normal for known packages.",
+      "technical_description": "Security event 4622: a security package was loaded by the Local Security Authority.",
+      "who": {"SubjectUserName": "Account associated with the event"},
+      "where": {"PackageName": "Name of the loaded security package"},
+      "when": "Time Windows recorded the package load.",
+      "why_it_matters": "Unfamiliar security packages can indicate tampering.",
+      "normal_when": ["Known package loads normally"],
+      "suspicious_when": ["Unfamiliar package name", "Package loads after system change"],
+      "what_to_do": ["Verify the package name against baseline"],
+      "severity": {"low": "Known package", "medium": "Unfamiliar package", "high": "Unfamiliar package plus other suspicious changes"},
+      "related_events": [4610, 4611],
+      "important_note": "Package load alone does not prove malicious activity."
     },
     "4624": {
-      "event_id": 4624,
-      "name": "Successful Logon",
-      "category": "Authentication",
-      "title": "A sign-in succeeded",
-      "description": "Windows recorded a successful logon to an account.",
-      "what_happened": "An account successfully authenticated to Windows and a logon session was created.",
-      "who": {
-        "TargetUserName": "The account that successfully signed in.",
-        "TargetDomainName": "The domain or computer associated with the account.",
-        "SubjectUserName": "The account or security context that requested the logon, if recorded."
-      },
-      "where": {
-        "IpAddress": "The source IP address, if recorded.",
-        "WorkstationName": "The source computer name, if recorded.",
-        "LogonType": "The type of sign-in, such as interactive, network, service, or Remote Desktop."
-      },
-      "when": "The date and time Windows recorded the successful logon.",
-      "why_it_matters": "Successful sign-ins help establish who accessed a device, when, and through which logon method.",
-      "severity_guidance": {
-        "low": "The account, device, time, and logon type match expected activity.",
-        "medium": "The sign-in is unusual for the account or device and needs review.",
-        "high": "The sign-in is correlated with unauthorized access indicators or other confirmed suspicious activity."
-      },
-      "recommendations": [
-        "Check whether the account and sign-in time are expected.",
-        "Review unfamiliar source devices, IP addresses, or remote logon types.",
-        "Correlate with nearby failed sign-ins and account changes."
-      ],
-      "related_events": [
-        4625,
-        4634,
-        4647,
-        4648,
-        4672
-      ],
-      "important_note": "A successful logon is not automatically suspicious. Interpret it using the account, device, logon type, and surrounding activity."
+      "event_id": 4624, "provider": "Microsoft-Windows-Security-Auditing", "channel": "Security", "verified": true, "category": "Authentication",
+      "headline": "A sign-in succeeded",
+      "plain_english": "Someone successfully signed in. The fields tell you who, from where, and how (local keyboard, Remote Desktop, network share, service). A successful sign-in is normal — what matters is whether it was expected.",
+      "technical_description": "Security event 4624: successful logon. LogonType indicates method: 2=interactive, 3=network, 5=service, 7=unlock, 8=network-cleartext, 9=runas, 10=RemoteInteractive, 11=cached.",
+      "who": {"SubjectUserName": "Requesting account, if recorded", "TargetUserName": "Account that signed in", "TargetDomainName": "Domain of the account"},
+      "where": {"LogonType": "Method of sign-in (see technical_description)", "IpAddress": "Source IP, if recorded", "WorkstationName": "Source machine name", "LogonProcessName": "Process that performed the logon", "AuthenticationPackageName": "Auth package used", "Computer": "Machine that recorded the logon"},
+      "when": "Time Windows recorded the successful logon.",
+      "why_it_matters": "Successful sign-ins establish who accessed a device, from where, and how.",
+      "normal_when": ["User logging into their own PC with LogonType 2", "IT support RDP with LogonType 10 and a ticket", "Service account starting a service with LogonType 5"],
+      "suspicious_when": ["LogonType 10 (RDP) from an unfamiliar IP", "Logon for a non-24/7 user at 3am", "LogonType 3 (network) by a user who normally doesn't use network logons", "Logon from a workstation you don't recognize"],
+      "what_to_do": ["Confirm the user signed in as expected", "Check the source IP against expected networks", "If unrecognized: disable the account and start incident response"],
+      "severity": {"low": "Account, device, time, and logon type all match expectation", "medium": "Unusual account/logon type/device/time", "high": "Correlated with unauthorized access indicators"},
+      "related_events": [4625, 4634, 4647, 4648, 4672],
+      "important_note": "A successful logon is not automatically suspicious — LogonType and source matter more than the event alone."
     },
     "4625": {
-      "event_id": 4625,
-      "name": "Failed Logon",
-      "category": "Authentication",
-      "title": "Unsuccessful sign-in",
-      "description": "A sign-in attempt was made, but Windows rejected access to the account.",
-      "what_happened": "Someone or an application tried to sign in to a Windows account, but authentication failed. This can happen because of an incorrect password, an account restriction, or an expired credential.",
-      "who": {
-        "TargetUserName": "The account that someone tried to access.",
-        "TargetDomainName": "The domain or computer associated with the account."
-      },
-      "where": {
-        "IpAddress": "The source IP address from which the attempt was recorded, if available.",
-        "WorkstationName": "The computer associated with the login request, if available.",
-        "LogonType": "The type of sign-in attempted, such as local, network or Remote Desktop."
-      },
-      "when": "The date and time Windows recorded the failed sign-in.",
-      "why_it_matters": "One failed sign-in is often harmless. Repeated failures, especially from unfamiliar sources, may indicate password guessing or unauthorized access attempts.",
-      "severity_guidance": {
-        "low": "One isolated failed sign-in.",
-        "medium": "Repeated failed sign-ins against an account.",
-        "high": "Repeated failures combined with other suspicious activity."
-      },
-      "recommendations": [
-        "Check whether you recognize the sign-in attempt.",
-        "Review repeated failures involving the same account or source.",
-        "Investigate unfamiliar remote login activity.",
-        "Protect the account if unauthorized access is suspected."
-      ],
-      "related_events": [
-        4624,
-        4740,
-        4771,
-        4776
-      ],
-      "important_note": "A failed sign-in does not automatically mean someone hacked the computer."
+      "event_id": 4625, "provider": "Microsoft-Windows-Security-Auditing", "channel": "Security", "verified": true, "category": "Authentication",
+      "headline": "A sign-in attempt failed",
+      "plain_english": "Someone tried to sign in but Windows rejected it — usually a wrong password. One failure is common (typo, saved password on another device). Many failures in a row may mean someone is guessing passwords.",
+      "technical_description": "Security event 4625: failed logon. FailureReason and SubStatus indicate why (e.g. bad password, account disabled, account expired).",
+      "who": {"TargetUserName": "Account that was targeted", "TargetDomainName": "Domain of the account"},
+      "where": {"LogonType": "Type of attempted sign-in (2, 3, 5, 7, 8, 9, 10, 11)", "IpAddress": "Source IP, if available", "WorkstationName": "Source machine name", "Status": "NTSTATUS of the failure", "SubStatus": "Detailed failure code"},
+      "when": "Time Windows recorded the failed sign-in.",
+      "why_it_matters": "Repeated failures against the same account or from unfamiliar sources often indicate password guessing or an outdated saved credential.",
+      "normal_when": ["User mistyped their password once", "An old saved credential fails on a scheduled task"],
+      "suspicious_when": ["Many failures against one account in a short time", "Failures from unfamiliar external IPs", "Failures distributed across many accounts (password spraying)"],
+      "what_to_do": ["Check whether the source IP is expected", "Review repeated failures for the same account", "Escalate if the pattern suggests password guessing"],
+      "severity": {"low": "Isolated failure", "medium": "Repeated failures against one account", "high": "Repeated failures plus other suspicious events, or spraying pattern"},
+      "related_events": [4624, 4740, 4771, 4776],
+      "important_note": "A failed sign-in does not automatically mean hacking."
     },
     "4634": {
-      "event_id": 4634,
-      "name": "Logoff",
-      "category": "Authentication",
-      "title": "A sign-in session ended",
-      "description": "Windows recorded that a logon session was terminated.",
-      "what_happened": "A previously created Windows logon session ended.",
-      "who": {
-        "TargetUserName": "The account associated with the session, if recorded.",
-        "TargetDomainName": "The account domain or computer, if recorded.",
-        "TargetLogonId": "The session identifier used to correlate related events."
-      },
-      "where": {
-        "Computer": "The Windows device that recorded the session ending."
-      },
-      "when": "The time Windows recorded the session termination.",
-      "why_it_matters": "Logoff events help establish session duration and correlate activity performed during a sign-in.",
-      "severity_guidance": {
-        "low": "A normal session ends.",
-        "medium": "The session ending is unexpected and needs context.",
-        "high": "The event is part of a correlated sequence indicating possible session misuse."
-      },
-      "recommendations": [
-        "Correlate the Logon ID with the matching successful logon.",
-        "Check whether the session ending matches expected user activity."
-      ],
-      "related_events": [
-        4624,
-        4647
-      ],
-      "important_note": "This event records session termination; it does not necessarily mean the user manually clicked Sign out."
+      "event_id": 4634, "provider": "Microsoft-Windows-Security-Auditing", "channel": "Security", "verified": true, "category": "Authentication",
+      "headline": "A sign-in session ended",
+      "plain_english": "A logon session ended. Sessions correspond to successful logons; matching the Logon ID with a 4624 shows how long the session lasted.",
+      "technical_description": "Security event 4634: logon session terminated. Use TargetLogonId to correlate with the originating 4624.",
+      "who": {"TargetUserName": "Account associated with the session", "TargetDomainName": "Domain of the account", "TargetLogonId": "Session ID"},
+      "where": {"Computer": "Machine that recorded the session end"},
+      "when": "Time Windows recorded the termination.",
+      "why_it_matters": "Helps bracket the activity that happened during a session.",
+      "normal_when": ["Session ends normally", "Machine shuts down or disconnects"],
+      "suspicious_when": ["Session ends unexpectedly mid-activity", "Session ends within seconds of a suspicious logon"],
+      "what_to_do": ["Correlate the Logon ID with the matching 4624"],
+      "severity": {"low": "Normal session end", "medium": "Unexpected termination", "high": "Part of correlated suspicious sequence"},
+      "related_events": [4624, 4647],
+      "important_note": "Session end does not necessarily mean the user clicked Sign out."
     },
     "4647": {
-      "event_id": 4647,
-      "name": "User-Initiated Logoff",
-      "category": "Authentication",
-      "title": "A user started signing out",
-      "description": "Windows recorded that a user initiated the logoff process.",
-      "what_happened": "The user associated with a logon session initiated a sign-out.",
-      "who": {
-        "SubjectUserName": "The account that initiated the logoff, if recorded.",
-        "SubjectDomainName": "The domain or computer associated with the account, if recorded.",
-        "SubjectLogonId": "The session identifier used to correlate related events."
-      },
-      "where": {
-        "Computer": "The Windows device that recorded the logoff request."
-      },
-      "when": "The time Windows recorded the user-initiated logoff.",
-      "why_it_matters": "This helps distinguish a user-initiated sign-out from other session termination events.",
-      "severity_guidance": {
-        "low": "The user initiated a normal sign-out.",
-        "medium": "The sign-out is unexpected and needs review.",
-        "high": "The event is correlated with suspicious session activity."
-      },
-      "recommendations": [
-        "Confirm whether the sign-out was expected.",
-        "Correlate the session identifier with related logon and logoff events."
-      ],
-      "related_events": [
-        4624,
-        4634
-      ],
-      "important_note": "This event indicates that logoff was initiated; it does not independently explain why."
+      "event_id": 4647, "provider": "Microsoft-Windows-Security-Auditing", "channel": "Security", "verified": true, "category": "Authentication",
+      "headline": "A user started signing out",
+      "plain_english": "The user clicked sign out (as opposed to the machine shutting down or the session ending for another reason).",
+      "technical_description": "Security event 4647: user-initiated logoff.",
+      "who": {"SubjectUserName": "Account that initiated the logoff", "SubjectDomainName": "Domain of the account", "SubjectLogonId": "Session ID"},
+      "where": {"Computer": "Machine that recorded the logoff request"},
+      "when": "Time Windows recorded the logoff request.",
+      "why_it_matters": "Distinguishes user-initiated logoff from other session terminations.",
+      "normal_when": ["User signs out normally"],
+      "suspicious_when": ["Sign out unexpected for the user", "Sign out immediately after suspicious activity"],
+      "what_to_do": ["Confirm with the user that the sign-out was intentional"],
+      "severity": {"low": "Normal sign-out", "medium": "Unexpected sign-out", "high": "Part of correlated suspicious session activity"},
+      "related_events": [4624, 4634],
+      "important_note": "Indicates the logoff was initiated, not why."
     },
     "4648": {
-      "event_id": 4648,
-      "name": "Logon Using Explicit Credentials",
-      "category": "Authentication",
-      "title": "A program used specified sign-in credentials",
-      "description": "A process attempted to log on by explicitly supplying account credentials.",
-      "what_happened": "A user or process supplied credentials different from the credentials of the current logon session, for example when using Run as or accessing a remote resource.",
-      "who": {
-        "SubjectUserName": "The account whose session initiated the action, if recorded.",
-        "TargetUserName": "The account whose credentials were supplied.",
-        "TargetDomainName": "The domain associated with the supplied account, if recorded."
-      },
-      "where": {
-        "TargetServerName": "The target server or resource, if recorded.",
-        "ProcessName": "The process that attempted to use the explicit credentials, if recorded.",
-        "IpAddress": "The network address associated with the target, if recorded."
-      },
-      "when": "The time Windows recorded the explicit-credentials logon attempt.",
-      "why_it_matters": "This can be normal administrative activity, but unexpected use of another account's credentials may need investigation.",
-      "severity_guidance": {
-        "low": "The process, account, and target are expected.",
-        "medium": "The supplied account or target is unusual.",
-        "high": "The event is correlated with credential misuse or unauthorized access."
-      },
-      "recommendations": [
-        "Check whether the initiating user expected this action.",
-        "Verify the process and target resource.",
-        "Review whether the supplied account is authorized for this task."
-      ],
-      "related_events": [
-        4624,
-        4688
-      ],
-      "important_note": "Explicit credential use is not automatically malicious; administrative tools and scheduled tasks may generate it."
+      "event_id": 4648, "provider": "Microsoft-Windows-Security-Auditing", "channel": "Security", "verified": true, "category": "Authentication",
+      "headline": "A program signed in using specified credentials",
+      "plain_english": "A program logged in using a different account than the current user — for example, 'Run as different user' or a scheduled task running as a service account.",
+      "technical_description": "Security event 4648: logon attempted with explicitly supplied credentials. Used by Runas, PsExec, and scheduled tasks.",
+      "who": {"SubjectUserName": "Account whose session initiated the action", "TargetUserName": "Account whose credentials were supplied", "TargetDomainName": "Domain of supplied account"},
+      "where": {"TargetServerName": "Target server or resource", "ProcessName": "Process that used the credentials", "IpAddress": "Target IP, if recorded"},
+      "when": "Time Windows recorded the explicit-credentials logon.",
+      "why_it_matters": "Normal for admin tools and service accounts; suspicious if the user, account, or target is unexpected.",
+      "normal_when": ["Admin using Runas to perform support", "Scheduled task running as a service account", "Accessing a remote resource with alternate credentials"],
+      "suspicious_when": ["Unexpected account is used for explicit logon", "Process is not one that normally uses explicit creds (e.g. cmd.exe or powershell.exe suddenly appearing)", "Target is a sensitive server"],
+      "what_to_do": ["Confirm the initiating user expected the action", "Verify the process and target resource", "Confirm the supplied account is authorized for the task"],
+      "severity": {"low": "Expected process/account/target", "medium": "Unusual account or target", "high": "Correlated with credential misuse or unauthorized access"},
+      "related_events": [4624, 4688],
+      "important_note": "Explicit credential use is not automatically malicious."
     },
     "4649": {
-      "event_id": 4649,
-      "name": "Replay Attack Detected",
-      "category": "Authentication",
-      "title": "Windows detected a possible authentication replay",
-      "description": "Windows recorded a replay-attack detection event.",
-      "what_happened": "Windows detected authentication information that matched a replay-detection condition.",
-      "who": {
-        "SubjectUserName": "The account associated with the event, if recorded."
-      },
-      "where": {
-        "Computer": "The Windows device that recorded the event.",
-        "IpAddress": "A related network address, if present in the event data."
-      },
-      "when": "The time Windows recorded the detection.",
-      "why_it_matters": "Replay detection is security-relevant and should be investigated with the original event details and surrounding authentication activity.",
-      "severity_guidance": {
-        "low": "The event is determined to be a known false positive after review.",
-        "medium": "The event is unexplained and requires investigation.",
-        "high": "The event is validated and corroborated by related evidence."
-      },
-      "recommendations": [
-        "Review the complete event details and source device.",
-        "Correlate with nearby authentication and network events.",
-        "Follow the organization's incident response process if validated."
-      ],
-      "related_events": [
-        4624,
-        4625,
-        4648
-      ],
-      "important_note": "Preserve the original event and investigate before concluding that an attack succeeded."
+      "event_id": 4649, "provider": "Microsoft-Windows-Security-Auditing", "channel": "Security", "verified": true, "category": "Authentication",
+      "headline": "A possible authentication replay was detected",
+      "plain_english": "Windows detected what looks like a replay attack — authentication information was reused in a way that suggests interception. Take this seriously if corroborated.",
+      "technical_description": "Security event 4649: replay attack detected during authentication.",
+      "who": {"SubjectUserName": "Account associated with the event"},
+      "where": {"Computer": "Machine that recorded the event", "IpAddress": "Related network address if present"},
+      "when": "Time Windows recorded the detection.",
+      "why_it_matters": "Replay detection is security-relevant and should be investigated with the original event and surrounding authentication activity.",
+      "normal_when": ["Known false positive (rare)"],
+      "suspicious_when": ["Unexplained event", "Correlated with unusual authentication traffic"],
+      "what_to_do": ["Review the complete event details and source device", "Correlate with nearby authentication and network events", "Follow IR process if validated"],
+      "severity": {"low": "Known false positive", "medium": "Unexplained detection", "high": "Corroborated by related evidence"},
+      "related_events": [4624, 4625, 4648],
+      "important_note": "Preserve the original event; investigate before concluding an attack succeeded."
     },
     "4740": {
-      "event_id": 4740,
-      "name": "Account Locked Out",
-      "category": "Authentication",
-      "title": "A user account was locked",
-      "description": "Windows recorded that an account became locked out.",
-      "what_happened": "The account reached a configured lockout condition and Windows locked it.",
-      "who": {
-        "TargetUserName": "The account that was locked out.",
-        "TargetDomainName": "The domain or computer associated with the account."
-      },
-      "where": {
-        "CallerComputerName": "The computer reported as the source of the lockout request, if recorded."
-      },
-      "when": "The time Windows recorded the account lockout.",
-      "why_it_matters": "A lockout can result from repeated incorrect passwords, stale saved credentials, or other authentication problems.",
-      "severity_guidance": {
-        "low": "The lockout has a known, expected explanation.",
-        "medium": "The source or reason is unclear, or lockouts repeat.",
-        "high": "Repeated lockouts are correlated with suspicious authentication attempts."
-      },
-      "recommendations": [
-        "Confirm whether the account owner was trying to sign in.",
-        "Check the reported caller computer, if available.",
-        "Correlate with failed logons and domain authentication events."
-      ],
-      "related_events": [
-        4625,
-        4771,
-        4776
-      ],
-      "important_note": "An account lockout does not by itself prove an attacker caused it."
+      "event_id": 4740, "provider": "Microsoft-Windows-Security-Auditing", "channel": "Security", "verified": true, "category": "Authentication",
+      "headline": "A user account was locked",
+      "plain_english": "A user account was locked because of too many wrong password attempts. Often caused by a forgotten password or an outdated saved password on another device. Repeated lockouts can indicate password guessing.",
+      "technical_description": "Security event 4740: account lockout triggered by reaching the domain/computer lockout threshold.",
+      "who": {"TargetUserName": "Account that was locked", "TargetDomainName": "Domain of the account"},
+      "where": {"CallerComputerName": "Machine that reported the lockout request, if recorded", "Computer": "Machine that recorded the event"},
+      "when": "Time Windows recorded the lockout.",
+      "why_it_matters": "Repeated lockouts can be the first sign of an active password-guessing attack.",
+      "normal_when": ["User forgot password", "Stale saved credential on another device retrying"],
+      "suspicious_when": ["Repeated lockouts for the same account", "Many different accounts locked at once", "Lockouts originating from a machine the user doesn't use"],
+      "what_to_do": ["Confirm the user was trying to sign in", "Check the caller computer", "Correlate with failures (4625, 4771)"],
+      "severity": {"low": "Known explanation", "medium": "Repeated or unclear-source lockout", "high": "Multiple accounts locked, or lockouts correlated with failures"},
+      "related_events": [4625, 4771, 4776],
+      "important_note": "Lockout alone doesn't prove an attacker caused it."
     },
     "4768": {
-      "event_id": 4768,
-      "name": "Kerberos Authentication Ticket Requested",
-      "category": "Authentication",
-      "title": "A Kerberos sign-in ticket was requested",
-      "description": "A domain controller recorded a request for a Kerberos Ticket Granting Ticket (TGT).",
-      "what_happened": "A client requested a Kerberos TGT as part of domain authentication. The event records whether the request succeeded or failed.",
-      "who": {
-        "TargetUserName": "The account for which the ticket was requested.",
-        "ServiceName": "The Kerberos service name, if recorded."
-      },
-      "where": {
-        "IpAddress": "The client IP address, if recorded.",
-        "IpPort": "The client source port, if recorded."
-      },
-      "when": "The time the domain controller recorded the ticket request.",
-      "why_it_matters": "Unexpected ticket requests or unusual failure patterns may help identify domain authentication problems or suspicious activity.",
-      "severity_guidance": {
-        "low": "The request matches expected domain sign-in activity.",
-        "medium": "The request pattern, account, or source is unusual.",
-        "high": "The request is correlated with suspicious Kerberos activity and supporting evidence."
-      },
-      "recommendations": [
-        "Check the account and client address.",
-        "Review the result and failure code, if present.",
-        "Correlate unusual requests with related Kerberos events."
-      ],
-      "related_events": [
-        4769,
-        4771,
-        4772
-      ],
-      "important_note": "A ticket request is a normal part of Kerberos authentication; inspect its result and context."
+      "event_id": 4768, "provider": "Microsoft-Windows-Security-Auditing", "channel": "Security", "verified": true, "category": "Authentication",
+      "headline": "A Kerberos sign-in ticket was requested",
+      "plain_english": "A user asked the domain controller for a Kerberos sign-in ticket. This is the first step of a domain login and normal for domain users. Unusual failure patterns or unusual sources are worth review.",
+      "technical_description": "Security event 4768: Kerberos TGT (Ticket-Granting Ticket) request on a domain controller. Status indicates success or failure reason.",
+      "who": {"TargetUserName": "Account the ticket was requested for", "ServiceName": "Kerberos service name, if recorded"},
+      "where": {"IpAddress": "Client IP, if recorded", "IpPort": "Client port, if recorded", "Computer": "Domain controller that recorded the request"},
+      "when": "Time the domain controller recorded the request.",
+      "why_it_matters": "Unexpected request patterns can indicate domain authentication problems or suspicious activity.",
+      "normal_when": ["Normal user sign-in on a domain-joined machine"],
+      "suspicious_when": ["Requests for service accounts from unusual sources", "Spike in requests for one account", "Requests from unfamiliar subnets"],
+      "what_to_do": ["Check the account and client address", "Review the result and failure code", "Correlate unusual requests with 4769 and 4771"],
+      "severity": {"low": "Normal sign-in activity", "medium": "Unusual account/source/pattern", "high": "Correlated with suspicious Kerberos activity"},
+      "related_events": [4769, 4771, 4772],
+      "important_note": "A ticket request is a normal part of Kerberos authentication."
     },
     "4769": {
-      "event_id": 4769,
-      "name": "Kerberos Service Ticket Requested",
-      "category": "Authentication",
-      "title": "Access to a domain service was requested",
-      "description": "A domain controller recorded a request for a Kerberos service ticket.",
-      "what_happened": "An account requested a ticket to access a service in a Kerberos domain.",
-      "who": {
-        "TargetUserName": "The account requesting the service ticket.",
-        "ServiceName": "The service for which the ticket was requested."
-      },
-      "where": {
-        "IpAddress": "The client IP address, if recorded.",
-        "IpPort": "The client source port, if recorded."
-      },
-      "when": "The time the domain controller recorded the service-ticket request.",
-      "why_it_matters": "Service-ticket activity helps show which domain services accounts are accessing. Unusual service or account patterns may need review.",
-      "severity_guidance": {
-        "low": "The account accesses an expected service.",
-        "medium": "The account requests an unusual service ticket.",
-        "high": "Unusual ticket activity is correlated with other evidence of account or domain compromise."
-      },
-      "recommendations": [
-        "Verify that the account should access the requested service.",
-        "Review unusual service names, client addresses, and request patterns.",
-        "Correlate with successful and failed logons."
-      ],
-      "related_events": [
-        4768,
-        4770,
-        4771
-      ],
-      "important_note": "A service-ticket request is normal domain activity and is not proof of an attack."
+      "event_id": 4769, "provider": "Microsoft-Windows-Security-Auditing", "channel": "Security", "verified": true, "category": "Authentication",
+      "headline": "Access to a domain service was requested",
+      "plain_english": "A user asked for a ticket to access a specific domain service (file share, database, etc.). Shows which accounts access which services.",
+      "technical_description": "Security event 4769: Kerberos service ticket request.",
+      "who": {"TargetUserName": "Account requesting the service ticket", "ServiceName": "Service being accessed"},
+      "where": {"IpAddress": "Client IP, if recorded", "IpPort": "Client port, if recorded", "Computer": "Domain controller that recorded the request"},
+      "when": "Time the domain controller recorded the request.",
+      "why_it_matters": "Service-ticket activity shows which accounts access what — useful for spotting lateral movement.",
+      "normal_when": ["Account accesses expected service"],
+      "suspicious_when": ["Account requests a service it shouldn't access", "Service ticket for a service account from a workstation that shouldn't have one", "Spike in service-ticket requests"],
+      "what_to_do": ["Confirm the account should access the requested service", "Review unusual service names and client addresses", "Correlate with 4624 and 4768"],
+      "severity": {"low": "Expected access", "medium": "Unusual service or account", "high": "Correlated with other evidence of compromise"},
+      "related_events": [4768, 4770, 4771],
+      "important_note": "Service-ticket request is normal domain activity."
     },
     "4770": {
-      "event_id": 4770,
-      "name": "Kerberos Service Ticket Renewed",
-      "category": "Authentication",
-      "title": "A Kerberos service ticket was renewed",
-      "description": "A domain controller recorded renewal of a Kerberos service ticket.",
-      "what_happened": "A Kerberos service ticket was renewed so an authenticated session could continue accessing a service.",
-      "who": {
-        "TargetUserName": "The account associated with the ticket renewal, if recorded.",
-        "ServiceName": "The service associated with the ticket, if recorded."
-      },
-      "where": {
-        "IpAddress": "The client IP address, if recorded."
-      },
-      "when": "The time the domain controller recorded the renewal.",
-      "why_it_matters": "Ticket renewals are usually routine, but unusual accounts or service patterns may be worth reviewing.",
-      "severity_guidance": {
-        "low": "The renewal matches expected service use.",
-        "medium": "The account or service pattern is unusual.",
-        "high": "The renewal is part of a correlated suspicious authentication sequence."
-      },
-      "recommendations": [
-        "Verify the account and service are expected.",
-        "Review related ticket requests if the renewal is unusual."
-      ],
-      "related_events": [
-        4768,
-        4769
-      ],
-      "important_note": "Ticket renewal is a normal Kerberos operation in many environments."
+      "event_id": 4770, "provider": "Microsoft-Windows-Security-Auditing", "channel": "Security", "verified": true, "category": "Authentication",
+      "headline": "A Kerberos service ticket was renewed",
+      "plain_english": "A Kerberos ticket was renewed to extend a session. Routine in most environments.",
+      "technical_description": "Security event 4770: Kerberos service ticket renewed.",
+      "who": {"TargetUserName": "Account associated with the renewal", "ServiceName": "Service associated with the ticket"},
+      "where": {"IpAddress": "Client IP, if recorded", "Computer": "Domain controller that recorded the renewal"},
+      "when": "Time the domain controller recorded the renewal.",
+      "why_it_matters": "Usually routine; unusual patterns are worth a look.",
+      "normal_when": ["Expected service use continues"],
+      "suspicious_when": ["Unusual account/service combination", "Renewal from a client that shouldn't access the service"],
+      "what_to_do": ["Confirm the account and service are expected"],
+      "severity": {"low": "Routine renewal", "medium": "Unusual account/service", "high": "Part of correlated suspicious sequence"},
+      "related_events": [4768, 4769],
+      "important_note": "Ticket renewal is normal Kerberos operation."
     },
     "4771": {
-      "event_id": 4771,
-      "name": "Kerberos Pre-Authentication Failed",
-      "category": "Authentication",
-      "title": "A Kerberos sign-in check failed",
-      "description": "A domain controller recorded a Kerberos pre-authentication failure.",
-      "what_happened": "A Kerberos authentication request failed during its pre-authentication check.",
-      "who": {
-        "TargetUserName": "The account involved in the Kerberos request, if recorded."
-      },
-      "where": {
-        "IpAddress": "The client IP address, if recorded.",
-        "IpPort": "The client source port, if recorded."
-      },
-      "when": "The time the domain controller recorded the failure.",
-      "why_it_matters": "Repeated failures or unfamiliar sources may indicate incorrect credentials, configuration problems, or suspicious authentication attempts.",
-      "severity_guidance": {
-        "low": "An isolated failure with a known explanation.",
-        "medium": "Repeated failures against an account or from a source.",
-        "high": "Failures are correlated with other suspicious authentication evidence."
-      },
-      "recommendations": [
-        "Review the failure code and account involved.",
-        "Check whether the source device is recognized.",
-        "Correlate repeated failures with 4768 and 4625 events."
-      ],
-      "related_events": [
-        4768,
-        4769,
-        4625,
-        4740
-      ],
-      "important_note": "A pre-authentication failure does not by itself prove password spraying or an attack."
+      "event_id": 4771, "provider": "Microsoft-Windows-Security-Auditing", "channel": "Security", "verified": true, "category": "Authentication",
+      "headline": "A Kerberos sign-in check failed",
+      "plain_english": "A Kerberos login attempt failed the pre-authentication check — usually a wrong password. Repeated failures can indicate password guessing.",
+      "technical_description": "Security event 4771: Kerberos pre-authentication failed. FailureCode indicates reason (0x18 = bad password).",
+      "who": {"TargetUserName": "Account involved in the request"},
+      "where": {"IpAddress": "Client IP, if recorded", "IpPort": "Client port, if recorded", "Computer": "Domain controller that recorded the failure"},
+      "when": "Time the domain controller recorded the failure.",
+      "why_it_matters": "Repeated failures from unfamiliar sources suggest incorrect credentials, misconfiguration, or password guessing.",
+      "normal_when": ["Isolated failure with known cause (wrong password)"],
+      "suspicious_when": ["Repeated failures against one account", "Failures from unfamiliar external sources", "Failures across many accounts (spraying)"],
+      "what_to_do": ["Review the failure code and account", "Check whether the source device is recognized", "Correlate with 4625 and 4768"],
+      "severity": {"low": "Isolated failure", "medium": "Repeated failures", "high": "Failures plus other suspicious authentication evidence"},
+      "related_events": [4768, 4769, 4625, 4740],
+      "important_note": "A pre-authentication failure does not by itself prove password spraying."
     },
     "4772": {
-      "event_id": 4772,
-      "name": "Kerberos Authentication Ticket Request Failed",
-      "category": "Authentication",
-      "title": "A Kerberos ticket request failed",
-      "description": "Windows recorded a failed Kerberos authentication ticket request.",
-      "what_happened": "A Kerberos ticket request was not completed successfully. The event's result or failure information should be used to understand why.",
-      "who": {
-        "TargetUserName": "The account involved in the request, if recorded."
-      },
-      "where": {
-        "IpAddress": "The client IP address, if recorded."
-      },
-      "when": "The time Windows recorded the failed request.",
-      "why_it_matters": "Repeated or unexplained failures may indicate credential, configuration, or domain authentication problems.",
-      "severity_guidance": {
-        "low": "An isolated failure with a known explanation.",
-        "medium": "Repeated or unexplained failures need review.",
-        "high": "The failures are correlated with other suspicious authentication evidence."
-      },
-      "recommendations": [
-        "Inspect the complete event and failure information.",
-        "Check the account and source device.",
-        "Correlate with other Kerberos events."
-      ],
-      "related_events": [
-        4768,
-        4769,
-        4771
-      ],
-      "important_note": "Use the actual event provider and event version to confirm the event meaning and available fields before parsing."
+      "event_id": 4772, "provider": "Microsoft-Windows-Security-Auditing", "channel": "Security", "verified": true, "category": "Authentication",
+      "headline": "A Kerberos ticket request failed",
+      "plain_english": "A Kerberos ticket request failed. The event's result code tells you why — read it before drawing conclusions.",
+      "technical_description": "Security event 4772: Kerberos TGT request failed.",
+      "who": {"TargetUserName": "Account involved in the request"},
+      "where": {"IpAddress": "Client IP, if recorded", "Computer": "Domain controller that recorded the failure"},
+      "when": "Time Windows recorded the failed request.",
+      "why_it_matters": "Repeated unexplained failures may indicate credential or configuration problems.",
+      "normal_when": ["Isolated failure with known cause"],
+      "suspicious_when": ["Repeated failures", "Failures from unfamiliar sources"],
+      "what_to_do": ["Inspect the complete event and failure info", "Check the account and source device", "Correlate with other Kerberos events"],
+      "severity": {"low": "Isolated failure", "medium": "Repeated or unexplained failure", "high": "Correlated with other suspicious activity"},
+      "related_events": [4768, 4769, 4771],
+      "important_note": "Confirm the event meaning and available fields before parsing."
     },
     "4774": {
-      "event_id": 4774,
-      "name": "Account Mapped for Logon",
-      "category": "Authentication",
-      "title": "An account was mapped for sign-in",
-      "description": "Windows recorded that an account was mapped for logon.",
-      "what_happened": "An account-mapping operation occurred as part of an authentication process.",
-      "who": {
-        "TargetUserName": "The account that was mapped, if recorded."
-      },
-      "where": {
-        "Computer": "The computer that recorded the account-mapping event."
-      },
-      "when": "The time Windows recorded the mapping.",
-      "why_it_matters": "Unexpected account mapping may need review in environments that use mapped or external accounts.",
-      "severity_guidance": {
-        "low": "The mapping is expected.",
-        "medium": "The account mapping is unfamiliar.",
-        "high": "The mapping is unapproved and linked to suspicious access."
-      },
-      "recommendations": [
-        "Verify the account and mapping configuration.",
-        "Review related authentication events."
-      ],
-      "related_events": [
-        4775,
-        4624,
-        4625
-      ],
-      "important_note": "An account-mapping event alone does not establish unauthorized access."
+      "event_id": 4774, "provider": "Microsoft-Windows-Security-Auditing", "channel": "Security", "verified": true, "category": "Authentication",
+      "headline": "An account was mapped for sign-in",
+      "plain_english": "An account was mapped to a logon — used in authentication flows that map an external identity to a Windows account.",
+      "technical_description": "Security event 4774: account mapped for logon (identity mapping in some authentication scenarios).",
+      "who": {"TargetUserName": "Account that was mapped"},
+      "where": {"Computer": "Machine that recorded the mapping"},
+      "when": "Time Windows recorded the mapping.",
+      "why_it_matters": "Unexpected mappings may indicate misuse in environments that map external accounts.",
+      "normal_when": ["Configured mapping in a mapped-account environment"],
+      "suspicious_when": ["Unfamiliar mapping", "Mapping that leads to a privileged account"],
+      "what_to_do": ["Verify the account and mapping configuration"],
+      "severity": {"low": "Expected mapping", "medium": "Unfamiliar mapping", "high": "Unapproved mapping linked to suspicious access"},
+      "related_events": [4775, 4624, 4625],
+      "important_note": "Mapping alone does not prove unauthorized access."
     },
     "4775": {
-      "event_id": 4775,
-      "name": "Account Could Not Be Mapped for Logon",
-      "category": "Authentication",
-      "title": "Windows could not map an account for sign-in",
-      "description": "Windows recorded that an account could not be mapped for logon.",
-      "what_happened": "An authentication process attempted to map an account, but the mapping did not succeed.",
-      "who": {
-        "TargetUserName": "The account involved, if recorded."
-      },
-      "where": {
-        "Computer": "The computer that recorded the mapping failure."
-      },
-      "when": "The time Windows recorded the mapping failure.",
-      "why_it_matters": "This may indicate an account configuration or authentication mapping problem. Repeated unexplained failures deserve review.",
-      "severity_guidance": {
-        "low": "A known configuration issue explains the event.",
-        "medium": "The mapping failure is unexplained or recurring.",
-        "high": "The failure is correlated with suspicious authentication activity."
-      },
-      "recommendations": [
-        "Check the account and mapping configuration.",
-        "Review related authentication failures and domain events."
-      ],
-      "related_events": [
-        4774,
-        4625
-      ],
+      "event_id": 4775, "provider": "Microsoft-Windows-Security-Auditing", "channel": "Security", "verified": true, "category": "Authentication",
+      "headline": "Windows could not map an account for sign-in",
+      "plain_english": "An authentication mapping attempt failed. Usually a configuration or account problem; recurring unexplained failures deserve review.",
+      "technical_description": "Security event 4775: account could not be mapped for logon.",
+      "who": {"TargetUserName": "Account involved in the request"},
+      "where": {"Computer": "Machine that recorded the failure"},
+      "when": "Time Windows recorded the failure.",
+      "why_it_matters": "May indicate misconfiguration or suspicious activity.",
+      "normal_when": ["Known configuration issue"],
+      "suspicious_when": ["Unexplained or recurring failures"],
+      "what_to_do": ["Check the account and mapping configuration", "Correlate with 4625"],
+      "severity": {"low": "Known config issue", "medium": "Unexplained/recurring", "high": "Correlated with suspicious authentication"},
+      "related_events": [4774, 4625],
       "important_note": "A mapping failure is not proof of an attack."
     },
     "4776": {
-      "event_id": 4776,
-      "name": "NTLM Credentials Validated",
-      "category": "Authentication",
-      "title": "Windows checked NTLM sign-in credentials",
-      "description": "A computer recorded validation of account credentials using NTLM authentication.",
-      "what_happened": "Windows attempted to validate credentials through NTLM. The event result indicates whether validation succeeded.",
-      "who": {
-        "TargetUserName": "The account whose credentials were checked."
-      },
-      "where": {
-        "Workstation": "The workstation from which the validation request was received, if recorded."
-      },
-      "when": "The time Windows recorded the credential validation.",
-      "why_it_matters": "NTLM validation may be expected in some environments, but unexpected use or repeated failures can indicate legacy authentication or suspicious activity.",
-      "severity_guidance": {
-        "low": "NTLM use is expected and the validation succeeds.",
-        "medium": "NTLM use is unexpected or validation repeatedly fails.",
-        "high": "NTLM activity is correlated with suspicious account or network behavior."
-      },
-      "recommendations": [
-        "Check whether NTLM is expected for this account and device.",
-        "Review the validation result and source workstation.",
-        "Correlate failures with 4625 and 4771 events."
-      ],
-      "related_events": [
-        4777,
-        4624,
-        4625
-      ],
-      "important_note": "This event records credential validation; it does not always identify the final resource accessed."
+      "event_id": 4776, "provider": "Microsoft-Windows-Security-Auditing", "channel": "Security", "verified": true, "category": "Authentication",
+      "headline": "Windows checked NTLM sign-in credentials",
+      "plain_english": "Windows checked a username and password using NTLM, a legacy authentication protocol. Succeeds silently for older apps. Failures are usually more interesting than successes.",
+      "technical_description": "Security event 4776: NTLM credential validation on the authority (workstation or DC).",
+      "who": {"TargetUserName": "Account whose credentials were checked"},
+      "where": {"Workstation": "Source workstation, if recorded", "Computer": "Machine that recorded the check"},
+      "when": "Time Windows recorded the validation.",
+      "why_it_matters": "NTLM use may be expected in some environments; unexpected use or repeated failures can indicate legacy auth or suspicious activity.",
+      "normal_when": ["Expected legacy auth for a known app"],
+      "suspicious_when": ["Unexpected NTLM use", "Repeated validation failures"],
+      "what_to_do": ["Confirm NTLM is expected for this account/device", "Review the validation result and source workstation", "Correlate failures with 4625 and 4771"],
+      "severity": {"low": "Expected NTLM success", "medium": "Unexpected NTLM use or repeated failures", "high": "Correlated with other suspicious activity"},
+      "related_events": [4777, 4624, 4625],
+      "important_note": "Records credential validation, not the final resource accessed."
     },
     "4777": {
-      "event_id": 4777,
-      "name": "NTLM Credentials Validation Failed",
-      "category": "Authentication",
-      "title": "NTLM sign-in credentials could not be validated",
-      "description": "A computer recorded a failed NTLM credential validation.",
-      "what_happened": "Windows could not validate the supplied credentials through NTLM.",
-      "who": {
-        "TargetUserName": "The account whose credentials were checked, if recorded."
-      },
-      "where": {
-        "Workstation": "The workstation associated with the validation request, if recorded."
-      },
-      "when": "The time Windows recorded the failed validation.",
-      "why_it_matters": "Repeated failures or unexpected NTLM use may indicate incorrect saved credentials, configuration issues, or suspicious authentication activity.",
-      "severity_guidance": {
-        "low": "An isolated failure has a known explanation.",
-        "medium": "Failures repeat or originate from an unfamiliar workstation.",
-        "high": "Failures are correlated with other suspicious authentication events."
-      },
-      "recommendations": [
-        "Check the account and source workstation.",
-        "Review NTLM configuration and the failure details.",
-        "Correlate with 4625 and 4776 events."
-      ],
-      "related_events": [
-        4776,
-        4625,
-        4740
-      ],
-      "important_note": "A failed NTLM validation does not by itself prove an attack."
+      "event_id": 4777, "provider": "Microsoft-Windows-Security-Auditing", "channel": "Security", "verified": true, "category": "Authentication",
+      "headline": "NTLM sign-in credentials could not be validated",
+      "plain_english": "NTLM credential validation failed — usually a wrong password, outdated cached credentials, or a password-guessing attempt.",
+      "technical_description": "Security event 4777: NTLM credential validation failed.",
+      "who": {"TargetUserName": "Account whose credentials were checked"},
+      "where": {"Workstation": "Source workstation, if recorded", "Computer": "Machine that recorded the failure"},
+      "when": "Time Windows recorded the failure.",
+      "why_it_matters": "Repeated failures or unexpected NTLM use may indicate stale credentials, config issues, or an attack.",
+      "normal_when": ["Isolated failure with known explanation"],
+      "suspicious_when": ["Repeated failures", "Failures from an unfamiliar workstation"],
+      "what_to_do": ["Check the account and source workstation", "Review NTLM configuration and failure details", "Correlate with 4625 and 4776"],
+      "severity": {"low": "Isolated failure", "medium": "Repeated or unfamiliar source", "high": "Correlated with other suspicious authentication"},
+      "related_events": [4776, 4625, 4740],
+      "important_note": "A failed NTLM validation is not proof of an attack."
     }
   },
   "implementation_notes": {
@@ -636,7 +318,6 @@
     "show_only_fields_present_in_event": true,
     "do_not_invent_missing_values": true,
     "severity_is_contextual": true,
-    "severity_note": "Use event frequency, account importance, source familiarity, logon type, result codes, asset context, and correlated evidence. Do not assign a threat verdict from Event ID alone.",
-    "parser_note": "Map fields from the actual provider payload and event version. Do not assume every listed field exists in every Windows version or event variant."
+    "verified_field": "Only display a plain-English explanation when `verified` is true."
   }
 }

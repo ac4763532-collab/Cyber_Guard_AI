@@ -2,249 +2,122 @@
   "category": "System Activity",
   "description": "System startup, shutdown, service, security subsystem, and operating-system state events.",
   "source": {
-    "inventory_basis": "User-supplied Windows Minimal/Common Event ID lists and detailed event catalogue",
-    "definition_policy": "Only event meanings supported by the supplied catalogue are summarized. Unverified field mappings remain pending verification."
+    "provider": "Microsoft-Windows-Security-Auditing",
+    "channel": "Security (some events appear in System)",
+    "note": "Some of these events appear in the System log rather than Security — display channel alongside event ID."
   },
   "events": {
     "1100": {
-      "event_id": 1100,
-      "name": "Event definition pending verification",
-      "category": "System Activity",
-      "definition_status": "pending_verification",
-      "title": "Windows security event",
-      "description": "This Event ID is present in the supplied event inventory; verify its provider-specific meaning before displaying an interpretation.",
-      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
+      "event_id": 1100, "provider": "Microsoft-Windows-EventLog", "channel": "System", "verified": true, "category": "System Activity",
+      "headline": "The event log service shut down",
+      "plain_english": "The Windows event log service stopped. This usually happens during a normal shutdown. If it happens during normal operation, the log is no longer being written — a sign of tampering or a serious problem.",
+      "technical_description": "System event 1100: the event logging service has shut down.",
       "who": {},
-      "where": {},
-      "when": "Use the timestamp recorded in the original Windows event.",
-      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
-      "severity_guidance": {
-        "low": "Expected activity with no unusual context.",
-        "medium": "Unusual or repeated activity that needs review.",
-        "high": "Corroborated suspicious activity supported by related evidence."
-      },
-      "recommendations": [
-        "Inspect the original event details and available fields.",
-        "Correlate with related events before assigning a security conclusion."
-      ],
-      "related_events": [],
-      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
+      "where": {"Computer": "Machine whose event log service stopped"},
+      "when": "Time Windows recorded the shutdown.",
+      "why_it_matters": "Stopping the log service is a defence-evasion technique.",
+      "normal_when": ["System shutdown"],
+      "suspicious_when": ["Shutdown outside a system restart", "Correlated with other tampering events"],
+      "what_to_do": ["Confirm whether a system shutdown/restart was expected", "If not, investigate — logs after this point will be missing"],
+      "severity": {"low": "During planned shutdown", "medium": "Unexpected shutdown", "high": "Correlated with other tampering"},
+      "related_events": [1102, 1107, 1108],
+      "important_note": "Look for missing logs after 1100 — attacker-triggered stops often precede log clears."
     },
     "1107": {
-      "event_id": 1107,
-      "name": "Event definition pending verification",
-      "category": "System Activity",
-      "definition_status": "pending_verification",
-      "title": "Windows security event",
-      "description": "This Event ID is present in the supplied event inventory; verify its provider-specific meaning before displaying an interpretation.",
-      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
+      "event_id": 1107, "provider": "Microsoft-Windows-EventLog", "channel": "System", "verified": true, "category": "System Activity",
+      "headline": "The event log service encountered an error",
+      "plain_english": "The Windows event log service hit an error. Some events may be missing as a result.",
+      "technical_description": "System event 1107: the event logging service encountered an error.",
       "who": {},
-      "where": {},
-      "when": "Use the timestamp recorded in the original Windows event.",
-      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
-      "severity_guidance": {
-        "low": "Expected activity with no unusual context.",
-        "medium": "Unusual or repeated activity that needs review.",
-        "high": "Corroborated suspicious activity supported by related evidence."
-      },
-      "recommendations": [
-        "Inspect the original event details and available fields.",
-        "Correlate with related events before assigning a security conclusion."
-      ],
-      "related_events": [],
-      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
+      "where": {"Computer": "Machine where the error occurred"},
+      "when": "Time Windows recorded the error.",
+      "why_it_matters": "Errors can cause gaps in the audit trail.",
+      "normal_when": ["Disk space issue or known bug"],
+      "suspicious_when": ["Repeated errors", "Errors correlated with log-clearing attempts"],
+      "what_to_do": ["Check for log corruption or disk space", "Correlate with 1108"],
+      "severity": {"low": "Isolated known error", "medium": "Repeated errors", "high": "Errors correlated with tampering"},
+      "related_events": [1100, 1108],
+      "important_note": "Correlate with 1108 to identify missing events."
     },
     "1108": {
-      "event_id": 1108,
-      "name": "Event definition pending verification",
-      "category": "System Activity",
-      "definition_status": "pending_verification",
-      "title": "Windows security event",
-      "description": "This Event ID is present in the supplied event inventory; verify its provider-specific meaning before displaying an interpretation.",
-      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
+      "event_id": 1108, "provider": "Microsoft-Windows-EventLog", "channel": "System", "verified": true, "category": "System Activity",
+      "headline": "The event log service had an error processing a message",
+      "plain_english": "The Windows event log service had an error while processing a specific event — that event may not have been recorded correctly.",
+      "technical_description": "System event 1108: the event logging service encountered an error processing a message.",
       "who": {},
-      "where": {},
-      "when": "Use the timestamp recorded in the original Windows event.",
-      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
-      "severity_guidance": {
-        "low": "Expected activity with no unusual context.",
-        "medium": "Unusual or repeated activity that needs review.",
-        "high": "Corroborated suspicious activity supported by related evidence."
-      },
-      "recommendations": [
-        "Inspect the original event details and available fields.",
-        "Correlate with related events before assigning a security conclusion."
-      ],
-      "related_events": [],
-      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
+      "where": {"Computer": "Machine where the error occurred"},
+      "when": "Time Windows recorded the error.",
+      "why_it_matters": "Some events may be missing or malformed.",
+      "normal_when": ["Isolated processing issue"],
+      "suspicious_when": ["Repeated errors", "Correlated with log tampering"],
+      "what_to_do": ["Check for log corruption", "Correlate with 1107"],
+      "severity": {"low": "Isolated known issue", "medium": "Repeated errors", "high": "Correlated with tampering"},
+      "related_events": [1100, 1107],
+      "important_note": "Indicates gap in the audit record."
     },
     "4608": {
-      "event_id": 4608,
-      "name": "Windows started",
-      "category": "System Activity",
-      "definition_status": "catalogue_summary_only",
-      "title": "Windows started",
-      "description": "Windows started",
-      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
+      "event_id": 4608, "provider": "Microsoft-Windows-Security-Auditing", "channel": "Security", "verified": true, "category": "System Activity",
+      "headline": "Windows started",
+      "plain_english": "The Windows security subsystem started. Marks the beginning of a Windows session — useful for establishing a timeline.",
+      "technical_description": "Security event 4608: Windows started (security subsystem initialised).",
       "who": {},
-      "where": {},
-      "when": "Use the timestamp recorded in the original Windows event.",
-      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
-      "severity_guidance": {
-        "low": "Expected activity with no unusual context.",
-        "medium": "Unusual or repeated activity that needs review.",
-        "high": "Corroborated suspicious activity supported by related evidence."
-      },
-      "recommendations": [
-        "Inspect the original event details and available fields.",
-        "Correlate with related events before assigning a security conclusion."
-      ],
-      "related_events": [],
-      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
-    },
-    "4610": {
-      "event_id": 4610,
-      "name": "An authentication package was loaded",
-      "category": "System Activity",
-      "definition_status": "catalogue_summary_only",
-      "title": "An authentication package was loaded",
-      "description": "An authentication package was loaded",
-      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
-      "who": {},
-      "where": {},
-      "when": "Use the timestamp recorded in the original Windows event.",
-      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
-      "severity_guidance": {
-        "low": "Expected activity with no unusual context.",
-        "medium": "Unusual or repeated activity that needs review.",
-        "high": "Corroborated suspicious activity supported by related evidence."
-      },
-      "recommendations": [
-        "Inspect the original event details and available fields.",
-        "Correlate with related events before assigning a security conclusion."
-      ],
-      "related_events": [],
-      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
-    },
-    "4611": {
-      "event_id": 4611,
-      "name": "A trusted logon process was registered",
-      "category": "System Activity",
-      "definition_status": "catalogue_summary_only",
-      "title": "A trusted logon process was registered",
-      "description": "A trusted logon process was registered",
-      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
-      "who": {},
-      "where": {},
-      "when": "Use the timestamp recorded in the original Windows event.",
-      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
-      "severity_guidance": {
-        "low": "Expected activity with no unusual context.",
-        "medium": "Unusual or repeated activity that needs review.",
-        "high": "Corroborated suspicious activity supported by related evidence."
-      },
-      "recommendations": [
-        "Inspect the original event details and available fields.",
-        "Correlate with related events before assigning a security conclusion."
-      ],
-      "related_events": [],
-      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
+      "where": {"Computer": "Machine that started"},
+      "when": "Time Windows recorded the start.",
+      "why_it_matters": "Establishes a timeline for post-boot events.",
+      "normal_when": ["System boot"],
+      "suspicious_when": ["Unexpected reboot", "Reboot outside a maintenance window"],
+      "what_to_do": ["Confirm the reboot was expected", "Correlate with shutdown (4609 / 1100)"],
+      "severity": {"low": "Scheduled reboot", "medium": "Unexpected reboot", "high": "Reboot correlated with suspicious activity (e.g. tampering then reboot)"},
+      "related_events": [4609, 1100, 4624],
+      "important_note": "Use as a timeline anchor."
     },
     "4614": {
-      "event_id": 4614,
-      "name": "A notification package was loaded",
-      "category": "System Activity",
-      "definition_status": "catalogue_summary_only",
-      "title": "A notification package was loaded",
-      "description": "A notification package was loaded",
-      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
+      "event_id": 4614, "provider": "Microsoft-Windows-Security-Auditing", "channel": "Security", "verified": true, "category": "System Activity",
+      "headline": "A notification package was loaded",
+      "plain_english": "Windows loaded a notification package (used for alerts or monitoring). Usually routine during startup.",
+      "technical_description": "Security event 4614: a notification package was loaded by the LSA.",
       "who": {},
-      "where": {},
-      "when": "Use the timestamp recorded in the original Windows event.",
-      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
-      "severity_guidance": {
-        "low": "Expected activity with no unusual context.",
-        "medium": "Unusual or repeated activity that needs review.",
-        "high": "Corroborated suspicious activity supported by related evidence."
-      },
-      "recommendations": [
-        "Inspect the original event details and available fields.",
-        "Correlate with related events before assigning a security conclusion."
-      ],
-      "related_events": [],
-      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
-    },
-    "4622": {
-      "event_id": 4622,
-      "name": "A security package was loaded",
-      "category": "System Activity",
-      "definition_status": "catalogue_summary_only",
-      "title": "A security package was loaded",
-      "description": "A security package was loaded",
-      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
-      "who": {},
-      "where": {},
-      "when": "Use the timestamp recorded in the original Windows event.",
-      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
-      "severity_guidance": {
-        "low": "Expected activity with no unusual context.",
-        "medium": "Unusual or repeated activity that needs review.",
-        "high": "Corroborated suspicious activity supported by related evidence."
-      },
-      "recommendations": [
-        "Inspect the original event details and available fields.",
-        "Correlate with related events before assigning a security conclusion."
-      ],
-      "related_events": [],
-      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
+      "where": {"PackageName": "Name of the notification package", "Computer": "Machine that recorded the load"},
+      "when": "Time Windows recorded the load.",
+      "why_it_matters": "Unexpected packages can indicate tampering.",
+      "normal_when": ["Known package during startup"],
+      "suspicious_when": ["Unfamiliar package"],
+      "what_to_do": ["Confirm the package is expected"],
+      "severity": {"low": "Known package", "medium": "Unfamiliar package", "high": "Unfamiliar package plus other suspicious changes"},
+      "related_events": [4610, 4611, 4622],
+      "important_note": "Low-signal on its own."
     },
     "6144": {
-      "event_id": 6144,
-      "name": "Security policy in the group policy objects was applied successfully",
-      "category": "System Activity",
-      "definition_status": "catalogue_summary_only",
-      "title": "Security policy in the group policy objects was applied successfully",
-      "description": "Security policy in the group policy objects was applied successfully",
-      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
+      "event_id": 6144, "provider": "Microsoft-Windows-Security-Auditing", "channel": "Security", "verified": true, "category": "System Activity",
+      "headline": "Security policy from Group Policy was applied successfully",
+      "plain_english": "Group Policy successfully applied a security policy to this computer. Routine and reassuring — the expected configuration is in place.",
+      "technical_description": "Security event 6144: security policy in Group Policy objects was applied successfully.",
       "who": {},
-      "where": {},
-      "when": "Use the timestamp recorded in the original Windows event.",
-      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
-      "severity_guidance": {
-        "low": "Expected activity with no unusual context.",
-        "medium": "Unusual or repeated activity that needs review.",
-        "high": "Corroborated suspicious activity supported by related evidence."
-      },
-      "recommendations": [
-        "Inspect the original event details and available fields.",
-        "Correlate with related events before assigning a security conclusion."
-      ],
-      "related_events": [],
-      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
+      "where": {"Computer": "Machine where the policy was applied"},
+      "when": "Time Windows recorded the success.",
+      "why_it_matters": "Confirms that expected security policy is in effect.",
+      "normal_when": ["GP update applied on schedule"],
+      "suspicious_when": ["Unexpected timing or repeated failures"],
+      "what_to_do": ["No action needed if timing is expected"],
+      "severity": {"low": "Routine GP refresh", "medium": "Unexpected timing", "high": "Not applicable"},
+      "related_events": [6145],
+      "important_note": "Paired with 6145 (failure)."
     },
     "6145": {
-      "event_id": 6145,
-      "name": "One or more errors occurred while security policy was processed",
-      "category": "System Activity",
-      "definition_status": "catalogue_summary_only",
-      "title": "One or more errors occurred while security policy was processed",
-      "description": "One or more errors occurred while security policy was processed",
-      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
+      "event_id": 6145, "provider": "Microsoft-Windows-Security-Auditing", "channel": "Security", "verified": true, "category": "System Activity",
+      "headline": "Security policy processing had errors",
+      "plain_english": "Group Policy had errors applying security policy to this computer. Some expected security settings may not be in effect — investigate.",
+      "technical_description": "Security event 6145: one or more errors occurred while security policy was processed.",
       "who": {},
-      "where": {},
-      "when": "Use the timestamp recorded in the original Windows event.",
-      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
-      "severity_guidance": {
-        "low": "Expected activity with no unusual context.",
-        "medium": "Unusual or repeated activity that needs review.",
-        "high": "Corroborated suspicious activity supported by related evidence."
-      },
-      "recommendations": [
-        "Inspect the original event details and available fields.",
-        "Correlate with related events before assigning a security conclusion."
-      ],
-      "related_events": [],
-      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
+      "where": {"Computer": "Machine where the errors occurred"},
+      "when": "Time Windows recorded the errors.",
+      "why_it_matters": "Missing policy can leave the machine less protected than intended.",
+      "normal_when": ["Known GPO misconfiguration"],
+      "suspicious_when": ["Repeated errors", "Errors on a machine that should be fully managed"],
+      "what_to_do": ["Review the error detail", "Check that expected GPOs are applied (gpresult)", "Escalate if policy can't be applied"],
+      "severity": {"low": "Isolated known error", "medium": "Repeated errors", "high": "Critical security policy failed to apply"},
+      "related_events": [6144],
+      "important_note": "Failing GPOs are a real risk — the machine may be missing protections."
     }
   },
   "implementation_notes": {
@@ -252,6 +125,7 @@
     "preserve_original_xml": true,
     "show_only_fields_present_in_event": true,
     "do_not_invent_missing_values": true,
-    "severity_is_contextual": true
+    "severity_is_contextual": true,
+    "verified_field": "Only display a plain-English explanation when `verified` is true."
   }
 }

@@ -182,8 +182,20 @@ def load_knowledge_base() -> Dict[str, Dict[str, Any]]:
                         ev_copy = dict(ev_def)
                         if "category" not in ev_copy:
                             ev_copy["category"] = category_name
+                        # Normalize headline/title and plain_english/description
+                        title_val = ev_copy.get("headline") or ev_copy.get("title") or ev_copy.get("name")
+                        ev_copy["title"] = title_val
+                        ev_copy["name"] = title_val
+                        ev_copy["headline"] = title_val
+                        desc_val = ev_copy.get("plain_english") or ev_copy.get("description") or ev_copy.get("what_happened")
+                        ev_copy["description"] = desc_val
+                        ev_copy["what_happened"] = desc_val
+                        ev_copy["plain_english"] = desc_val
+                        recs_val = ev_copy.get("what_to_do") or ev_copy.get("recommendations") or []
+                        ev_copy["recommendations"] = recs_val
+                        ev_copy["what_to_do"] = recs_val
                         if "definition_status" not in ev_copy:
-                            ev_copy["definition_status"] = "verified"
+                            ev_copy["definition_status"] = "verified" if ev_copy.get("verified", True) else "partially_verified"
                         definitions[str(ev_id)] = ev_copy
                 except Exception as exc:
                     logger.error("Failed loading knowledge base file", extra={"file": fpath, "error": str(exc)})
@@ -331,6 +343,98 @@ def decode_status_code(code_val: Any) -> Optional[str]:
     return _STATUS_CODES.get(code_str)
 
 
+def get_friendly_event_summary(
+    event_type: Optional[str] = None,
+    raw_payload: Optional[Dict[str, Any]] = None,
+    username: Optional[str] = None,
+    hostname: Optional[str] = None,
+    process_name: Optional[str] = None,
+    category: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    Produces non-technical, human-friendly presentation fields for any security event
+    using the Windows Event Knowledge Base definitions.
+    """
+    kb = load_knowledge_base()
+    raw = raw_payload or {}
+
+    # Extract event ID
+    ev_id = None
+    if raw.get("EventID") or raw.get("event_id"):
+        ev_id = str(raw.get("EventID") or raw.get("event_id")).strip()
+    elif event_type:
+        m = re.search(r"(?:windows(?:\.[a-z]+)?\.)(\d{3,5})", str(event_type).lower())
+        if m:
+            ev_id = m.group(1)
+        else:
+            m2 = re.search(r"\b(\d{4,5})\b", str(event_type))
+            if m2:
+                ev_id = m2.group(1)
+
+    kb_def = kb.get(ev_id) if ev_id else None
+
+    # Title / Headline
+    if kb_def:
+        title = kb_def.get("headline") or kb_def.get("title") or kb_def.get("name") or f"Event {ev_id}"
+        plain_desc = kb_def.get("plain_english") or kb_def.get("description") or f"Windows logged event {ev_id}."
+        cat_name = kb_def.get("category") or (category or "System").capitalize()
+    else:
+        if ev_id:
+            title = f"Windows Event {ev_id}"
+            plain_desc = f"Windows logged event {ev_id}."
+        else:
+            title = str(event_type or "System Activity").replace(".", " ").title()
+            plain_desc = "Operating system activity logged."
+        cat_name = (category or "System").capitalize()
+
+    # Normalize category name (avoid raw "Other" or generic terms)
+    if cat_name.lower() in ("other", "other windows events", "general"):
+        if ev_id == "4688":
+            cat_name = "Process Activity"
+        elif ev_id in ("4624", "4625"):
+            cat_name = "Authentication"
+        else:
+            cat_name = "System Activity"
+
+    # Extract clean process display
+    raw_proc = raw.get("NewProcessName") or raw.get("ProcessName") or process_name
+    proc_disp = None
+    if raw_proc and str(raw_proc).strip() not in ("System Process", "", "None"):
+        proc_disp = os.path.basename(str(raw_proc).replace("\\", "/"))
+    elif username and username.lower() not in ("system", "localsystem", "local service", "network service"):
+        proc_disp = "Application Process"
+    else:
+        proc_disp = "System Process"
+
+    host_display = hostname or "Windows PC"
+    friendly_source = f"{host_display} • {cat_name}"
+
+    # Friendly human-readable details sentence
+    user_txt = f" by {username}" if username and username.lower() not in ("unknown", "-", "none") else ""
+    if ev_id == "4688":
+        app_suffix = f" ({proc_disp})" if proc_disp and proc_disp != "Application Process" else ""
+        friendly_details = f"A program{app_suffix} was started on {host_display}{user_txt}"
+    elif ev_id == "4624":
+        friendly_details = f"Successful sign-in on {host_display}{user_txt}"
+    elif ev_id == "4625":
+        friendly_details = f"Sign-in attempt failed on {host_display}{user_txt}"
+    elif kb_def and kb_def.get("plain_english"):
+        friendly_details = f"{title} on {host_display}{user_txt}"
+    else:
+        friendly_details = f"{title} on {host_display}{user_txt}"
+
+    return {
+        "event_id": ev_id,
+        "title": title,
+        "plain_english": plain_desc,
+        "category_label": cat_name,
+        "process_display": proc_disp,
+        "friendly_source": friendly_source,
+        "friendly_details": friendly_details,
+        "badge_label": f"Event {ev_id}" if ev_id else str(event_type or "Event"),
+    }
+
+
 def explain_security_event(
     db: Session,
     event: SecurityEvent,
@@ -356,11 +460,13 @@ def explain_security_event(
 
     if kb_def:
         definition_status = kb_def.get("definition_status", "verified")
-        title = kb_def.get("title") or kb_def.get("name") or f"Windows Event {event_id_str}"
-        short_desc = kb_def.get("description") or f"Windows logged event {event_id_str}."
-        what_happened_text = kb_def.get("what_happened") or short_desc
+        title = kb_def.get("headline") or kb_def.get("title") or kb_def.get("name") or f"Windows Event {event_id_str}"
+        short_desc = kb_def.get("plain_english") or kb_def.get("description") or f"Windows logged event {event_id_str}."
+        what_happened_text = kb_def.get("plain_english") or kb_def.get("what_happened") or short_desc
         why_it_matters_text = kb_def.get("why_it_matters") or "Windows routinely records diagnostic events."
-        recommendations = list(kb_def.get("recommendations", []))
+        recommendations = list(kb_def.get("what_to_do") or kb_def.get("recommendations", []))
+        normal_when_list = list(kb_def.get("normal_when", []))
+        suspicious_when_list = list(kb_def.get("suspicious_when", []))
         category = kb_def.get("category") or (event.category.value if event.category else "Security")
     else:
         definition_status = "unknown_definition"
@@ -385,6 +491,8 @@ def explain_security_event(
             "No immediate action is required unless this coincides with other security alerts.",
             "Consult Windows system documentation if diagnosing a specific operational issue.",
         ]
+        normal_when_list = []
+        suspicious_when_list = []
         category = event.category.value if event.category else "System"
 
     # ── 2. Determine Severity, Assessment, Threat Status ────────────────────

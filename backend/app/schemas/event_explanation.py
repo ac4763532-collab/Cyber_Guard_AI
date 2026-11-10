@@ -73,6 +73,14 @@ class SimpleViewSchema(CyberGuardBaseSchema):
         default_factory=list,
         description="6. Actionable recommendations",
     )
+    normal_when: List[str] = Field(
+        default_factory=list,
+        description="Scenarios where this activity is expected and safe",
+    )
+    suspicious_when: List[str] = Field(
+        default_factory=list,
+        description="Warning signs indicating potential security risk",
+    )
 
 
 class MitreAttackSchema(CyberGuardBaseSchema):

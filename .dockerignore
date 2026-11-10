@@ -1,0 +1,15 @@
+frontend
+collector
+.git
+.venv
+backend/.venv
+scratch
+brain
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.env.local
+node_modules
+dist
+build

@@ -70,7 +70,13 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, status
+from datetime import datetime, timezone
+from typing import Optional
+from fastapi import APIRouter, HTTPException, status
+from fastapi.responses import RedirectResponse
+from app.models.user import User
+from app.services import workspace_service
+
 
 from app.api.deps import CurrentUser, DBDep
 from app.core.config import settings
@@ -326,5 +332,114 @@ def get_me(
 # ============================================================================
 # EXPORTS
 # ============================================================================
+
+
+
+# ============================================================================
+# GOOGLE OAUTH / SSO ENDPOINTS
+# ============================================================================
+
+@router.get("/google/url", summary="Get Google Sign-In authorization URL")
+def get_google_auth_url() -> dict[str, str]:
+    """Generates the Google OAuth authorization URL for user login/SSO."""
+    if not settings.is_google_oauth_configured:
+        raise HTTPException(
+            status_code=400,
+            detail="Google OAuth is not configured. Provide GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in backend .env to enable Google Sign-In.",
+        )
+    redirect_uri = f"{settings.BACKEND_PUBLIC_URL.rstrip('/')}/api/v1/auth/google/callback"
+    scope = "openid email profile"
+    auth_url = (
+        f"https://accounts.google.com/o/oauth2/v2/auth"
+        f"?client_id={settings.GOOGLE_CLIENT_ID}"
+        f"&redirect_uri={redirect_uri}"
+        f"&response_type=code"
+        f"&scope={scope}"
+        f"&prompt=select_account"
+    )
+    return {"auth_url": auth_url}
+
+
+@router.get("/google/callback", summary="Google Sign-In OAuth callback")
+async def google_auth_callback(
+    db: DBDep,
+    code: Optional[str] = None,
+    error: Optional[str] = None,
+) -> RedirectResponse:
+    """Handles Google OAuth redirect, authenticates/creates user, and redirects with token."""
+    frontend_url = settings.FRONTEND_PUBLIC_URL.rstrip("/")
+    if error or not code:
+        return RedirectResponse(f"{frontend_url}/login?error={error or 'Authentication+cancelled'}")
+
+    try:
+        import httpx
+        redirect_uri = f"{settings.BACKEND_PUBLIC_URL.rstrip('/')}/api/v1/auth/google/callback"
+        token_data = {
+            "code": code,
+            "client_id": settings.GOOGLE_CLIENT_ID,
+            "client_secret": settings.google_client_secret_str,
+            "redirect_uri": redirect_uri,
+            "grant_type": "authorization_code",
+        }
+        async with httpx.AsyncClient(timeout=20.0) as client:
+            token_res = await client.post("https://oauth2.googleapis.com/token", data=token_data)
+
+        if token_res.status_code != 200:
+            logger.error("Failed to exchange Google OAuth code for login", extra={"response": token_res.text[:200]})
+            return RedirectResponse(f"{frontend_url}/login?error=Google+token+exchange+failed")
+
+        access_token = token_res.json().get("access_token")
+
+        # Fetch user info from Google
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            info_res = await client.get(
+                "https://www.googleapis.com/oauth2/v2/userinfo",
+                headers={"Authorization": f"Bearer {access_token}"},
+            )
+
+        if info_res.status_code != 200:
+            return RedirectResponse(f"{frontend_url}/login?error=Failed+to+fetch+Google+profile")
+
+        user_info = info_res.json()
+        google_email = (user_info.get("email") or "").lower().strip()
+        google_name = user_info.get("name") or google_email.split("@")[0]
+
+        if not google_email:
+            return RedirectResponse(f"{frontend_url}/login?error=No+email+provided+by+Google")
+
+        # Find or create user
+        user = user_service.get_by_email_optional(db, email=google_email)
+        now = datetime.now(timezone.utc)
+        if not user:
+            user = User(
+                email=google_email,
+                full_name=google_name,
+                role="individual",
+                is_active=True,
+                email_verified_at=now,
+            )
+            db.add(user)
+            db.flush()
+
+        # Ensure personal workspace exists
+        workspace_service.create_personal_workspace(db, user)
+
+        # Build CyberGuard JWT tokens
+        tokens = build_token_response(
+            user_id=user.id,
+            extra_claims={"role": user.role, "public_user_id": user.public_user_id},
+        )
+        db.commit()
+
+        logger.info("User authenticated via Google OAuth", extra={"user_id": str(user.id), "email": google_email})
+
+        return RedirectResponse(
+            f"{frontend_url}/login?google_token={tokens.access_token}&refresh_token={tokens.refresh_token}"
+        )
+
+    except Exception as exc:
+        logger.exception("Google OAuth login callback failed")
+        return RedirectResponse(f"{frontend_url}/login?error=Authentication+failed")
+
 
 __all__ = ["router"]

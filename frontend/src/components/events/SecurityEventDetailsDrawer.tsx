@@ -488,6 +488,42 @@ export function SecurityEventDetailsDrawer({
                       </p>
                     </div>
 
+                    {/* When is this normal? */}
+                    {eventData.simple_view.normal_when && eventData.simple_view.normal_when.length > 0 && (
+                      <div className="p-4 rounded-xl bg-slate-950/70 border border-slate-800/80 space-y-2.5">
+                        <div className="flex items-center gap-2 text-emerald-400 font-bold text-sm">
+                          <CheckCircle2 size={16} />
+                          <h3>When is this normal?</h3>
+                        </div>
+                        <ul className="space-y-1.5">
+                          {eventData.simple_view.normal_when.map((item, idx) => (
+                            <li key={idx} className="flex items-start gap-2 text-slate-300">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 mt-1.5 flex-shrink-0" />
+                              <span>{item}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {/* When is this suspicious? */}
+                    {eventData.simple_view.suspicious_when && eventData.simple_view.suspicious_when.length > 0 && (
+                      <div className="p-4 rounded-xl bg-slate-950/70 border border-slate-800/80 space-y-2.5">
+                        <div className="flex items-center gap-2 text-amber-400 font-bold text-sm">
+                          <AlertTriangle size={16} />
+                          <h3>When is this suspicious?</h3>
+                        </div>
+                        <ul className="space-y-1.5">
+                          {eventData.simple_view.suspicious_when.map((item, idx) => (
+                            <li key={idx} className="flex items-start gap-2 text-slate-300">
+                              <span className="w-1.5 h-1.5 rounded-full bg-amber-400 mt-1.5 flex-shrink-0" />
+                              <span>{item}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
                     {/* 6. What should I do? */}
                     <div className="p-4 rounded-xl bg-slate-950/70 border border-slate-800/80 space-y-2.5">
                       <div className="flex items-center gap-2 text-emerald-400 font-bold text-sm">

@@ -15,7 +15,8 @@ import {
   CheckCircle2, 
   ShieldAlert, 
   UserX,
-  RefreshCw 
+  RefreshCw,
+  Monitor,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -30,8 +31,16 @@ interface LogEventItem {
   timestamp: string;
   source: string;
   event_type: string;
+  title?: string;
+  event_id?: string;
+  badge_label?: string;
+  plain_english?: string;
+  category_label?: string;
+  process_display?: string;
   severity: string;
   details: string;
+  hostname?: string;
+  username?: string;
 }
 
 interface LogSummaryData {
@@ -66,7 +75,10 @@ export default function LogMonitoring() {
 
   const filtered = summary.events.filter((l) =>
     l.details.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    l.source.toLowerCase().includes(searchTerm.toLowerCase())
+    l.source.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (l.title && l.title.toLowerCase().includes(searchTerm.toLowerCase())) ||
+    (l.badge_label && l.badge_label.toLowerCase().includes(searchTerm.toLowerCase())) ||
+    l.event_type.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const handleExport = () => {
@@ -158,27 +170,48 @@ export default function LogMonitoring() {
           ) : (
             <div className="divide-y divide-slate-800/80">
               {filtered.map((log) => (
-                <div key={log.id} className="p-4 hover:bg-slate-800/40 transition flex items-center justify-between gap-4 font-mono text-xs">
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold text-slate-200">{log.source}</span>
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase ${log.severity === "high" || log.severity === "critical" ? "bg-rose-500/20 text-rose-400 border border-rose-500/30" : "bg-slate-800 text-slate-400"}`}>
+                <div key={log.id} className="p-4 hover:bg-slate-800/40 transition flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs font-sans">
+                  <div className="space-y-1.5 max-w-3xl">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <div className="flex items-center gap-1.5 text-xs text-slate-200 font-semibold">
+                        <Monitor size={14} className="text-cyan-400 shrink-0" />
+                        <span>{log.hostname || (log.source.includes(" • ") ? log.source.split(" • ")[0] : log.source)}</span>
+                        <span className="text-slate-500">•</span>
+                        <span className="text-cyan-300/90 font-medium">{log.category_label || (log.source.includes(" • ") ? log.source.split(" • ")[1] : "System Activity")}</span>
+                      </div>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wide ${
+                        log.severity === "high" || log.severity === "critical"
+                          ? "bg-rose-500/20 text-rose-300 border border-rose-500/30"
+                          : log.severity === "medium"
+                          ? "bg-amber-500/20 text-amber-300 border border-amber-500/30"
+                          : "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
+                      }`}>
                         {log.severity}
                       </span>
-                      <span className="text-slate-500 text-[11px] font-sans">{new Date(log.timestamp).toLocaleTimeString()}</span>
+                      <span className="text-slate-400 text-xs">
+                        {new Date(log.timestamp).toLocaleTimeString()}
+                      </span>
                     </div>
-                    <p className="text-slate-300 text-xs font-sans">{log.details}</p>
+
+                    <h4 className="text-[13px] font-semibold text-slate-100">
+                      {log.title || (log.event_type === "windows.security.4688" ? "A new process was started" : log.event_type)}
+                    </h4>
+
+                    <p className="text-slate-300 text-xs leading-relaxed">
+                      {log.details}
+                    </p>
                   </div>
-                  <div className="flex items-center gap-2.5 shrink-0">
-                    <span className="text-[11px] text-cyan-400 bg-cyan-500/10 border border-cyan-500/20 px-2 py-0.5 rounded">
-                      {log.event_type}
+
+                  <div className="flex items-center gap-2.5 shrink-0 sm:self-center">
+                    <span className="text-[11px] font-mono text-cyan-400 bg-cyan-500/10 border border-cyan-500/20 px-2 py-1 rounded font-medium">
+                      {log.badge_label || (log.event_id ? `Event ${log.event_id}` : log.event_type)}
                     </span>
                     <button
                       type="button"
                       onClick={() => setSelectedEventId(log.id)}
-                      className="px-2.5 py-1 rounded bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 hover:text-cyan-300 border border-cyan-500/30 text-[11px] font-sans font-semibold inline-flex items-center gap-1.5 transition-colors"
+                      className="px-3 py-1.5 rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 hover:text-cyan-300 border border-cyan-500/30 text-xs font-semibold inline-flex items-center gap-1.5 transition-colors shadow-sm"
                     >
-                      <FileText size={12} /> View Full Details
+                      <FileText size={13} /> View Full Details
                     </button>
                   </div>
                 </div>

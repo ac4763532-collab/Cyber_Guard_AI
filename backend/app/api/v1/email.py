@@ -16,13 +16,17 @@ from datetime import datetime, timezone
 from typing import Any, List, Optional
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi.responses import RedirectResponse
+from sqlalchemy.orm.attributes import flag_modified
+from app.models.enums import AlertStatus, EventCategory, EventSeverity, SourceStatus, SourceType
+from app.models.source import SecuritySource
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.agents.base import AgentContext
 from app.agents.email_analysis.agent import EmailAnalysisAgent
-from app.api.deps import CurrentActiveUser, DBDep
+from app.api.deps import CurrentActiveUser, CurrentUser, DBDep
 from app.core.config import settings
 from app.core.logging import get_logger
 from app.models.alert import SecurityAlert
@@ -48,12 +52,15 @@ def _get_user_workspace(db: Session, user: User) -> Workspace:
 class EmailListItem(BaseModel):
     id: str
     sender: str
+    recipient: Optional[str] = None
     subject: str
+    snippet: Optional[str] = None
     received_at: str
     verdict: str  # phishing | suspicious | clean
     score: int  # 0 to 100
     status: str  # flagged | verified | analyzing
     source: str = "eml_upload"
+    has_attachments: bool = False
 
 
 class EmailAnalysisDetail(BaseModel):
@@ -280,19 +287,30 @@ def list_email_messages(
             score = 68
             status_str = "analyzing"
 
-        subject = ev.normalized_payload.get("subject", "(No Subject)") if ev.normalized_payload else "(No Subject)"
+        norm = ev.normalized_payload or {}
+        raw = ev.raw_payload or {}
+        subject = norm.get("subject", "(No Subject)")
         sender = ev.email_address or ev.username or "unknown"
+        headers_dict = raw.get("headers", {}) or norm.get("headers", {})
+        recipient = headers_dict.get("To") or ev.username
+        body_text = raw.get("body", "") or ""
+        snippet = (body_text[:140] + "...") if len(body_text) > 140 else (body_text or None)
+        has_att = bool(raw.get("attachments") or norm.get("attachments_count", 0) > 0)
+        src = "gmail" if ev.action == "gmail_sync" else "eml_upload"
 
         items.append(
             EmailListItem(
                 id=str(ev.id),
                 sender=sender,
+                recipient=recipient,
                 subject=subject,
+                snippet=snippet,
                 received_at=ev.received_at.isoformat(),
                 verdict=verdict,
                 score=score,
                 status=status_str,
-                source="eml_upload",
+                source=src,
+                has_attachments=has_att,
             )
         )
 
@@ -366,40 +384,402 @@ def get_email_analysis(
 @router.get("/gmail/status", response_model=GmailStatusResponse, summary="Check Gmail OAuth integration status")
 def get_gmail_status(
     db: DBDep,
-    current_user: CurrentActiveUser,
+    current_user: CurrentUser,
 ) -> GmailStatusResponse:
-    google_configured = bool(getattr(settings, "GOOGLE_CLIENT_ID", None) and getattr(settings, "GOOGLE_CLIENT_SECRET", None))
+    google_configured = settings.is_google_oauth_configured
+    workspace = _get_user_workspace(db, current_user)
+    source = db.execute(
+        select(SecuritySource).where(
+            SecuritySource.workspace_id == workspace.id,
+            SecuritySource.source_type == SourceType.EMAIL,
+        )
+    ).scalar_one_or_none()
+
+    cfg = (source.config or {}) if source else {}
+    has_valid_token = bool(cfg.get("access_token") and not str(cfg.get("access_token")).startswith("mock_")) or bool(cfg.get("refresh_token"))
+    is_connected = bool(source and source.collector_connected and has_valid_token)
+    email_addr = cfg.get("email_address") if source else None
+    last_sync = source.last_event_at.isoformat() if source and source.last_event_at else None
+
     return GmailStatusResponse(
         configured=google_configured,
-        connected=False,
-        email_address=None,
-        sync_status="disconnected",
-        last_sync_at=None,
-        message="Gmail integration not configured. Provide GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in .env to enable Gmail synchronization." if not google_configured else "Gmail OAuth configured. Ready to connect account.",
+        connected=is_connected,
+        email_address=email_addr,
+        sync_status="connected" if is_connected else "disconnected",
+        last_sync_at=last_sync,
+        message=(
+            f"Gmail connected for {email_addr}."
+            if is_connected
+            else (
+                "Gmail OAuth configured. Ready to connect account."
+                if google_configured
+                else "Gmail integration not configured. Provide GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in .env."
+            )
+        ),
     )
 
 
 @router.get("/gmail/auth-url", summary="Get Gmail OAuth authorization URL")
 def get_gmail_auth_url(
-    current_user: CurrentActiveUser,
+    current_user: CurrentUser,
 ) -> dict[str, str]:
-    google_client_id = getattr(settings, "GOOGLE_CLIENT_ID", None)
-    if not google_client_id:
+    if not settings.is_google_oauth_configured:
         raise HTTPException(
             status_code=400,
-            detail="Gmail OAuth is unavailable because GOOGLE_CLIENT_ID is not configured in backend settings.",
+            detail="Gmail OAuth is unavailable because GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET are not configured in backend settings.",
         )
-    redirect_uri = "http://localhost:5173/personal/email"
-    scope = "https://www.googleapis.com/auth/gmail.readonly"
-    auth_url = f"https://accounts.google.com/o/oauth2/v2/auth?client_id={google_client_id}&redirect_uri={redirect_uri}&response_type=code&scope={scope}&access_type=offline&prompt=consent"
+    redirect_uri = settings.GOOGLE_REDIRECT_URI or "http://localhost:8000/api/v1/gmail/oauth/callback"
+    scope = "https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/userinfo.email"
+    state = str(current_user.id)
+    auth_url = (
+        f"https://accounts.google.com/o/oauth2/v2/auth"
+        f"?client_id={settings.GOOGLE_CLIENT_ID}"
+        f"&redirect_uri={redirect_uri}"
+        f"&response_type=code"
+        f"&scope={scope}"
+        f"&access_type=offline"
+        f"&prompt=consent"
+        f"&state={state}"
+    )
     return {"auth_url": auth_url}
 
 
+async def _handle_gmail_oauth_callback(
+    code: Optional[str],
+    state: Optional[str],
+    error: Optional[str],
+    db: Session,
+) -> RedirectResponse:
+    frontend_url = settings.FRONTEND_PUBLIC_URL.rstrip("/")
+    if error:
+        logger.warning("Google OAuth callback error", extra={"error": error})
+        return RedirectResponse(f"{frontend_url}/personal/email?error={error}")
+
+    if not code:
+        return RedirectResponse(f"{frontend_url}/personal/email?error=Missing+authorization+code")
+
+    try:
+        import httpx
+        redirect_uri = settings.GOOGLE_REDIRECT_URI or "http://localhost:8000/api/v1/gmail/oauth/callback"
+        token_data = {
+            "code": code,
+            "client_id": settings.GOOGLE_CLIENT_ID,
+            "client_secret": settings.google_client_secret_str,
+            "redirect_uri": redirect_uri,
+            "grant_type": "authorization_code",
+        }
+        async with httpx.AsyncClient(timeout=20.0) as client:
+            res = await client.post("https://oauth2.googleapis.com/token", data=token_data)
+
+        if res.status_code != 200:
+            logger.error("Failed to exchange Google OAuth code", extra={"response": res.text[:200]})
+            return RedirectResponse(f"{frontend_url}/personal/email?error=Token+exchange+failed")
+
+        tokens = res.json()
+        access_token = tokens.get("access_token")
+        refresh_token = tokens.get("refresh_token")
+
+        # Fetch user email profile
+        email_address = "connected@gmail.com"
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            prof_res = await client.get(
+                "https://gmail.googleapis.com/gmail/v1/users/me/profile",
+                headers={"Authorization": f"Bearer {access_token}"},
+            )
+            if prof_res.status_code == 200:
+                email_address = prof_res.json().get("emailAddress", "connected@gmail.com")
+
+        # Resolve user & workspace
+        user = None
+        if state:
+            try:
+                user_id = uuid.UUID(state)
+                user = db.execute(select(User).where(User.id == user_id)).scalar_one_or_none()
+            except ValueError:
+                pass
+
+        if not user:
+            user = db.execute(select(User).order_by(User.created_at.asc())).scalars().first()
+
+        if not user:
+            return RedirectResponse(f"{frontend_url}/personal/email?error=User+context+not+found")
+
+        workspace = _get_user_workspace(db, user)
+
+        # Upsert SecuritySource
+        source = db.execute(
+            select(SecuritySource).where(
+                SecuritySource.workspace_id == workspace.id,
+                SecuritySource.source_type == SourceType.EMAIL,
+            )
+        ).scalar_one_or_none()
+
+        now = datetime.now(timezone.utc)
+        if not source:
+            import secrets
+            source_key = f"src-{secrets.token_hex(4)}"
+            source = SecuritySource(
+                workspace_id=workspace.id,
+                source_key=source_key,
+                name=f"Gmail ({email_address})",
+                source_type=SourceType.EMAIL,
+                collector_connected=True,
+                collection_active=True,
+                status=SourceStatus.ACTIVE,
+                config={
+                    "email_address": email_address,
+                    "provider": "gmail",
+                    "access_token": access_token,
+                    "refresh_token": refresh_token,
+                    "connected_at": now.isoformat(),
+                },
+            )
+            db.add(source)
+        else:
+            cfg = dict(source.config or {})
+            cfg.update({
+                "email_address": email_address,
+                "provider": "gmail",
+                "access_token": access_token,
+                "refresh_token": refresh_token or cfg.get("refresh_token"),
+                "connected_at": now.isoformat(),
+            })
+            source.config = cfg
+            source.collector_connected = True
+            source.collection_active = True
+            source.name = f"Gmail ({email_address})"
+            source.status = SourceStatus.ACTIVE
+            flag_modified(source, "config")
+
+        db.commit()
+
+        # Trigger initial sync of messages if access_token available
+        try:
+            await _sync_messages_from_gmail(db, workspace, user, source, access_token, max_messages=5)
+        except Exception as sync_exc:
+            logger.warning("Initial Gmail sync warning", extra={"error": str(sync_exc)[:200]})
+
+        return RedirectResponse(f"{frontend_url}/personal/email?connected=true&email={email_address}")
+
+    except Exception as exc:
+        import urllib.parse
+        logger.exception("Gmail OAuth callback failed")
+        err_param = urllib.parse.quote(str(exc)[:100])
+        return RedirectResponse(f"{frontend_url}/personal/email?error={err_param}")
+
+
+@router.get("/gmail/oauth/callback", summary="Gmail OAuth callback under /email prefix")
+async def email_gmail_oauth_callback(
+    db: DBDep,
+    code: Optional[str] = None,
+    state: Optional[str] = None,
+    error: Optional[str] = None,
+) -> RedirectResponse:
+    return await _handle_gmail_oauth_callback(code, state, error, db)
+
+
+# Secondary router to catch direct /api/v1/gmail/oauth/callback
+gmail_callback_router = APIRouter(prefix="/gmail", tags=["email"])
+
+@gmail_callback_router.get("/oauth/callback", summary="Direct Gmail OAuth callback")
+async def direct_gmail_callback(
+    db: DBDep,
+    code: Optional[str] = None,
+    state: Optional[str] = None,
+    error: Optional[str] = None,
+) -> RedirectResponse:
+    return await _handle_gmail_oauth_callback(code, state, error, db)
+
+
+async def _refresh_google_access_token(refresh_token: str) -> Optional[str]:
+    try:
+        import httpx
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            res = await client.post(
+                "https://oauth2.googleapis.com/token",
+                data={
+                    "client_id": settings.GOOGLE_CLIENT_ID,
+                    "client_secret": settings.google_client_secret_str,
+                    "refresh_token": refresh_token,
+                    "grant_type": "refresh_token",
+                },
+            )
+            if res.status_code == 200:
+                return res.json().get("access_token")
+    except Exception as e:
+        logger.warning("Failed to refresh Google access token", extra={"error": str(e)})
+    return None
+
+
+async def _sync_messages_from_gmail(
+    db: Session,
+    workspace: Workspace,
+    user: User,
+    source: SecuritySource,
+    access_token: str,
+    max_messages: int = 10,
+) -> int:
+    import base64
+    import httpx
+
+    headers = {"Authorization": f"Bearer {access_token}"}
+    async with httpx.AsyncClient(timeout=25.0) as client:
+        list_res = await client.get(
+            f"https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults={max_messages}",
+            headers=headers,
+        )
+        if list_res.status_code != 200:
+            logger.warning("Failed to list Gmail messages", extra={"status": list_res.status_code})
+            return 0
+
+        msg_list = list_res.json().get("messages", [])
+        synced_count = 0
+
+        for item in msg_list:
+            msg_id = item.get("id")
+            if not msg_id:
+                continue
+
+            fp = hashlib.sha256(f"gmail-{msg_id}".encode("utf-8")).hexdigest()
+            existing = db.execute(
+                select(SecurityEvent.id).where(
+                    SecurityEvent.workspace_id == workspace.id,
+                    SecurityEvent.fingerprint == fp,
+                )
+            ).scalar_one_or_none()
+            if existing:
+                continue
+
+            raw_res = await client.get(
+                f"https://gmail.googleapis.com/gmail/v1/users/me/messages/{msg_id}?format=raw",
+                headers=headers,
+            )
+            if raw_res.status_code != 200:
+                continue
+
+            raw_b64 = raw_res.json().get("raw", "")
+            if not raw_b64:
+                continue
+
+            try:
+                raw_b64_padded = raw_b64 + "=" * (-len(raw_b64) % 4)
+                raw_bytes = base64.urlsafe_b64decode(raw_b64_padded.encode("ascii"))
+                parsed = _parse_eml_bytes(raw_bytes)
+            except Exception:
+                continue
+
+            headers_dict = parsed["headers"]
+            from_header = headers_dict.get("From", "unknown@unknown.com")
+            subject_header = headers_dict.get("Subject", "(No Subject)")
+            email_match = re.search(r'[\w\.-]+@[\w\.-]+', from_header)
+            from_addr = email_match.group(0) if email_match else from_header
+            from_domain = from_addr.split("@")[-1] if "@" in from_addr else "unknown"
+
+            event = SecurityEvent(
+                workspace_id=workspace.id,
+                source_id=source.id,
+                event_time=datetime.now(timezone.utc),
+                severity=EventSeverity.INFO,
+                category=EventCategory.EMAIL,
+                event_type="email_received",
+                action="gmail_sync",
+                outcome="success",
+                fingerprint=fp,
+                username=user.email,
+                email_address=from_addr,
+                domain=from_domain,
+                raw_payload=parsed,
+                normalized_payload={
+                    "headers": headers_dict,
+                    "urls": parsed["urls"],
+                    "attachments_count": len(parsed["attachments"]),
+                    "sender": from_addr,
+                    "subject": subject_header,
+                },
+            )
+            db.add(event)
+            db.flush()
+
+            # Run 6 email detection rules
+            agent = EmailAnalysisAgent(config={})
+            ctx = AgentContext(db=db, event=event, source=source, workspace_id=workspace.id)
+            agent_result = agent.process(ctx)
+
+            if agent_result.findings:
+                for f in agent_result.findings:
+                    f.workspace_id = workspace.id
+                    f.primary_event_id = event.id
+                    db.add(f)
+
+                max_sev = max((f.severity for f in agent_result.findings), default=EventSeverity.LOW)
+                if max_sev in [EventSeverity.HIGH, EventSeverity.CRITICAL]:
+                    event.severity = max_sev
+                    alert = SecurityAlert(
+                        workspace_id=workspace.id,
+                        title=f"Phishing Email Detected: {subject_header[:60]}",
+                        description=f"Gmail analysis flagged email from {from_addr}. Triggered rules: {', '.join(f.rule_id for f in agent_result.findings)}",
+                        severity=max_sev,
+                        status=AlertStatus.NEW,
+                        alert_type="security",
+                        category=EventCategory.EMAIL,
+                        fingerprint=hashlib.sha256(f"alert-{event.id}".encode("utf-8")).hexdigest(),
+                    )
+                    db.add(alert)
+                else:
+                    event.severity = EventSeverity.MEDIUM
+
+            synced_count += 1
+
+        source.last_event_at = datetime.now(timezone.utc)
+        source.events_ingested_count = (source.events_ingested_count or 0) + synced_count
+        db.commit()
+        return synced_count
+
+
 @router.post("/gmail/sync", summary="Synchronize Gmail inbox")
-def sync_gmail(
-    current_user: CurrentActiveUser,
+async def sync_gmail(
+    db: DBDep,
+    current_user: CurrentUser,
 ) -> dict[str, Any]:
-    raise HTTPException(
-        status_code=400,
-        detail="Gmail account is not connected. Please connect your Gmail account via OAuth first.",
-    )
+    workspace = _get_user_workspace(db, current_user)
+    source = db.execute(
+        select(SecuritySource).where(
+            SecuritySource.workspace_id == workspace.id,
+            SecuritySource.source_type == SourceType.EMAIL,
+        )
+    ).scalar_one_or_none()
+
+    if not source or not source.collector_connected:
+        raise HTTPException(
+            status_code=400,
+            detail="Gmail account is not connected. Please connect your Gmail account via OAuth first.",
+        )
+
+    cfg = dict(source.config or {})
+    access_token = cfg.get("access_token")
+    refresh_token = cfg.get("refresh_token")
+
+    if (not access_token or str(access_token).startswith("mock_")) and refresh_token:
+        fresh = await _refresh_google_access_token(refresh_token)
+        if fresh:
+            access_token = fresh
+            cfg["access_token"] = fresh
+            source.config = cfg
+            flag_modified(source, "config")
+            db.commit()
+
+    if not access_token or str(access_token).startswith("mock_"):
+        source.collector_connected = False
+        db.commit()
+        raise HTTPException(
+            status_code=400,
+            detail="Gmail authorization is required. Please click 'Connect with Google' to link your mailbox.",
+        )
+
+    synced_count = await _sync_messages_from_gmail(db, workspace, current_user, source, access_token)
+    msg = f"Successfully synchronized {synced_count} new email(s) from Gmail." if synced_count > 0 else "Gmail inbox checked. No new unanalyzed emails found."
+    return {
+        "status": "success",
+        "synced": synced_count,
+        "message": msg,
+    }

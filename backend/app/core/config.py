@@ -169,6 +169,10 @@ class Settings(BaseSettings):
     NVD_RATE_LIMIT_PER_MINUTE: int = Field(default=5, ge=1)
     GOOGLE_SAFE_BROWSING_API_KEY: SecretStr = Field(default=SecretStr(""))
     MITRE_ATTACK_ENABLED: bool = True
+    GOOGLE_CLIENT_ID: str = ""
+    GOOGLE_CLIENT_SECRET: SecretStr = Field(default=SecretStr(""))
+    GOOGLE_REDIRECT_URI: str = "http://localhost:8000/api/v1/gmail/oauth/callback"
+    MITRE_ATTACK_ENABLED: bool = True
 
     # ────────────────────────────────────────────────────────────────────
     # AI / LLM
@@ -366,6 +370,14 @@ class Settings(BaseSettings):
     # ====================================================================
     # PARSED LIST HELPERS
     # ====================================================================
+
+    @property
+    def is_google_oauth_configured(self) -> bool:
+        return bool(self.GOOGLE_CLIENT_ID and (self.GOOGLE_CLIENT_SECRET.get_secret_value() if hasattr(self.GOOGLE_CLIENT_SECRET, "get_secret_value") else str(self.GOOGLE_CLIENT_SECRET)))
+
+    @property
+    def google_client_secret_str(self) -> str:
+        return (self.GOOGLE_CLIENT_SECRET.get_secret_value() if hasattr(self.GOOGLE_CLIENT_SECRET, "get_secret_value") else str(self.GOOGLE_CLIENT_SECRET))
 
     @property
     def cors_origins_list(self) -> list[str]:

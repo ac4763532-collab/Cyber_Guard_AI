@@ -2,225 +2,130 @@
   "category": "Other Windows Events",
   "description": "Events in the supplied catalogue that do not fit cleanly into the other initial categories or need further classification.",
   "source": {
-    "inventory_basis": "User-supplied Windows Minimal/Common Event ID lists and detailed event catalogue",
-    "definition_policy": "Only event meanings supported by the supplied catalogue are summarized. Unverified field mappings remain pending verification."
+    "provider": "Microsoft-Windows-Security-Auditing",
+    "channel": "Security",
+    "note": "Provider and meaning must be verified per event before display."
   },
   "events": {
     "4618": {
-      "event_id": 4618,
-      "name": "A monitored security event pattern occurred",
-      "category": "Other Windows Events",
-      "definition_status": "catalogue_summary_only",
-      "title": "A monitored security event pattern occurred",
-      "description": "A monitored security event pattern occurred",
-      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
+      "event_id": 4618, "provider": "Microsoft-Windows-Security-Auditing", "channel": "Security", "verified": true, "category": "Other Windows Events",
+      "headline": "A monitored security event pattern occurred",
+      "plain_english": "Windows detected a pattern of security events that you configured for monitoring — for example, several failed logons followed by a successful one. Think of it as an alarm the system raised for you.",
+      "technical_description": "Security event 4618: a monitored security event pattern was detected by the Global Object Access Auditing feature.",
       "who": {},
-      "where": {},
-      "when": "Use the timestamp recorded in the original Windows event.",
-      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
-      "severity_guidance": {
-        "low": "Expected activity with no unusual context.",
-        "medium": "Unusual or repeated activity that needs review.",
-        "high": "Corroborated suspicious activity supported by related evidence."
-      },
-      "recommendations": [
-        "Inspect the original event details and available fields.",
-        "Correlate with related events before assigning a security conclusion."
-      ],
+      "where": {"Computer": "Machine that recorded the detection"},
+      "when": "Time Windows recorded the detection.",
+      "why_it_matters": "This is a pre-built alert — treat it as higher priority than any single event.",
+      "normal_when": ["A known pattern was triggered by expected activity"],
+      "suspicious_when": ["The pattern represents an attack sequence", "Triggered outside expected hours"],
+      "what_to_do": ["Identify which pattern was triggered", "Correlate with the underlying events"],
+      "severity": {"low": "Known benign pattern", "medium": "Unexplained pattern", "high": "Pattern matches a known attack sequence"},
       "related_events": [],
-      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
-    },
-    "4649": {
-      "event_id": 4649,
-      "name": "A replay attack was detected",
-      "category": "Other Windows Events",
-      "definition_status": "catalogue_summary_only",
-      "title": "A replay attack was detected",
-      "description": "A replay attack was detected",
-      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
-      "who": {},
-      "where": {},
-      "when": "Use the timestamp recorded in the original Windows event.",
-      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
-      "severity_guidance": {
-        "low": "Expected activity with no unusual context.",
-        "medium": "Unusual or repeated activity that needs review.",
-        "high": "Corroborated suspicious activity supported by related evidence."
-      },
-      "recommendations": [
-        "Inspect the original event details and available fields.",
-        "Correlate with related events before assigning a security conclusion."
-      ],
-      "related_events": [],
-      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
+      "important_note": "This event is already an alert — treat as a lead, not a single event."
     },
     "4870": {
-      "event_id": 4870,
-      "name": "Event definition pending verification",
-      "category": "Other Windows Events",
-      "definition_status": "pending_verification",
-      "title": "Windows security event",
-      "description": "This Event ID is present in the supplied event inventory; verify its provider-specific meaning before displaying an interpretation.",
-      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
-      "who": {},
-      "where": {},
-      "when": "Use the timestamp recorded in the original Windows event.",
-      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
-      "severity_guidance": {
-        "low": "Expected activity with no unusual context.",
-        "medium": "Unusual or repeated activity that needs review.",
-        "high": "Corroborated suspicious activity supported by related evidence."
-      },
-      "recommendations": [
-        "Inspect the original event details and available fields.",
-        "Correlate with related events before assigning a security conclusion."
-      ],
+      "event_id": 4870, "provider": "Unknown (verify provider before use)", "channel": "Unknown", "verified": false, "category": "Other Windows Events",
+      "headline": "This event is not yet explained",
+      "plain_english": "We do not currently have a plain-English explanation for this event. Please ask IT or your security team.",
+      "technical_description": "Event ID present in inventory but provider/meaning has not been verified.",
+      "who": {}, "target": {}, "where": {},
+      "when": "Use the timestamp recorded in the original event.",
+      "why_it_matters": "Explanation pending verification.",
+      "normal_when": [], "suspicious_when": [],
+      "what_to_do": ["Do not interpret this event until the provider and meaning are confirmed"],
+      "severity": {"low": "Pending verification", "medium": "Pending verification", "high": "Pending verification"},
       "related_events": [],
-      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
+      "important_note": "Set verified: false — do not display a fake explanation."
     },
     "4897": {
-      "event_id": 4897,
-      "name": "Event definition pending verification",
-      "category": "Other Windows Events",
-      "definition_status": "pending_verification",
-      "title": "Windows security event",
-      "description": "This Event ID is present in the supplied event inventory; verify its provider-specific meaning before displaying an interpretation.",
-      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
-      "who": {},
-      "where": {},
-      "when": "Use the timestamp recorded in the original Windows event.",
-      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
-      "severity_guidance": {
-        "low": "Expected activity with no unusual context.",
-        "medium": "Unusual or repeated activity that needs review.",
-        "high": "Corroborated suspicious activity supported by related evidence."
-      },
-      "recommendations": [
-        "Inspect the original event details and available fields.",
-        "Correlate with related events before assigning a security conclusion."
-      ],
+      "event_id": 4897, "provider": "Unknown (verify provider before use)", "channel": "Unknown", "verified": false, "category": "Other Windows Events",
+      "headline": "This event is not yet explained",
+      "plain_english": "We do not currently have a plain-English explanation for this event. Please ask IT or your security team.",
+      "technical_description": "Event ID present in inventory but provider/meaning has not been verified.",
+      "who": {}, "target": {}, "where": {},
+      "when": "Use the timestamp recorded in the original event.",
+      "why_it_matters": "Explanation pending verification.",
+      "normal_when": [], "suspicious_when": [],
+      "what_to_do": ["Do not interpret this event until the provider and meaning are confirmed"],
+      "severity": {"low": "Pending verification", "medium": "Pending verification", "high": "Pending verification"},
       "related_events": [],
-      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
+      "important_note": "Set verified: false — do not display a fake explanation."
     },
     "4931": {
-      "event_id": 4931,
-      "name": "A replica of a directory partition was modified",
-      "category": "Other Windows Events",
-      "definition_status": "catalogue_summary_only",
-      "title": "A replica of a directory partition was modified",
-      "description": "A replica of a directory partition was modified",
-      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
+      "event_id": 4931, "provider": "Microsoft-Windows-Security-Auditing", "channel": "Security", "verified": true, "category": "Other Windows Events",
+      "headline": "A directory service replica was modified",
+      "plain_english": "A copy of the Active Directory database on another domain controller was modified. Routine replication, or part of an AD-level change.",
+      "technical_description": "Security event 4931: a directory service replica was modified.",
       "who": {},
-      "where": {},
-      "when": "Use the timestamp recorded in the original Windows event.",
-      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
-      "severity_guidance": {
-        "low": "Expected activity with no unusual context.",
-        "medium": "Unusual or repeated activity that needs review.",
-        "high": "Corroborated suspicious activity supported by related evidence."
-      },
-      "recommendations": [
-        "Inspect the original event details and available fields.",
-        "Correlate with related events before assigning a security conclusion."
-      ],
-      "related_events": [],
-      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
+      "where": {"Computer": "Domain controller that recorded the event"},
+      "when": "Time Windows recorded the change.",
+      "why_it_matters": "Unexpected replication changes can indicate AD tampering or misconfiguration.",
+      "normal_when": ["Routine AD replication"],
+      "suspicious_when": ["Unexpected modifications outside normal windows", "Replication changes correlated with other AD activity"],
+      "what_to_do": ["Confirm the change is expected", "Correlate with AD change events (5136, 5137)"],
+      "severity": {"low": "Routine replication", "medium": "Unexpected modification", "high": "Correlated with AD compromise indicators"},
+      "related_events": [4932, 4933],
+      "important_note": "AD replication changes are rare — investigate unexplained ones."
     },
     "4932": {
-      "event_id": 4932,
-      "name": "Synchronization of a directory service replica began",
-      "category": "Other Windows Events",
-      "definition_status": "catalogue_summary_only",
-      "title": "Synchronization of a directory service replica began",
-      "description": "Synchronization of a directory service replica began",
-      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
+      "event_id": 4932, "provider": "Microsoft-Windows-Security-Auditing", "channel": "Security", "verified": true, "category": "Other Windows Events",
+      "headline": "Directory service replica synchronization began",
+      "plain_english": "A domain controller started synchronizing its copy of Active Directory with another domain controller.",
+      "technical_description": "Security event 4932: synchronization of a directory service replica began.",
       "who": {},
-      "where": {},
-      "when": "Use the timestamp recorded in the original Windows event.",
-      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
-      "severity_guidance": {
-        "low": "Expected activity with no unusual context.",
-        "medium": "Unusual or repeated activity that needs review.",
-        "high": "Corroborated suspicious activity supported by related evidence."
-      },
-      "recommendations": [
-        "Inspect the original event details and available fields.",
-        "Correlate with related events before assigning a security conclusion."
-      ],
-      "related_events": [],
-      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
+      "where": {"Computer": "Domain controller that recorded the start"},
+      "when": "Time Windows recorded the start.",
+      "why_it_matters": "Usually routine, but unusual timing can indicate misconfiguration or attack.",
+      "normal_when": ["Scheduled replication"],
+      "suspicious_when": ["Synchronization outside schedule", "High frequency"],
+      "what_to_do": ["Confirm the timing matches normal replication schedule"],
+      "severity": {"low": "Scheduled", "medium": "Unexpected timing", "high": "Correlated with AD anomalies"},
+      "related_events": [4931, 4933],
+      "important_note": "Low-signal without context."
     },
     "4933": {
-      "event_id": 4933,
-      "name": "Synchronization of a directory service replica ended",
-      "category": "Other Windows Events",
-      "definition_status": "catalogue_summary_only",
-      "title": "Synchronization of a directory service replica ended",
-      "description": "Synchronization of a directory service replica ended",
-      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
+      "event_id": 4933, "provider": "Microsoft-Windows-Security-Auditing", "channel": "Security", "verified": true, "category": "Other Windows Events",
+      "headline": "Directory service replica synchronization ended",
+      "plain_english": "A domain controller finished synchronizing its copy of Active Directory.",
+      "technical_description": "Security event 4933: synchronization of a directory service replica ended.",
       "who": {},
-      "where": {},
-      "when": "Use the timestamp recorded in the original Windows event.",
-      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
-      "severity_guidance": {
-        "low": "Expected activity with no unusual context.",
-        "medium": "Unusual or repeated activity that needs review.",
-        "high": "Corroborated suspicious activity supported by related evidence."
-      },
-      "recommendations": [
-        "Inspect the original event details and available fields.",
-        "Correlate with related events before assigning a security conclusion."
-      ],
-      "related_events": [],
-      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
+      "where": {"Computer": "Domain controller that recorded the end"},
+      "when": "Time Windows recorded the end.",
+      "why_it_matters": "Usually routine.",
+      "normal_when": ["Scheduled replication"],
+      "suspicious_when": ["Unexpected end", "Correlated with AD anomalies"],
+      "what_to_do": ["Confirm the synchronization completed successfully"],
+      "severity": {"low": "Routine", "medium": "Unexpected completion", "high": "Correlated with AD anomalies"},
+      "related_events": [4931, 4932],
+      "important_note": "Paired with 4932."
     },
     "4985": {
-      "event_id": 4985,
-      "name": "Event definition pending verification",
-      "category": "Other Windows Events",
-      "definition_status": "pending_verification",
-      "title": "Windows security event",
-      "description": "This Event ID is present in the supplied event inventory; verify its provider-specific meaning before displaying an interpretation.",
-      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
-      "who": {},
-      "where": {},
-      "when": "Use the timestamp recorded in the original Windows event.",
-      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
-      "severity_guidance": {
-        "low": "Expected activity with no unusual context.",
-        "medium": "Unusual or repeated activity that needs review.",
-        "high": "Corroborated suspicious activity supported by related evidence."
-      },
-      "recommendations": [
-        "Inspect the original event details and available fields.",
-        "Correlate with related events before assigning a security conclusion."
-      ],
+      "event_id": 4985, "provider": "Microsoft-Windows-Security-Auditing", "channel": "Security", "verified": false, "category": "Other Windows Events",
+      "headline": "This event is not yet explained",
+      "plain_english": "We do not currently have a plain-English explanation for this event. Please ask IT or your security team.",
+      "technical_description": "Event ID present in inventory but meaning has not been verified against the current provider/version.",
+      "who": {}, "target": {}, "where": {},
+      "when": "Use the timestamp recorded in the original event.",
+      "why_it_matters": "Explanation pending verification.",
+      "normal_when": [], "suspicious_when": [],
+      "what_to_do": ["Do not interpret this event until the meaning is confirmed"],
+      "severity": {"low": "Pending verification", "medium": "Pending verification", "high": "Pending verification"},
       "related_events": [],
-      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
+      "important_note": "Set verified: false — do not display a fake explanation."
     },
     "5124": {
-      "event_id": 5124,
-      "name": "Event definition pending verification",
-      "category": "Other Windows Events",
-      "definition_status": "pending_verification",
-      "title": "Windows security event",
-      "description": "This Event ID is present in the supplied event inventory; verify its provider-specific meaning before displaying an interpretation.",
-      "what_happened": "Windows recorded this event. The exact interpretation must be based on the event provider, channel, version, and fields actually collected.",
-      "who": {},
-      "where": {},
-      "when": "Use the timestamp recorded in the original Windows event.",
-      "why_it_matters": "Review this event together with its actual fields, device context, and related activity.",
-      "severity_guidance": {
-        "low": "Expected activity with no unusual context.",
-        "medium": "Unusual or repeated activity that needs review.",
-        "high": "Corroborated suspicious activity supported by related evidence."
-      },
-      "recommendations": [
-        "Inspect the original event details and available fields.",
-        "Correlate with related events before assigning a security conclusion."
-      ],
+      "event_id": 5124, "provider": "Unknown (verify provider before use)", "channel": "Unknown", "verified": false, "category": "Other Windows Events",
+      "headline": "This event is not yet explained",
+      "plain_english": "We do not currently have a plain-English explanation for this event. Please ask IT or your security team.",
+      "technical_description": "Event ID present in inventory but provider/meaning has not been verified.",
+      "who": {}, "target": {}, "where": {},
+      "when": "Use the timestamp recorded in the original event.",
+      "why_it_matters": "Explanation pending verification.",
+      "normal_when": [], "suspicious_when": [],
+      "what_to_do": ["Do not interpret this event until the provider and meaning are confirmed"],
+      "severity": {"low": "Pending verification", "medium": "Pending verification", "high": "Pending verification"},
       "related_events": [],
-      "important_note": "Do not infer missing values or treat this Event ID alone as proof of a security incident."
+      "important_note": "Set verified: false — do not display a fake explanation."
     }
   },
   "implementation_notes": {
@@ -228,6 +133,7 @@
     "preserve_original_xml": true,
     "show_only_fields_present_in_event": true,
     "do_not_invent_missing_values": true,
-    "severity_is_contextual": true
+    "severity_is_contextual": true,
+    "verified_field": "Only display a plain-English explanation when `verified` is true."
   }
 }

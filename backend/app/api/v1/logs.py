@@ -23,7 +23,7 @@ from app.models.event import SecurityEvent
 from app.models.source import SecuritySource
 from app.models.user import User
 from app.models.workspace import Workspace
-from app.services import workspace_service
+from app.services import windows_event_explainer, workspace_service
 
 logger = get_logger(__name__)
 
@@ -122,19 +122,30 @@ def get_log_summary(
 
     ev_list = []
     for ev in recent_events:
-        details_str = f"{ev.event_type} on {ev.hostname or 'host'}"
-        if ev.username:
-            details_str += f" by {ev.username}"
-        if ev.source_ip:
-            details_str += f" from {ev.source_ip}"
+        summary_info = windows_event_explainer.get_friendly_event_summary(
+            event_type=ev.event_type,
+            raw_payload=ev.raw_payload,
+            username=ev.username,
+            hostname=ev.hostname,
+            process_name=ev.process_name,
+            category=ev.category.value if hasattr(ev.category, "value") else str(ev.category),
+        )
 
         ev_list.append({
             "id": str(ev.id),
             "timestamp": ev.received_at.isoformat(),
-            "source": f"{ev.category.value.title()} ({ev.hostname or 'unknown'})",
+            "source": summary_info["friendly_source"],
             "event_type": ev.event_type,
+            "title": summary_info["title"],
+            "event_id": summary_info["event_id"],
+            "plain_english": summary_info["plain_english"],
+            "category_label": summary_info["category_label"],
+            "process_display": summary_info["process_display"],
+            "badge_label": summary_info["badge_label"],
             "severity": ev.severity.value,
-            "details": details_str,
+            "details": summary_info["friendly_details"],
+            "hostname": ev.hostname,
+            "username": ev.username,
         })
 
     msg = None
@@ -172,20 +183,34 @@ def list_log_events(
         ).scalars().all()
     )
 
-    return [
-        {
+    res_list = []
+    for e in events:
+        summary_info = windows_event_explainer.get_friendly_event_summary(
+            event_type=e.event_type,
+            raw_payload=e.raw_payload,
+            username=e.username,
+            hostname=e.hostname,
+            process_name=e.process_name,
+            category=e.category.value if hasattr(e.category, "value") else str(e.category),
+        )
+        res_list.append({
             "id": str(e.id),
             "event_time": e.event_time.isoformat(),
             "received_at": e.received_at.isoformat(),
             "severity": e.severity.value,
             "category": e.category.value,
             "event_type": e.event_type,
+            "title": summary_info["title"],
+            "event_id": summary_info["event_id"],
+            "badge_label": summary_info["badge_label"],
+            "plain_english": summary_info["plain_english"],
+            "category_label": summary_info["category_label"],
+            "process_display": summary_info["process_display"],
             "action": e.action,
             "outcome": e.outcome,
             "username": e.username,
             "hostname": e.hostname,
             "source_ip": e.source_ip,
-            "process_name": e.process_name,
-        }
-        for e in events
-    ]
+            "process_name": summary_info["process_display"] or e.process_name,
+        })
+    return res_list

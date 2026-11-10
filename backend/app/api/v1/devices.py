@@ -47,6 +47,7 @@ from app.services import (
     event_ingestion,
     source_service,
     workspace_service,
+    windows_event_explainer,
 )
 
 logger = get_logger(__name__)
@@ -455,20 +456,33 @@ def get_device(
         ).scalars().all()
     )
 
-    events_list = [
-        {
+    events_list = []
+    for e in events_records:
+        summary_info = windows_event_explainer.get_friendly_event_summary(
+            event_type=e.event_type,
+            raw_payload=e.raw_payload,
+            username=e.username,
+            hostname=e.hostname or source.hostname,
+            process_name=e.process_name,
+            category=e.category.value if hasattr(e.category, "value") else str(e.category),
+        )
+        events_list.append({
             "id": str(e.id),
             "event_type": e.event_type,
+            "title": summary_info["title"],
+            "event_id": summary_info["event_id"],
+            "plain_english": summary_info["plain_english"],
+            "category_label": summary_info["category_label"],
+            "process_display": summary_info["process_display"],
+            "badge_label": summary_info["badge_label"],
             "severity": e.severity.value if hasattr(e.severity, "value") else str(e.severity),
             "category": e.category.value if hasattr(e.category, "value") else str(e.category),
             "event_time": e.event_time.isoformat() if e.event_time else None,
             "hostname": e.hostname or source.hostname or "Endpoint",
             "username": e.username or "System",
-            "process_name": e.process_name or "System Process",
+            "process_name": summary_info["process_display"] or e.process_name or "Application Process",
             "raw_payload": e.raw_payload or {},
-        }
-        for e in events_records
-    ]
+        })
 
     creds_count = db.execute(
         select(func.count(CollectorCredential.id))
