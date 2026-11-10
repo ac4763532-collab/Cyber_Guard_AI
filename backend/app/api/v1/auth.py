@@ -133,16 +133,18 @@ router = APIRouter(
 _registration_verification_store: dict[str, dict[str, Any]] = {}
 
 
-def _send_registration_email(to_email: str, code: str, user_name: str | None = None) -> bool:
+def _send_registration_email(to_email: str, code: str, user_name: str | None = None) -> tuple[bool, str]:
     """Dispatches a secure 6-digit registration verification OTP code via SMTP / Gmail."""
-    smtp_host = settings.SMTP_HOST
+    smtp_host = (settings.SMTP_HOST or "").strip().strip("\"'").strip()
     smtp_port = settings.SMTP_PORT
-    smtp_user = settings.SMTP_USERNAME
-    smtp_pass = (
+    smtp_user = (settings.SMTP_USERNAME or "").strip().strip("\"'").strip()
+    raw_pass = (
         settings.SMTP_PASSWORD.get_secret_value()
         if hasattr(settings.SMTP_PASSWORD, "get_secret_value")
         else str(settings.SMTP_PASSWORD)
-    )
+    ) or ""
+    smtp_pass = raw_pass.strip().strip("\"'").strip().replace(" ", "")
+
     from_addr = settings.EMAIL_FROM_ADDRESS or (smtp_user if smtp_user else "security@cyberguard.ai")
     from_name = settings.EMAIL_FROM_NAME or "CyberGuard AI Security"
 
@@ -194,18 +196,23 @@ def _send_registration_email(to_email: str, code: str, user_name: str | None = N
                     server.login(smtp_user, smtp_pass)
                     server.send_message(msg)
 
-            logger.info("Registration OTP code dispatched via SMTP to %s", to_email)
-            return True
+            logger.info("Registration OTP code successfully dispatched via SMTP to %s", to_email)
+            return True, "Email dispatched successfully via SMTP"
         except Exception as exc:
+            err_msg = f"SMTP error ({type(exc).__name__}): {str(exc)}"
             logger.error("Failed to dispatch SMTP email to %s: %s", to_email, exc)
-            return False
+            return False, err_msg
     else:
+        missing = []
+        if not smtp_host: missing.append("SMTP_HOST")
+        if not smtp_user: missing.append("SMTP_USERNAME")
+        if not smtp_pass: missing.append("SMTP_PASSWORD")
+        missing_str = ", ".join(missing)
         logger.info(
-            "SMTP credentials not fully configured; generated registration OTP for %s: %s",
-            to_email,
-            code,
+            "SMTP credentials incomplete (%s); generated registration OTP for %s: %s",
+            missing_str, to_email, code,
         )
-        return False
+        return False, f"Missing SMTP settings on Render: {missing_str} (Do not use quotes like SMTP_HOST=\"\")" 
 
 
 class RegisterInitiateRequest(BaseModel):
@@ -266,7 +273,7 @@ def register_initiate_endpoint(
         "registration_token": None,
     }
 
-    email_sent = _send_registration_email(email, code, user_name=body.full_name)
+    email_sent, status_desc = _send_registration_email(email, code, user_name=body.full_name)
 
     resp_data = {
         "status": "ok",
@@ -276,7 +283,7 @@ def register_initiate_endpoint(
     }
     if not email_sent:
         resp_data["preview_code"] = code
-        resp_data["dev_hint"] = "SMTP server is not yet configured on Render. Provide SMTP_HOST=smtp.gmail.com to send real emails."
+        resp_data["dev_hint"] = status_desc
 
     return resp_data
 
@@ -670,16 +677,18 @@ async def google_auth_callback(
 _reset_verification_store: dict[str, dict[str, Any]] = {}
 
 
-def _send_recovery_email(to_email: str, code: str, user_name: str | None = None) -> bool:
+def _send_recovery_email(to_email: str, code: str, user_name: str | None = None) -> tuple[bool, str]:
     """Dispatches a secure 6-digit recovery OTP code via SMTP / Gmail."""
-    smtp_host = settings.SMTP_HOST
+    smtp_host = (settings.SMTP_HOST or "").strip().strip("\"'").strip()
     smtp_port = settings.SMTP_PORT
-    smtp_user = settings.SMTP_USERNAME
-    smtp_pass = (
+    smtp_user = (settings.SMTP_USERNAME or "").strip().strip("\"'").strip()
+    raw_pass = (
         settings.SMTP_PASSWORD.get_secret_value()
         if hasattr(settings.SMTP_PASSWORD, "get_secret_value")
         else str(settings.SMTP_PASSWORD)
-    )
+    ) or ""
+    smtp_pass = raw_pass.strip().strip("\"'").strip().replace(" ", "")
+
     from_addr = settings.EMAIL_FROM_ADDRESS or (smtp_user if smtp_user else "security@cyberguard.ai")
     from_name = settings.EMAIL_FROM_NAME or "CyberGuard AI Security"
 
@@ -732,17 +741,22 @@ def _send_recovery_email(to_email: str, code: str, user_name: str | None = None)
                     server.send_message(msg)
 
             logger.info("Security recovery code dispatched via SMTP to %s", to_email)
-            return True
+            return True, "Recovery email dispatched successfully via SMTP"
         except Exception as exc:
-            logger.error("Failed to dispatch SMTP email to %s: %s", to_email, exc)
-            return False
+            err_msg = f"SMTP error ({type(exc).__name__}): {str(exc)}"
+            logger.error("Failed to dispatch SMTP recovery email to %s: %s", to_email, exc)
+            return False, err_msg
     else:
+        missing = []
+        if not smtp_host: missing.append("SMTP_HOST")
+        if not smtp_user: missing.append("SMTP_USERNAME")
+        if not smtp_pass: missing.append("SMTP_PASSWORD")
+        missing_str = ", ".join(missing)
         logger.info(
-            "SMTP credentials not fully configured; generated security OTP for %s: %s",
-            to_email,
-            code,
+            "SMTP credentials incomplete (%s); generated security OTP for %s: %s",
+            missing_str, to_email, code,
         )
-        return False
+        return False, f"Missing SMTP settings on Render: {missing_str} (Do not use quotes like SMTP_HOST=\"\")" 
 
 
 class ForgotPasswordRequest(BaseModel):
@@ -798,7 +812,7 @@ def forgot_password_endpoint(
         "reset_token": None,
     }
 
-    email_sent = _send_recovery_email(email, code, user_name=user.full_name)
+    email_sent, status_desc = _send_recovery_email(email, code, user_name=user.full_name)
 
     resp_data = {
         "status": "ok",
@@ -808,7 +822,7 @@ def forgot_password_endpoint(
     }
     if not email_sent:
         resp_data["preview_code"] = code
-        resp_data["dev_hint"] = "SMTP server is not yet configured on Render. Provide SMTP_HOST=smtp.gmail.com to send real emails."
+        resp_data["dev_hint"] = status_desc
 
     return resp_data
 
