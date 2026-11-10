@@ -442,4 +442,47 @@ async def google_auth_callback(
         return RedirectResponse(f"{frontend_url}/login?error=Authentication+failed")
 
 
+class ResetPasswordRequest(BaseModel):
+    email: str
+    new_password: str
+
+
+@router.post(
+    "/reset-password",
+    status_code=status.HTTP_200_OK,
+    summary="Reset user password using email",
+)
+def reset_password_endpoint(
+    body: ResetPasswordRequest,
+    db: DBDep,
+) -> dict[str, str]:
+    """Resets user password and clears account lockouts."""
+    from app.services.user_service import get_by_email_optional
+    from app.core.security import hash_password
+    
+    email = body.email.lower().strip()
+    user = get_by_email_optional(db, email=email)
+    
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No account found with this email address.",
+        )
+    
+    if len(body.new_password) < 8:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Password must be at least 8 characters long.",
+        )
+    
+    user.password_hash = hash_password(body.new_password)
+    user.password_changed_at = datetime.now(timezone.utc)
+    user.failed_login_attempts = 0
+    user.locked_until = None
+    db.commit()
+    
+    logger.info("Password reset successfully", extra={"user_id": str(user.id), "email": email})
+    return {"status": "ok", "message": "Password updated successfully. You can now log in."}
+
+
 __all__ = ["router"]
