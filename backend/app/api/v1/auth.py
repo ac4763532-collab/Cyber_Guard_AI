@@ -127,56 +127,243 @@ router = APIRouter(
 
 
 # ============================================================================
-# POST /register
+# STRICT 3-STEP REGISTRATION VERIFICATION
+# ============================================================================
+
+_registration_verification_store: dict[str, dict[str, Any]] = {}
+
+
+def _send_registration_email(to_email: str, code: str, user_name: str | None = None) -> bool:
+    """Dispatches a secure 6-digit registration verification OTP code via SMTP / Gmail."""
+    smtp_host = settings.SMTP_HOST
+    smtp_port = settings.SMTP_PORT
+    smtp_user = settings.SMTP_USERNAME
+    smtp_pass = (
+        settings.SMTP_PASSWORD.get_secret_value()
+        if hasattr(settings.SMTP_PASSWORD, "get_secret_value")
+        else str(settings.SMTP_PASSWORD)
+    )
+    from_addr = settings.EMAIL_FROM_ADDRESS or (smtp_user if smtp_user else "security@cyberguard.ai")
+    from_name = settings.EMAIL_FROM_NAME or "CyberGuard AI Security"
+
+    display_name = user_name or "Security Operator"
+
+    html_content = f"""<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"></head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #0b0f19; color: #f1f5f9; padding: 24px;">
+  <div style="max-width: 520px; margin: 0 auto; background-color: #111827; border: 1px solid #1e293b; border-radius: 12px; padding: 32px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.5);">
+    <div style="text-align: center; margin-bottom: 24px;">
+      <h2 style="color: #38bdf8; margin: 0; font-size: 24px; letter-spacing: -0.5px;">🛡️ CyberGuard AI</h2>
+      <p style="color: #94a3b8; font-size: 13px; margin-top: 4px;">Account Registration &amp; Email Verification</p>
+    </div>
+    <p style="font-size: 14px; color: #cbd5e1; line-height: 1.6;">
+      Welcome to CyberGuard AI, <strong>{display_name}</strong>!
+    </p>
+    <p style="font-size: 14px; color: #cbd5e1; line-height: 1.6;">
+      To verify your email address and activate your security workspace, enter the 6-digit verification code below:
+    </p>
+    <div style="text-align: center; margin: 28px 0;">
+      <span style="display: inline-block; font-size: 32px; font-weight: 700; letter-spacing: 8px; color: #38bdf8; background: #0f172a; border: 1px solid #0284c7; padding: 12px 28px; border-radius: 8px; font-family: monospace;">
+        {code}
+      </span>
+    </div>
+    <p style="font-size: 12px; color: #94a3b8; text-align: center;">
+      This verification code is valid for <strong>15 minutes</strong>. If you did not create an account with CyberGuard AI, please ignore this email.
+    </p>
+  </div>
+</body>
+</html>"""
+
+    if smtp_host and smtp_user and smtp_pass:
+        try:
+            msg = MIMEMultipart("alternative")
+            msg["Subject"] = f"CyberGuard AI — Your Registration Verification Code: {code}"
+            msg["From"] = f"{from_name} <{from_addr}>"
+            msg["To"] = to_email
+            msg.attach(MIMEText(f"Your CyberGuard AI verification code is {code}. Valid for 15 minutes.", "plain"))
+            msg.attach(MIMEText(html_content, "html"))
+
+            if settings.SMTP_USE_TLS:
+                with smtplib.SMTP(smtp_host, smtp_port, timeout=12) as server:
+                    server.starttls()
+                    server.login(smtp_user, smtp_pass)
+                    server.send_message(msg)
+            else:
+                with smtplib.SMTP(smtp_host, smtp_port, timeout=12) as server:
+                    server.login(smtp_user, smtp_pass)
+                    server.send_message(msg)
+
+            logger.info("Registration OTP code dispatched via SMTP to %s", to_email)
+            return True
+        except Exception as exc:
+            logger.error("Failed to dispatch SMTP email to %s: %s", to_email, exc)
+            return False
+    else:
+        logger.info(
+            "SMTP credentials not fully configured; generated registration OTP for %s: %s",
+            to_email,
+            code,
+        )
+        return False
+
+
+class RegisterInitiateRequest(BaseModel):
+    email: str
+    password: str
+    full_name: Optional[str] = None
+    role: str = "individual"
+
+
+class RegisterVerifyCodeRequest(BaseModel):
+    email: str
+    code: str
+
+
+@router.post(
+    "/register/initiate",
+    status_code=status.HTTP_200_OK,
+    summary="Step 1: Initiate registration and dispatch 6-digit email OTP",
+)
+def register_initiate_endpoint(
+    body: RegisterInitiateRequest,
+    db: DBDep,
+) -> dict[str, Any]:
+    """Validates registration payload, checks email uniqueness, and dispatches 6-digit OTP code."""
+    from app.services.user_service import get_by_email_optional
+
+    email = body.email.lower().strip()
+    existing = get_by_email_optional(db, email=email)
+    if existing:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="An account with this email address already exists.",
+        )
+
+    pwd = body.password
+    if len(pwd) < 8 or not any(c.isalpha() for c in pwd) or not any(c.isdigit() for c in pwd):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Password must be at least 8 characters long and contain both letters and numbers.",
+        )
+
+    # Clean up expired codes
+    now = datetime.now(timezone.utc)
+    for k in list(_registration_verification_store.keys()):
+        if _registration_verification_store[k]["expires_at"] < now:
+            _registration_verification_store.pop(k, None)
+
+    code = f"{secrets.randbelow(1000000):06d}"
+    expires_at = now + timedelta(minutes=15)
+
+    _registration_verification_store[email] = {
+        "code": code,
+        "full_name": body.full_name,
+        "role": body.role,
+        "expires_at": expires_at,
+        "attempts": 0,
+        "verified": False,
+        "registration_token": None,
+    }
+
+    email_sent = _send_registration_email(email, code, user_name=body.full_name)
+
+    return {
+        "status": "ok",
+        "message": f"A 6-digit verification code has been dispatched to {email}.",
+        "expires_in_minutes": 15,
+        "email_dispatched": email_sent,
+    }
+
+
+@router.post(
+    "/register/verify-code",
+    status_code=status.HTTP_200_OK,
+    summary="Step 2: Verify registration 6-digit OTP code",
+)
+def register_verify_code_endpoint(
+    body: RegisterVerifyCodeRequest,
+) -> dict[str, str]:
+    """Validates the 6-digit registration OTP code and authorizes account completion."""
+    email = body.email.lower().strip()
+    code = body.code.strip()
+
+    entry = _registration_verification_store.get(email)
+    now = datetime.now(timezone.utc)
+
+    if not entry or entry["expires_at"] < now:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Verification code has expired or was not requested. Please restart registration.",
+        )
+
+    if entry["attempts"] >= 5:
+        _registration_verification_store.pop(email, None)
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many incorrect verification attempts. Please restart registration.",
+        )
+
+    if not secrets.compare_digest(entry["code"], code):
+        entry["attempts"] += 1
+        remaining = 5 - entry["attempts"]
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid verification code. {remaining} attempt(s) remaining.",
+        )
+
+    entry["verified"] = True
+    registration_token = secrets.token_urlsafe(32)
+    entry["registration_token"] = registration_token
+
+    return {
+        "status": "ok",
+        "message": "Email verified successfully! You can now activate your account.",
+        "registration_token": registration_token,
+    }
+
+
+# ============================================================================
+# POST /register (Step 3: Complete & Activate Account)
 # ============================================================================
 
 @router.post(
     "/register",
     response_model=TokenResponse,
     status_code=status.HTTP_201_CREATED,
-    summary="Create a new account",
+    summary="Step 3: Complete registration and activate account",
     description=(
-        "Creates a new user account in `pending_verification` status and "
-        "returns a fresh token pair.\n\n"
-        "The response is `TokenResponse` — the client should then call "
-        "`GET /auth/me` to fetch the user profile. Token response does "
-        "not include the user object to avoid a circular schema "
-        "dependency."
+        "Finalizes user account creation after verifying the 6-digit email OTP. "
+        "Returns authentication tokens and initializes workspace."
     ),
-    # TODO: apply login rate-limit dependency once rate_limit_service exists
 )
 def register(
     body: RegisterRequest,
     db: DBDep,
 ) -> TokenResponse:
-    """
-    Create account → return token pair.
+    email = body.email.lower().strip()
+    reg_entry = _registration_verification_store.get(email)
 
-    Order matters:
-      1. `create_user` flushes the new row (in transaction)
-      2. `build_token_response` builds JWTs (pure, no DB)
-      3. `db.commit` persists the user
+    # Strict security check: Step 2 verification must be complete
+    if not reg_entry or not reg_entry.get("verified"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Verification required: Please verify your email with the 6-digit code before completing registration.",
+        )
 
-    If step 2 fails for any reason, the transaction rolls back and no
-    account is created — no orphaned user, no password reset needed.
-    """
-    from datetime import datetime, timezone
-    initial_status = (
-        UserStatus.ACTIVE
-        if getattr(settings, "AUTO_ACTIVATE_USERS", True) or settings.APP_ENV == "development"
-        else UserStatus.PENDING_VERIFICATION
-    )
     user = create_user(
         db,
         email=body.email,
         password=body.password,
-        full_name=body.full_name,
-        role=body.role,
-        status=initial_status,
+        full_name=body.full_name or reg_entry.get("full_name"),
+        role=body.role or reg_entry.get("role", "individual"),
+        status=UserStatus.ACTIVE,
     )
-    if initial_status == UserStatus.ACTIVE:
-        user.email_verified = True
-        user.email_verified_at = datetime.now(timezone.utc)
+    user.email_verified = True
+    user.email_verified_at = datetime.now(timezone.utc)
+
+    # Initialize user's dedicated personal workspace
+    workspace_service.create_personal_workspace(db, user)
 
     tokens = build_token_response(
         user_id=user.id,
@@ -184,9 +371,12 @@ def register(
     )
     db.commit()
 
+    # Clean up verification entry
+    _registration_verification_store.pop(email, None)
+
     logger.info(
-        "User registered",
-        extra={"user_id": str(user.id)},
+        "User registered and verified via 3-step authentication",
+        extra={"user_id": str(user.id), "email": email},
     )
 
     return tokens
