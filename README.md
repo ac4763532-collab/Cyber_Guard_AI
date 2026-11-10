@@ -1,5 +1,5 @@
 ---
-title: Cyberguard Api
+title: CyberGuard
 emoji: 🛡️
 colorFrom: blue
 colorTo: indigo
@@ -9,12 +9,15 @@ app_file: app.py
 pinned: false
 ---
 
-# 🛡️ CyberGuard AI — SOC Intelligence Gateway
+# 🛡️ CyberGuard AI — Unified Security Engine & API Gateway
 
-Unified Production API & Real-time SIEM Threat Intelligence Engine.
+Zero-Cost SIEM, Endpoint Detection & Dual-Provider AI Threat Intelligence System.
 
-## Features
-- **Zero-Cost High-Performance Architecture**: Powered by FastAPI, Neon PostgreSQL, Google Gemini 2.5 Flash Lite, and Groq LPU.
-- **RESTful Endpoints**: Real-time event ingestion, analyst directory, incident triage, and AI assistant.
-- **Dual-Provider LLM Intelligence**: Sub-second security event explanations with automated failover.
-- **Interactive Documentation**: OpenAPI/Swagger documentation at `/docs` and ReDoc at `/redoc`.
+## Architecture
+- **API Runtime**: FastAPI high-concurrency async ASGI engine.
+- **Diagnostics Dashboard**: Gradio SOC Command Center.
+- **Database**: Neon Serverless PostgreSQL with connection pooling.
+- **LLM Pipeline**: Google Gemini 2.5 Flash Lite (Primary) with Groq LPU failover (Fallback).
+- **Public API Base**: `/api/v1`
+- **Swagger Documentation**: `/docs`
+- **Health Telemetry**: `/health`
