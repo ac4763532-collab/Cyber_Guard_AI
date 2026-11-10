@@ -234,6 +234,10 @@ api_router.include_router(analysts.router)
 from app.api.v1 import explain
 api_router.include_router(explain.router)
 
+# ── Machine Learning Security Engine ───────────────────────────────────────
+from app.api.v1 import ml
+api_router.include_router(ml.router)
+
 
 
 

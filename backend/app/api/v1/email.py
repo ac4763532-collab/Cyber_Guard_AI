@@ -36,6 +36,7 @@ from app.models.finding import AgentFinding
 from app.models.user import User
 from app.models.workspace import Workspace
 from app.services import workspace_service
+from app.services.ml_service import ml_engine
 
 logger = get_logger(__name__)
 
@@ -199,30 +200,36 @@ async def upload_eml(
     ctx = AgentContext(db=db, event=event, source=None, workspace_id=workspace.id)
     agent_result = agent.process(ctx)
 
-    # Persist findings
-    score = 0
-    verdict = "clean"
-    status_label = "verified"
+    # Execute Machine Learning Phishing Classifier (TF-IDF + MultinomialNB)
+    ml_eval = ml_engine.predict_email_phishing(
+        subject=subject_header,
+        body_text=parsed.get("body_text", "") or "",
+        sender=from_addr,
+        urls=parsed.get("urls", []) or [],
+    )
 
-    if agent_result.findings:
+    score = ml_eval.get("risk_score", 0)
+    ml_verdict = ml_eval.get("verdict", "benign")
+
+    if agent_result.findings or ml_verdict == "phishing" or score >= 60:
         for f in agent_result.findings:
             f.workspace_id = workspace.id
             f.primary_event_id = event.id
             db.add(f)
 
         max_sev = max((f.severity for f in agent_result.findings), default=EventSeverity.LOW)
-        if max_sev in [EventSeverity.HIGH, EventSeverity.CRITICAL]:
+        if score >= 75 or max_sev in [EventSeverity.HIGH, EventSeverity.CRITICAL]:
             verdict = "phishing"
-            score = 92
+            score = max(score, 88)
             status_label = "flagged"
-            event.severity = max_sev
+            event.severity = EventSeverity.HIGH if max_sev != EventSeverity.CRITICAL else max_sev
 
             # Create Alert
             alert = SecurityAlert(
                 workspace_id=workspace.id,
                 title=f"Phishing Email Detected: {subject_header[:60]}",
-                description=f"Automated email defense flagged email from {from_addr}. Triggered rules: {', '.join(f.rule_id for f in agent_result.findings)}",
-                severity=max_sev,
+                description=f"Automated email defense flagged email from {from_addr}. ML confidence: {ml_eval.get('confidence', 0):.1%}. Triggered rules: {', '.join(f.rule_id for f in agent_result.findings) or 'ML-NLP-Classifier'}",
+                severity=event.severity,
                 status=AlertStatus.NEW,
                 alert_type="security",
                 category=EventCategory.EMAIL,
@@ -231,9 +238,18 @@ async def upload_eml(
             db.add(alert)
         else:
             verdict = "suspicious"
-            score = 65
+            score = max(score, 55)
             status_label = "analyzing"
             event.severity = EventSeverity.MEDIUM
+    else:
+        verdict = "clean"
+        score = min(score, 12)
+        status_label = "verified"
+
+    # Store ML prediction into normalized payload for persistence
+    norm_dict = dict(event.normalized_payload or {})
+    norm_dict["ml_evaluation"] = ml_eval
+    event.normalized_payload = norm_dict
 
     db.commit()
 
@@ -246,6 +262,7 @@ async def upload_eml(
         "score": score,
         "status": status_label,
         "findings_count": len(agent_result.findings),
+        "ml_evaluation": ml_eval,
     }
 
 
@@ -428,7 +445,7 @@ def get_gmail_auth_url(
             status_code=400,
             detail="Gmail OAuth is unavailable because GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET are not configured in backend settings.",
         )
-    redirect_uri = settings.GOOGLE_REDIRECT_URI or "http://localhost:8000/api/v1/gmail/oauth/callback"
+    redirect_uri = settings.effective_google_redirect_uri
     scope = "https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/userinfo.email"
     state = str(current_user.id)
     auth_url = (
@@ -460,7 +477,7 @@ async def _handle_gmail_oauth_callback(
 
     try:
         import httpx
-        redirect_uri = settings.GOOGLE_REDIRECT_URI or "http://localhost:8000/api/v1/gmail/oauth/callback"
+        redirect_uri = settings.effective_google_redirect_uri
         token_data = {
             "code": code,
             "client_id": settings.GOOGLE_CLIENT_ID,
@@ -700,25 +717,37 @@ async def _sync_messages_from_gmail(
             db.add(event)
             db.flush()
 
-            # Run 6 email detection rules
+            # Run 6 email detection rules + ML Phishing Classifier
             agent = EmailAnalysisAgent(config={})
             ctx = AgentContext(db=db, event=event, source=source, workspace_id=workspace.id)
             agent_result = agent.process(ctx)
 
-            if agent_result.findings:
+            # ML evaluation
+            ml_eval = ml_engine.predict_email_phishing(
+                subject=subject_header,
+                body_text=parsed.get("body_text", "") or "",
+                sender=from_addr,
+                urls=parsed.get("urls", []) or [],
+            )
+            norm_dict = dict(event.normalized_payload or {})
+            norm_dict["ml_evaluation"] = ml_eval
+            event.normalized_payload = norm_dict
+
+            if agent_result.findings or ml_eval.get("verdict") == "phishing" or ml_eval.get("risk_score", 0) >= 60:
                 for f in agent_result.findings:
                     f.workspace_id = workspace.id
                     f.primary_event_id = event.id
                     db.add(f)
 
                 max_sev = max((f.severity for f in agent_result.findings), default=EventSeverity.LOW)
-                if max_sev in [EventSeverity.HIGH, EventSeverity.CRITICAL]:
-                    event.severity = max_sev
+                ml_score = ml_eval.get("risk_score", 0)
+                if ml_score >= 75 or max_sev in [EventSeverity.HIGH, EventSeverity.CRITICAL]:
+                    event.severity = EventSeverity.HIGH if max_sev != EventSeverity.CRITICAL else max_sev
                     alert = SecurityAlert(
                         workspace_id=workspace.id,
                         title=f"Phishing Email Detected: {subject_header[:60]}",
-                        description=f"Gmail analysis flagged email from {from_addr}. Triggered rules: {', '.join(f.rule_id for f in agent_result.findings)}",
-                        severity=max_sev,
+                        description=f"Gmail analysis flagged email from {from_addr}. ML confidence: {ml_eval.get('confidence', 0):.1%}. Triggered rules: {', '.join(f.rule_id for f in agent_result.findings) or 'ML-NLP-Classifier'}",
+                        severity=event.severity,
                         status=AlertStatus.NEW,
                         alert_type="security",
                         category=EventCategory.EMAIL,

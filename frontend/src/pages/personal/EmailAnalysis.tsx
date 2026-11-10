@@ -17,7 +17,8 @@ import {
   Share2, 
   AlertTriangle,
   Paperclip,
-  Globe
+  Globe,
+  Cpu
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
@@ -132,8 +133,42 @@ export default function EmailAnalysis() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
         
+        {/* ML Phishing Engine (scikit-learn) */}
+        <Card className="bg-slate-900 border-cyan-500/30 p-5 relative overflow-hidden">
+          <div className="flex items-center justify-between">
+            <h3 className="text-xs font-bold uppercase text-cyan-400 tracking-wider flex items-center gap-1.5">
+              <Cpu size={14} className="text-cyan-400" /> ML Phishing Engine
+            </h3>
+            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-cyan-500/10 text-cyan-300 border border-cyan-500/30">
+              Scikit-Learn
+            </span>
+          </div>
+          <div className="mt-3 space-y-2 text-xs">
+            <div className="p-2.5 bg-slate-950/70 border border-slate-800 rounded-lg space-y-1.5">
+              <div className="flex justify-between items-center text-[11px]">
+                <span className="text-slate-400">Architecture:</span>
+                <span className="font-mono text-slate-200">TF-IDF + Naive Bayes</span>
+              </div>
+              <div className="flex justify-between items-center text-[11px]">
+                <span className="text-slate-400">ML Threat Score:</span>
+                <span className={`font-bold ${data.score >= 70 ? "text-rose-400" : "text-emerald-400"}`}>
+                  {data.score} / 100
+                </span>
+              </div>
+              <div className="flex justify-between items-center text-[11px]">
+                <span className="text-slate-400">Model Confidence:</span>
+                <span className="text-cyan-400 font-bold">{Math.round(data.confidence * 100)}%</span>
+              </div>
+            </div>
+            <div className="text-[11px] text-emerald-400 flex items-center gap-1.5 pt-0.5">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              <span>Real-time in-process inference</span>
+            </div>
+          </div>
+        </Card>
+
         {/* Authentication Checks */}
         <Card className="bg-slate-900 border-slate-800 p-5">
           <h3 className="text-xs font-bold uppercase text-slate-400 tracking-wider">Authentication Checks</h3>

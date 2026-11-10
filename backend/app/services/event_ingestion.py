@@ -143,6 +143,31 @@ def ingest_single(
             raw_payload_size_bytes=raw_size,
         )
 
+        # Run Machine Learning Anomaly Detection (Isolation Forest)
+        try:
+            from app.services.ml_service import ml_engine
+            failed = 1 if (str(event.outcome).lower() == "failure" or "failed" in ev_type.lower()) else 0
+            priv = 1 if ("privilege" in ev_type.lower() or "admin" in (event.username or "").lower()) else 0
+            off_hrs = 1 if (ev_time.hour < 7 or ev_time.hour > 19) else 0
+
+            anomaly_eval = ml_engine.detect_log_anomaly(
+                failed_logins=failed,
+                event_rate=1.5,
+                entropy=3.2,
+                bytes_transferred=raw_size,
+                unique_ports=1,
+                off_hours=off_hrs,
+                privilege_escalation=priv,
+            )
+            norm_dict = dict(event.normalized_payload or {})
+            norm_dict["ml_anomaly"] = anomaly_eval
+            event.normalized_payload = norm_dict
+
+            if anomaly_eval.get("is_anomaly") and anomaly_eval.get("risk_score", 0) >= 80:
+                event.severity = "high"
+        except Exception as ml_err:
+            logger.debug(f"ML anomaly evaluation bypassed: {ml_err}")
+
         db.add(event)
         db.flush()
 

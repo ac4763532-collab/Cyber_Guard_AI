@@ -28,6 +28,7 @@ from app.models.source import SecuritySource
 from app.models.user import User
 from app.models.workspace import Workspace
 from app.services import workspace_service
+from app.services.ml_service import ml_engine
 
 logger = get_logger(__name__)
 
@@ -217,12 +218,34 @@ def ingest_network_telemetry(
 
         ctx = AgentContext(db=db, event=event, source=None, workspace_id=workspace.id)
         res = agent.process(ctx)
+
+        # ML Threat Classification (Random Forest)
+        ml_threat = ml_engine.predict_network_threat(
+            src_bytes=flow.bytes_sent,
+            dst_bytes=flow.bytes_received,
+            dst_port=flow.destination_port,
+            packet_count=max(1, (flow.bytes_sent + flow.bytes_received) // 128),
+            duration_ms=120,
+        )
+
+        norm_payload = dict(event.normalized_payload or {})
+        norm_payload["ml_threat"] = ml_threat
+        event.normalized_payload = norm_payload
+
+        is_flagged = False
         if res.findings:
-            flagged += len(res.findings)
+            is_flagged = True
             for f in res.findings:
                 f.workspace_id = workspace.id
                 f.primary_event_id = event.id
                 db.add(f)
+
+        if ml_threat.get("attack_type") != "benign" and ml_threat.get("risk_score", 0) >= 70:
+            is_flagged = True
+            event.severity = EventSeverity.HIGH if ml_threat["risk_score"] < 90 else EventSeverity.CRITICAL
+
+        if is_flagged:
+            flagged += 1
 
         ingested += 1
 

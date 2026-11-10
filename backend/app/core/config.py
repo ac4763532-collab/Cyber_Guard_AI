@@ -380,6 +380,14 @@ class Settings(BaseSettings):
         return (self.GOOGLE_CLIENT_SECRET.get_secret_value() if hasattr(self.GOOGLE_CLIENT_SECRET, "get_secret_value") else str(self.GOOGLE_CLIENT_SECRET))
 
     @property
+    def effective_google_redirect_uri(self) -> str:
+        if self.GOOGLE_REDIRECT_URI and not self.GOOGLE_REDIRECT_URI.startswith("http://localhost:8000"):
+            return self.GOOGLE_REDIRECT_URI
+        if self.BACKEND_PUBLIC_URL and not self.BACKEND_PUBLIC_URL.startswith("http://localhost"):
+            return f"{self.BACKEND_PUBLIC_URL.rstrip('/')}/api/v1/gmail/oauth/callback"
+        return self.GOOGLE_REDIRECT_URI
+
+    @property
     def cors_origins_list(self) -> list[str]:
         if not self.CORS_ALLOWED_ORIGINS.strip():
             return []

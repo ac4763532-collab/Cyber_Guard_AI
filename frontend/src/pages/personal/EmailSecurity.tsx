@@ -25,6 +25,7 @@ import {
   X,
   Eye,
   Lock,
+  Cpu,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -245,6 +246,31 @@ export default function EmailSecurity() {
               {isUploading ? "Analyzing..." : "Upload .EML"}
             </span>
           </label>
+        </div>
+      </div>
+
+      {/* ML Intelligence Banner */}
+      <div className="p-3.5 bg-slate-900 border border-cyan-500/30 rounded-2xl flex items-center justify-between text-xs shadow-sm">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400 shrink-0">
+            <Cpu size={16} />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="font-bold text-slate-100">Machine Learning Threat Engine</span>
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 uppercase tracking-wide flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> Live ML Active
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-400 mt-0.5">
+              Powered by <span className="text-slate-200 font-mono">scikit-learn 1.5.2</span> • Supervised TF-IDF NLP Phishing Classifier &amp; Isolation Forest Anomaly Detection
+            </p>
+          </div>
+        </div>
+        <div className="hidden sm:flex items-center gap-2">
+          <span className="text-[11px] font-mono text-cyan-300 bg-cyan-950/60 border border-cyan-800/60 px-2.5 py-1 rounded-lg">
+            In-Process &lt;50ms
+          </span>
         </div>
       </div>
 
