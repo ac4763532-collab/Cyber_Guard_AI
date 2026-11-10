@@ -72,7 +72,7 @@ import uuid
 
 from datetime import datetime, timezone
 from typing import Optional
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Request, status
 from fastapi.responses import RedirectResponse
 from app.models.user import User
 from app.services import workspace_service
@@ -339,15 +339,34 @@ def get_me(
 # GOOGLE OAUTH / SSO ENDPOINTS
 # ============================================================================
 
+def _resolve_base_urls(request: Request) -> tuple[str, str]:
+    """Detect live backend and frontend URLs dynamically based on request headers."""
+    host = request.headers.get("x-forwarded-host") or request.headers.get("host") or ""
+    proto = request.headers.get("x-forwarded-proto") or ("https" if "onrender.com" in host else request.url.scheme)
+    
+    if "onrender.com" in host:
+        backend_base = f"https://{host}".rstrip("/")
+        frontend_base = "https://cyberguard-nz79.onrender.com"
+    elif "localhost" in host or "127.0.0.1" in host:
+        backend_base = settings.BACKEND_PUBLIC_URL.rstrip("/")
+        frontend_base = settings.FRONTEND_PUBLIC_URL.rstrip("/")
+    else:
+        backend_base = f"{proto}://{host}".rstrip("/") if host else settings.BACKEND_PUBLIC_URL.rstrip("/")
+        frontend_base = settings.FRONTEND_PUBLIC_URL.rstrip("/")
+        
+    return backend_base, frontend_base
+
+
 @router.get("/google/url", summary="Get Google Sign-In authorization URL")
-def get_google_auth_url() -> dict[str, str]:
+def get_google_auth_url(request: Request) -> dict[str, str]:
     """Generates the Google OAuth authorization URL for user login/SSO."""
     if not settings.is_google_oauth_configured:
         raise HTTPException(
             status_code=400,
             detail="Google OAuth is not configured. Provide GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in backend .env to enable Google Sign-In.",
         )
-    redirect_uri = f"{settings.BACKEND_PUBLIC_URL.rstrip('/')}/api/v1/auth/google/callback"
+    backend_base, _ = _resolve_base_urls(request)
+    redirect_uri = f"{backend_base}/api/v1/auth/google/callback"
     scope = "openid email profile"
     auth_url = (
         f"https://accounts.google.com/o/oauth2/v2/auth"
@@ -357,23 +376,24 @@ def get_google_auth_url() -> dict[str, str]:
         f"&scope={scope}"
         f"&prompt=select_account"
     )
-    return {"auth_url": auth_url}
+    return {"auth_url": auth_url, "redirect_uri": redirect_uri}
 
 
 @router.get("/google/callback", summary="Google Sign-In OAuth callback")
 async def google_auth_callback(
+    request: Request,
     db: DBDep,
     code: Optional[str] = None,
     error: Optional[str] = None,
 ) -> RedirectResponse:
     """Handles Google OAuth redirect, authenticates/creates user, and redirects with token."""
-    frontend_url = settings.FRONTEND_PUBLIC_URL.rstrip("/")
+    backend_base, frontend_url = _resolve_base_urls(request)
     if error or not code:
         return RedirectResponse(f"{frontend_url}/login?error={error or 'Authentication+cancelled'}")
 
     try:
         import httpx
-        redirect_uri = f"{settings.BACKEND_PUBLIC_URL.rstrip('/')}/api/v1/auth/google/callback"
+        redirect_uri = f"{backend_base}/api/v1/auth/google/callback"
         token_data = {
             "code": code,
             "client_id": settings.GOOGLE_CLIENT_ID,
