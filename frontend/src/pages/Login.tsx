@@ -2,29 +2,24 @@
  * CyberGuard AI — Login Page
  * ============================================================================
  * 
- * The primary authentication entry point.
- * 
- * Features:
+ * Strict Enterprise Authentication:
  *   - Form validation using Zod + React Hook Form
- *   - Google Sign-In (OAuth SSO) integration
- *   - Self-service Account Recovery / Password Reset flow
- *   - Loading state on the submit button (prevents double-clicks)
- *   - Error toasts via Sonner
- *   - Role-based redirect on successful login
- *   - Password visibility toggle (built into the Input component)
+ *   - Secure Email + Password authentication
+ *   - Multi-step 2FA-verified Account Recovery (Email OTP verification code via Gmail/SMTP)
+ *   - Rate-limiting & lockout-aware error handling
  *   - Full dark mode support
  */
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useNavigate, useLocation, Link } from "react-router-dom";
-import { ShieldCheck, Mail, Lock, ArrowLeft, KeyRound, Sparkles } from "lucide-react";
+import { ShieldCheck, Mail, Lock, ArrowLeft, KeyRound, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { useAuth } from "@/auth/AuthProvider";
-import { api, tokenStore } from "@/lib/api";
+import { api } from "@/lib/api";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import {
@@ -53,14 +48,16 @@ export default function Login() {
   const navigate = useNavigate();
   const location = useLocation();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
 
-  // Password Recovery Modal State
+  // Multi-step Password Recovery State (Email -> 6-Digit Code -> New Password)
   const [showForgotModal, setShowForgotModal] = useState(false);
-  const [resetEmail, setResetEmail] = useState("");
+  const [recoveryStep, setRecoveryStep] = useState<1 | 2 | 3>(1);
+  const [recoveryEmail, setRecoveryEmail] = useState("");
+  const [verificationCode, setVerificationCode] = useState("");
+  const [resetToken, setResetToken] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [isResetting, setIsResetting] = useState(false);
+  const [isRecoveryLoading, setIsRecoveryLoading] = useState(false);
 
   const {
     register,
@@ -74,22 +71,6 @@ export default function Login() {
       password: "",
     },
   });
-
-  // Handle Google OAuth callback parameters on redirect
-  useEffect(() => {
-    const params = new URLSearchParams(location.search);
-    const googleToken = params.get("google_token");
-    const refreshToken = params.get("refresh_token");
-    const error = params.get("error");
-
-    if (error) {
-      toast.error(decodeURIComponent(error));
-    } else if (googleToken && refreshToken) {
-      tokenStore.set(googleToken, refreshToken);
-      toast.success("Welcome back! Signed in with Google.");
-      navigate("/personal/dashboard", { replace: true });
-    }
-  }, [location.search, navigate]);
 
   const onSubmit = async (data: LoginFormValues) => {
     setIsSubmitting(true);
@@ -113,71 +94,110 @@ export default function Login() {
         navigate("/personal/dashboard", { replace: true });
       }
     } catch (error: any) {
-      toast.error(error.message || "Failed to log in");
+      toast.error(error.message || "Invalid email or password.");
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  // Google Sign-In Handler
-  const handleGoogleSignIn = async () => {
-    setIsGoogleLoading(true);
-    try {
-      const response = await api.get<{ auth_url: string }>("/auth/google/url");
-      if (response.data.auth_url) {
-        window.location.href = response.data.auth_url;
-      }
-    } catch (err: any) {
-      const msg = err.response?.data?.detail || err.message || "Google Sign-In is currently unavailable";
-      toast.info("Google Sign-In Setup", {
-        description: "To activate Google Sign-In, set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in your Render dashboard environment variables.",
-      });
-    } finally {
-      setIsGoogleLoading(false);
-    }
-  };
-
-  // One-Click Instant Demo Login
-  const handleDemoLogin = async (demoEmail: string) => {
-    setValue("email", demoEmail);
-    setValue("password", "CyberGuard2026!");
-    await onSubmit({ email: demoEmail, password: "CyberGuard2026!" });
-  };
-
-  // Password Recovery Submit
-  const handleResetPassword = async (e: React.FormEvent) => {
+  // Step 1: Send 6-Digit Verification Code to Email
+  const handleSendCode = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!resetEmail) {
-      toast.error("Please enter your account email address.");
+    if (!recoveryEmail || !recoveryEmail.includes("@")) {
+      toast.error("Please enter a valid email address.");
       return;
     }
+
+    setIsRecoveryLoading(true);
+    try {
+      const res = await api.post("/auth/forgot-password", {
+        email: recoveryEmail.trim().toLowerCase(),
+      });
+      toast.success(res.data?.message || "Verification code sent to your email!");
+      setRecoveryStep(2);
+    } catch (err: any) {
+      const detail = err.response?.data?.detail || err.response?.data?.error?.message || err.message || "Failed to send code";
+      toast.error(detail);
+    } finally {
+      setIsRecoveryLoading(false);
+    }
+  };
+
+  // Step 2: Verify the 6-Digit Code
+  const handleVerifyCode = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!verificationCode || verificationCode.trim().length !== 6) {
+      toast.error("Please enter the 6-digit verification code.");
+      return;
+    }
+
+    setIsRecoveryLoading(true);
+    try {
+      const res = await api.post("/auth/verify-reset-code", {
+        email: recoveryEmail.trim().toLowerCase(),
+        code: verificationCode.trim(),
+      });
+      setResetToken(res.data?.reset_token || "");
+      toast.success("Code verified successfully! Please set your new password.");
+      setRecoveryStep(3);
+    } catch (err: any) {
+      const detail = err.response?.data?.detail || err.response?.data?.error?.message || err.message || "Invalid code";
+      toast.error(detail);
+    } finally {
+      setIsRecoveryLoading(false);
+    }
+  };
+
+  // Step 3: Set and Confirm New Password
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
     if (newPassword.length < 8) {
       toast.error("Password must be at least 8 characters long.");
       return;
     }
+    if (!/[a-zA-Z]/.test(newPassword) || !/[0-9]/.test(newPassword)) {
+      toast.error("Password must contain both letters and numbers.");
+      return;
+    }
     if (newPassword !== confirmPassword) {
-      toast.error("New passwords do not match.");
+      toast.error("Passwords do not match.");
       return;
     }
 
-    setIsResetting(true);
+    setIsRecoveryLoading(true);
     try {
       const res = await api.post("/auth/reset-password", {
-        email: resetEmail,
+        email: recoveryEmail.trim().toLowerCase(),
+        reset_token: resetToken,
+        code: verificationCode.trim(),
         new_password: newPassword,
       });
 
-      toast.success(res.data?.message || "Password updated successfully!");
-      setValue("email", resetEmail);
+      toast.success(res.data?.message || "Password updated successfully! You can now log in.");
+      setValue("email", recoveryEmail);
       setShowForgotModal(false);
+      // Reset modal state
+      setRecoveryStep(1);
+      setRecoveryEmail("");
+      setVerificationCode("");
+      setResetToken("");
       setNewPassword("");
       setConfirmPassword("");
     } catch (err: any) {
-      const detail = err.response?.data?.detail || err.message || "Failed to reset password";
+      const detail = err.response?.data?.detail || err.response?.data?.error?.message || err.message || "Failed to reset password";
       toast.error(detail);
     } finally {
-      setIsResetting(false);
+      setIsRecoveryLoading(false);
     }
+  };
+
+  const handleOpenForgotModal = () => {
+    setRecoveryStep(1);
+    setVerificationCode("");
+    setResetToken("");
+    setNewPassword("");
+    setConfirmPassword("");
+    setShowForgotModal(true);
   };
 
   return (
@@ -197,98 +217,18 @@ export default function Login() {
             Welcome to CyberGuard
           </h1>
           <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-            Sign in to your account to continue
+            Sign in to your security operations account
           </p>
         </div>
 
         {/* ── Login Card ──────────────────────────────────────────────── */}
         <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8 dark:border-slate-800 dark:bg-slate-900">
-          
-          {/* ── One-Click Instant Demo Access ────────────────────────── */}
-          <div className="mb-6 rounded-lg border border-cyan-500/30 bg-cyan-950/20 p-3.5 dark:border-cyan-500/25 dark:bg-cyan-950/30">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-semibold text-cyan-400 flex items-center gap-1.5">
-                <Sparkles size={14} className="text-cyan-400" />
-                Instant 1-Click Demo Access
-              </span>
-              <span className="text-[10px] text-cyan-500/80 font-mono">Pre-seeded</span>
-            </div>
-            <div className="grid grid-cols-3 gap-2">
-              <button
-                type="button"
-                onClick={() => handleDemoLogin("analyst@cyberguard.ai")}
-                disabled={isSubmitting}
-                className="flex flex-col items-center justify-center rounded-md border border-cyan-500/40 bg-slate-900/80 px-2 py-2 text-xs font-medium text-slate-200 hover:border-cyan-400 hover:bg-cyan-950/50 hover:text-white transition shadow-sm"
-              >
-                <span className="font-semibold text-cyan-300">🛡️ Analyst</span>
-                <span className="text-[10px] text-slate-400">SOC Portal</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => handleDemoLogin("user@cyberguard.ai")}
-                disabled={isSubmitting}
-                className="flex flex-col items-center justify-center rounded-md border border-slate-700 bg-slate-900/80 px-2 py-2 text-xs font-medium text-slate-200 hover:border-cyan-400 hover:bg-cyan-950/50 hover:text-white transition shadow-sm"
-              >
-                <span className="font-semibold text-slate-200">👤 User</span>
-                <span className="text-[10px] text-slate-400">Personal</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => handleDemoLogin("admin@cyberguard.ai")}
-                disabled={isSubmitting}
-                className="flex flex-col items-center justify-center rounded-md border border-slate-700 bg-slate-900/80 px-2 py-2 text-xs font-medium text-slate-200 hover:border-cyan-400 hover:bg-cyan-950/50 hover:text-white transition shadow-sm"
-              >
-                <span className="font-semibold text-slate-200">🏢 Admin</span>
-                <span className="text-[10px] text-slate-400">SecOps Org</span>
-              </button>
-            </div>
-          </div>
-
-          {/* ── Google SSO Button ──────────────────────────────────────── */}
-          <button
-            type="button"
-            onClick={handleGoogleSignIn}
-            disabled={isGoogleLoading}
-            className="flex w-full items-center justify-center gap-3 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
-          >
-            <svg className="h-4 w-4" viewBox="0 0 24 24">
-              <path
-                fill="#4285F4"
-                d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-              />
-              <path
-                fill="#34A853"
-                d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-              />
-              <path
-                fill="#FBBC05"
-                d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
-              />
-              <path
-                fill="#EA4335"
-                d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
-              />
-            </svg>
-            <span>{isGoogleLoading ? "Connecting to Google..." : "Continue with Google"}</span>
-          </button>
-
-          <div className="relative my-5">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-slate-200 dark:border-slate-800" />
-            </div>
-            <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-white px-3 text-slate-500 dark:bg-slate-900 dark:text-slate-400">
-                Or with email
-              </span>
-            </div>
-          </div>
-
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             
             <Input
               label="Email"
               type="email"
-              placeholder="you@company.com"
+              placeholder="operator@company.com"
               leftIcon={<Mail size={16} />}
               autoComplete="email"
               error={errors.email?.message}
@@ -302,7 +242,7 @@ export default function Login() {
                 </label>
                 <button
                   type="button"
-                  onClick={() => setShowForgotModal(true)}
+                  onClick={handleOpenForgotModal}
                   className="text-xs font-semibold text-cyan-600 hover:text-cyan-500 dark:text-cyan-400 dark:hover:text-cyan-300 transition-colors"
                 >
                   Forgot password?
@@ -334,7 +274,7 @@ export default function Login() {
               Don't have an account?{" "}
             </span>
             <Link
-              to="/select-account"
+              to="/register"
               className="font-semibold text-brand-600 hover:text-brand-500 dark:text-brand-400 dark:hover:text-brand-300"
             >
               Get started
@@ -350,66 +290,164 @@ export default function Login() {
 
       </div>
 
-      {/* ── Password Recovery Modal ────────────────────────────────────── */}
+      {/* ── Multi-Step Password Recovery Modal ────────────────────────── */}
       <Modal open={showForgotModal} onOpenChange={setShowForgotModal}>
         <ModalContent className="max-w-md">
           <ModalHeader>
             <div className="flex items-center gap-2 text-cyan-600 dark:text-cyan-400 mb-1">
               <KeyRound size={20} />
-              <ModalTitle>Account Recovery</ModalTitle>
+              <ModalTitle>Account Security Recovery</ModalTitle>
             </div>
             <ModalDescription>
-              Enter your registered email and a new password to recover access to your account.
+              {recoveryStep === 1 && "Enter your registered email address to receive a secure 6-digit verification code."}
+              {recoveryStep === 2 && `Enter the 6-digit verification code sent to ${recoveryEmail}.`}
+              {recoveryStep === 3 && "Code verified! Enter your new password below."}
             </ModalDescription>
           </ModalHeader>
 
-          <form onSubmit={handleResetPassword} className="space-y-4 py-2">
-            <Input
-              label="Account Email"
-              type="email"
-              placeholder="you@company.com"
-              value={resetEmail}
-              onChange={(e) => setResetEmail(e.target.value)}
-              required
-              leftIcon={<Mail size={16} />}
-            />
+          {/* ── Progress Indicators ──────────────────────────────────── */}
+          <div className="flex items-center justify-between px-2 py-1 text-xs text-slate-400 border-b border-slate-100 dark:border-slate-800 mb-4">
+            <span className={recoveryStep >= 1 ? "font-semibold text-cyan-500" : ""}>1. Email</span>
+            <span>&rarr;</span>
+            <span className={recoveryStep >= 2 ? "font-semibold text-cyan-500" : ""}>2. Verify Code</span>
+            <span>&rarr;</span>
+            <span className={recoveryStep >= 3 ? "font-semibold text-cyan-500" : ""}>3. Reset</span>
+          </div>
 
-            <Input
-              label="New Password"
-              type="password"
-              placeholder="Minimum 8 characters"
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-              required
-              leftIcon={<Lock size={16} />}
-            />
+          {/* ── Step 1: Send Code ────────────────────────────────────── */}
+          {recoveryStep === 1 && (
+            <form onSubmit={handleSendCode} className="space-y-4 py-2">
+              <Input
+                label="Registered Account Email"
+                type="email"
+                placeholder="operator@company.com"
+                value={recoveryEmail}
+                onChange={(e) => setRecoveryEmail(e.target.value)}
+                required
+                leftIcon={<Mail size={16} />}
+              />
+              <ModalFooter className="mt-6">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setShowForgotModal(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  isLoading={isRecoveryLoading}
+                >
+                  Send Verification Code
+                </Button>
+              </ModalFooter>
+            </form>
+          )}
 
-            <Input
-              label="Confirm New Password"
-              type="password"
-              placeholder="Re-enter new password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              required
-              leftIcon={<Lock size={16} />}
-            />
+          {/* ── Step 2: Verify 6-Digit Code ──────────────────────────── */}
+          {recoveryStep === 2 && (
+            <form onSubmit={handleVerifyCode} className="space-y-4 py-2">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                  6-Digit Verification Code
+                </label>
+                <input
+                  type="text"
+                  maxLength={6}
+                  placeholder="000000"
+                  value={verificationCode}
+                  onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, ""))}
+                  required
+                  className="w-full text-center text-2xl font-mono tracking-widest px-4 py-3 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                />
+                <p className="mt-1.5 text-xs text-slate-400">
+                  Check your inbox for the code. Valid for 15 minutes.
+                </p>
+              </div>
 
-            <ModalFooter className="mt-6">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setShowForgotModal(false)}
-              >
-                Cancel
-              </Button>
-              <Button
-                type="submit"
-                isLoading={isResetting}
-              >
-                Reset Password
-              </Button>
-            </ModalFooter>
-          </form>
+              <div className="flex justify-between items-center text-xs">
+                <button
+                  type="button"
+                  onClick={() => setRecoveryStep(1)}
+                  className="text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+                >
+                  Change email
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSendCode}
+                  disabled={isRecoveryLoading}
+                  className="text-cyan-500 hover:underline font-medium"
+                >
+                  Resend code
+                </button>
+              </div>
+
+              <ModalFooter className="mt-6">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setShowForgotModal(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  isLoading={isRecoveryLoading}
+                >
+                  Verify Code
+                </Button>
+              </ModalFooter>
+            </form>
+          )}
+
+          {/* ── Step 3: Enter New Password ──────────────────────────── */}
+          {recoveryStep === 3 && (
+            <form onSubmit={handleResetPassword} className="space-y-4 py-2">
+              <div className="flex items-center gap-2 p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs">
+                <CheckCircle2 size={16} />
+                <span>Identity verified for {recoveryEmail}</span>
+              </div>
+
+              <Input
+                label="New Password"
+                type="password"
+                placeholder="Minimum 8 characters"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                required
+                leftIcon={<Lock size={16} />}
+                helperText="At least 8 characters with letters and numbers."
+              />
+
+              <Input
+                label="Confirm New Password"
+                type="password"
+                placeholder="Re-enter new password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                required
+                leftIcon={<Lock size={16} />}
+              />
+
+              <ModalFooter className="mt-6">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setShowForgotModal(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  isLoading={isRecoveryLoading}
+                >
+                  Update Password
+                </Button>
+              </ModalFooter>
+            </form>
+          )}
+
         </ModalContent>
       </Modal>
 

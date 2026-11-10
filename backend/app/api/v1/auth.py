@@ -68,10 +68,13 @@ Endpoints
 
 from __future__ import annotations
 
+import secrets
+import smtplib
 import uuid
-
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import datetime, timedelta, timezone
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from typing import Any, Optional
 from fastapi import APIRouter, HTTPException, Request, status
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
@@ -465,47 +468,261 @@ async def google_auth_callback(
         return RedirectResponse(f"{frontend_url}/login?error=Authentication+failed")
 
 
+# ============================================================================
+# STRICT PASSWORD RECOVERY & EMAIL VERIFICATION
+# ============================================================================
+
+_reset_verification_store: dict[str, dict[str, Any]] = {}
+
+
+def _send_recovery_email(to_email: str, code: str, user_name: str | None = None) -> bool:
+    """Dispatches a secure 6-digit recovery OTP code via SMTP / Gmail."""
+    smtp_host = settings.SMTP_HOST
+    smtp_port = settings.SMTP_PORT
+    smtp_user = settings.SMTP_USERNAME
+    smtp_pass = (
+        settings.SMTP_PASSWORD.get_secret_value()
+        if hasattr(settings.SMTP_PASSWORD, "get_secret_value")
+        else str(settings.SMTP_PASSWORD)
+    )
+    from_addr = settings.EMAIL_FROM_ADDRESS or (smtp_user if smtp_user else "security@cyberguard.ai")
+    from_name = settings.EMAIL_FROM_NAME or "CyberGuard AI Security"
+
+    display_name = user_name or "Security Operator"
+
+    html_content = f"""<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"></head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #0b0f19; color: #f1f5f9; padding: 24px;">
+  <div style="max-width: 520px; margin: 0 auto; background-color: #111827; border: 1px solid #1e293b; border-radius: 12px; padding: 32px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.5);">
+    <div style="text-align: center; margin-bottom: 24px;">
+      <h2 style="color: #38bdf8; margin: 0; font-size: 24px; letter-spacing: -0.5px;">🛡️ CyberGuard AI</h2>
+      <p style="color: #94a3b8; font-size: 13px; margin-top: 4px;">Account Security &amp; Password Recovery</p>
+    </div>
+    <p style="font-size: 14px; color: #cbd5e1; line-height: 1.6;">
+      Hello <strong>{display_name}</strong>,
+    </p>
+    <p style="font-size: 14px; color: #cbd5e1; line-height: 1.6;">
+      A request was received to reset your CyberGuard AI account password. Enter the verification code below to authorize this recovery:
+    </p>
+    <div style="text-align: center; margin: 28px 0;">
+      <span style="display: inline-block; font-size: 32px; font-weight: 700; letter-spacing: 8px; color: #38bdf8; background: #0f172a; border: 1px solid #0284c7; padding: 12px 28px; border-radius: 8px; font-family: monospace;">
+        {code}
+      </span>
+    </div>
+    <p style="font-size: 12px; color: #94a3b8; text-align: center;">
+      This code is valid for <strong>15 minutes</strong>. If you did not request this, ignore this email or alert your security team immediately.
+    </p>
+  </div>
+</body>
+</html>"""
+
+    if smtp_host and smtp_user and smtp_pass:
+        try:
+            msg = MIMEMultipart("alternative")
+            msg["Subject"] = f"CyberGuard AI — Your Recovery Code: {code}"
+            msg["From"] = f"{from_name} <{from_addr}>"
+            msg["To"] = to_email
+            msg.attach(MIMEText(f"Your CyberGuard AI recovery code is {code}. Valid for 15 minutes.", "plain"))
+            msg.attach(MIMEText(html_content, "html"))
+
+            if settings.SMTP_USE_TLS:
+                with smtplib.SMTP(smtp_host, smtp_port, timeout=12) as server:
+                    server.starttls()
+                    server.login(smtp_user, smtp_pass)
+                    server.send_message(msg)
+            else:
+                with smtplib.SMTP(smtp_host, smtp_port, timeout=12) as server:
+                    server.login(smtp_user, smtp_pass)
+                    server.send_message(msg)
+
+            logger.info("Security recovery code dispatched via SMTP to %s", to_email)
+            return True
+        except Exception as exc:
+            logger.error("Failed to dispatch SMTP email to %s: %s", to_email, exc)
+            return False
+    else:
+        logger.info(
+            "SMTP credentials not fully configured; generated security OTP for %s: %s",
+            to_email,
+            code,
+        )
+        return False
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: str
+
+
+class VerifyResetCodeRequest(BaseModel):
+    email: str
+    code: str
+
+
 class ResetPasswordRequest(BaseModel):
     email: str
+    code: Optional[str] = None
+    reset_token: Optional[str] = None
     new_password: str
 
 
 @router.post(
-    "/reset-password",
+    "/forgot-password",
     status_code=status.HTTP_200_OK,
-    summary="Reset user password using email",
+    summary="Request a password recovery verification code via email",
 )
-def reset_password_endpoint(
-    body: ResetPasswordRequest,
+def forgot_password_endpoint(
+    body: ForgotPasswordRequest,
     db: DBDep,
-) -> dict[str, str]:
-    """Resets user password and clears account lockouts."""
+) -> dict[str, Any]:
+    """Generates a secure 6-digit OTP code and dispatches it via email/Gmail."""
     from app.services.user_service import get_by_email_optional
-    from app.core.security import hash_password
-    
+
     email = body.email.lower().strip()
     user = get_by_email_optional(db, email=email)
-    
     if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="No account found with this email address.",
         )
-    
-    if len(body.new_password) < 8:
+
+    # Clean up expired codes
+    now = datetime.now(timezone.utc)
+    for k in list(_reset_verification_store.keys()):
+        if _reset_verification_store[k]["expires_at"] < now:
+            _reset_verification_store.pop(k, None)
+
+    code = f"{secrets.randbelow(1000000):06d}"
+    expires_at = now + timedelta(minutes=15)
+
+    _reset_verification_store[email] = {
+        "code": code,
+        "expires_at": expires_at,
+        "attempts": 0,
+        "verified": False,
+        "reset_token": None,
+    }
+
+    email_sent = _send_recovery_email(email, code, user_name=user.full_name)
+
+    return {
+        "status": "ok",
+        "message": f"A 6-digit verification code has been dispatched to {email}.",
+        "expires_in_minutes": 15,
+        "email_dispatched": email_sent,
+    }
+
+
+@router.post(
+    "/verify-reset-code",
+    status_code=status.HTTP_200_OK,
+    summary="Verify the 6-digit recovery code sent via email",
+)
+def verify_reset_code_endpoint(
+    body: VerifyResetCodeRequest,
+) -> dict[str, str]:
+    """Validates the 6-digit code and issues a temporary single-use reset authorization token."""
+    email = body.email.lower().strip()
+    code = body.code.strip()
+
+    entry = _reset_verification_store.get(email)
+    now = datetime.now(timezone.utc)
+
+    if not entry or entry["expires_at"] < now:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Password must be at least 8 characters long.",
+            detail="Verification code has expired or was not requested. Please request a new code.",
         )
-    
-    user.password_hash = hash_password(body.new_password)
+
+    if entry["attempts"] >= 5:
+        _reset_verification_store.pop(email, None)
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many incorrect verification attempts. Please request a new code.",
+        )
+
+    if not secrets.compare_digest(entry["code"], code):
+        entry["attempts"] += 1
+        remaining = 5 - entry["attempts"]
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid verification code. {remaining} attempt(s) remaining.",
+        )
+
+    entry["verified"] = True
+    reset_token = secrets.token_urlsafe(32)
+    entry["reset_token"] = reset_token
+
+    return {
+        "status": "ok",
+        "message": "Verification code accepted. Please enter your new password.",
+        "reset_token": reset_token,
+    }
+
+
+@router.post(
+    "/reset-password",
+    status_code=status.HTTP_200_OK,
+    summary="Reset user password after email verification",
+)
+def reset_password_endpoint(
+    body: ResetPasswordRequest,
+    db: DBDep,
+) -> dict[str, str]:
+    """Strictly updates user password only after verifying email code or reset token."""
+    from app.services.user_service import get_by_email_optional
+    from app.core.security import hash_password
+
+    email = body.email.lower().strip()
+    entry = _reset_verification_store.get(email)
+    now = datetime.now(timezone.utc)
+
+    if not entry or entry["expires_at"] < now:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Verification required: Please request and verify your email recovery code first.",
+        )
+
+    # Check verification: either pre-verified via token, or verified directly via code
+    is_authorized = False
+    if body.reset_token and entry.get("reset_token"):
+        if secrets.compare_digest(entry["reset_token"], body.reset_token.strip()) and entry.get("verified"):
+            is_authorized = True
+    elif body.code:
+        if secrets.compare_digest(entry["code"], body.code.strip()):
+            is_authorized = True
+
+    if not is_authorized:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Invalid or unverified recovery credentials. Please verify your code.",
+        )
+
+    user = get_by_email_optional(db, email=email)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No account found with this email address.",
+        )
+
+    new_pwd = body.new_password
+    if len(new_pwd) < 8 or not any(c.isalpha() for c in new_pwd) or not any(c.isdigit() for c in new_pwd):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Password must be at least 8 characters long and contain both letters and numbers.",
+        )
+
+    user.password_hash = hash_password(new_pwd)
     user.password_changed_at = datetime.now(timezone.utc)
     user.failed_login_attempts = 0
     user.locked_until = None
     db.commit()
-    
-    logger.info("Password reset successfully", extra={"user_id": str(user.id), "email": email})
-    return {"status": "ok", "message": "Password updated successfully. You can now log in."}
+
+    # Clear recovery session
+    _reset_verification_store.pop(email, None)
+
+    logger.info("Password successfully recovered and updated", extra={"user_id": str(user.id), "email": email})
+    return {"status": "ok", "message": "Password updated successfully. You can now log in with your new password."}
 
 
 __all__ = ["router"]
