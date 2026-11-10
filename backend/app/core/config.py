@@ -278,6 +278,8 @@ class Settings(BaseSettings):
     SMTP_USERNAME: str = ""
     SMTP_PASSWORD: SecretStr = Field(default=SecretStr(""))
     SMTP_USE_TLS: bool = True
+    RESEND_API_KEY: SecretStr = Field(default=SecretStr(""))
+    BREVO_API_KEY: SecretStr = Field(default=SecretStr(""))
     EMAIL_FROM_ADDRESS: str = "no-reply@cyberguard.local"
     EMAIL_FROM_NAME: str = "CyberGuard AI"
 

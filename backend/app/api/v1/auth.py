@@ -133,6 +133,69 @@ router = APIRouter(
 _registration_verification_store: dict[str, dict[str, Any]] = {}
 
 
+def _send_email_via_http(to_email: str, subject: str, html_content: str, text_content: str) -> tuple[bool, str]:
+    """Dispatches email via HTTPS REST API (Port 443) which is never blocked by cloud firewalls like Render."""
+    import httpx
+
+    # 1. Resend (https://resend.com)
+    resend_key = os.getenv("RESEND_API_KEY") or (
+        settings.RESEND_API_KEY.get_secret_value() if hasattr(settings.RESEND_API_KEY, "get_secret_value") else str(settings.RESEND_API_KEY)
+    ) or ""
+    resend_key = resend_key.strip().strip("\"'")
+    if resend_key:
+        try:
+            from_addr = settings.EMAIL_FROM_ADDRESS if "@" in settings.EMAIL_FROM_ADDRESS and not settings.EMAIL_FROM_ADDRESS.endswith(".local") else "onboarding@resend.dev"
+            payload = {
+                "from": f"{settings.EMAIL_FROM_NAME or 'CyberGuard AI'} <{from_addr}>",
+                "to": [to_email],
+                "subject": subject,
+                "html": html_content,
+                "text": text_content,
+            }
+            with httpx.Client(timeout=10.0) as client:
+                res = client.post(
+                    "https://api.resend.com/emails",
+                    headers={"Authorization": f"Bearer {resend_key}", "Content-Type": "application/json"},
+                    json=payload,
+                )
+                if res.status_code in [200, 201]:
+                    logger.info("Email dispatched successfully via Resend HTTPS API to %s", to_email)
+                    return True, "Email dispatched via Resend HTTPS API"
+                else:
+                    return False, f"Resend API ({res.status_code}): {res.text[:120]}"
+        except Exception as e:
+            return False, f"Resend HTTP request failed: {str(e)}"
+
+    # 2. Brevo (https://brevo.com)
+    brevo_key = os.getenv("BREVO_API_KEY") or (
+        settings.BREVO_API_KEY.get_secret_value() if hasattr(settings.BREVO_API_KEY, "get_secret_value") else str(settings.BREVO_API_KEY)
+    ) or ""
+    brevo_key = brevo_key.strip().strip("\"'")
+    if brevo_key:
+        try:
+            payload = {
+                "sender": {"name": settings.EMAIL_FROM_NAME or "CyberGuard AI", "email": settings.EMAIL_FROM_ADDRESS or "security@cyberguard.ai"},
+                "to": [{"email": to_email}],
+                "subject": subject,
+                "htmlContent": html_content,
+                "textContent": text_content,
+            }
+            with httpx.Client(timeout=10.0) as client:
+                res = client.post(
+                    "https://api.brevo.com/v3/smtp/email",
+                    headers={"api-key": brevo_key, "Content-Type": "application/json"},
+                    json=payload,
+                )
+                if res.status_code in [200, 201]:
+                    logger.info("Email dispatched successfully via Brevo HTTPS API to %s", to_email)
+                    return True, "Email dispatched via Brevo HTTPS API"
+                else:
+                    return False, f"Brevo API ({res.status_code}): {res.text[:120]}"
+        except Exception as e:
+            return False, f"Brevo HTTP request failed: {str(e)}"
+
+    return False, "NO_HTTP_PROVIDER"
+
 def _send_registration_email(to_email: str, code: str, user_name: str | None = None) -> tuple[bool, str]:
     """Dispatches a secure 6-digit registration verification OTP code via SMTP / Gmail."""
     smtp_host = (settings.SMTP_HOST or "").strip().strip("\"'").strip()
@@ -177,6 +240,12 @@ def _send_registration_email(to_email: str, code: str, user_name: str | None = N
 </body>
 </html>"""
 
+    # 1. Try HTTPS email provider (never blocked by Render firewall)
+    sent_http, msg_http = _send_email_via_http(to_email, f"CyberGuard AI — Your Registration Verification Code: {code}", html_content, f"Your CyberGuard AI verification code is {code}. Valid for 15 minutes.")
+    if sent_http:
+        return True, msg_http
+
+    # 2. Try SMTP
     if smtp_host and smtp_user and smtp_pass:
         try:
             msg = MIMEMultipart("alternative")
@@ -199,7 +268,11 @@ def _send_registration_email(to_email: str, code: str, user_name: str | None = N
             logger.info("Registration OTP code successfully dispatched via SMTP to %s", to_email)
             return True, "Email dispatched successfully via SMTP"
         except Exception as exc:
-            err_msg = f"SMTP error ({type(exc).__name__}): {str(exc)}"
+            err_str = str(exc)
+            if "101" in err_str or "unreachable" in err_str.lower():
+                err_msg = "Render blocks outbound SMTP port 587. For real emails, use RESEND_API_KEY (HTTPS Port 443), or use the test code shown on screen."
+            else:
+                err_msg = f"SMTP error ({type(exc).__name__}): {err_str}"
             logger.error("Failed to dispatch SMTP email to %s: %s", to_email, exc)
             return False, err_msg
     else:
@@ -721,6 +794,12 @@ def _send_recovery_email(to_email: str, code: str, user_name: str | None = None)
 </body>
 </html>"""
 
+    # 1. Try HTTPS email provider (never blocked by Render firewall)
+    sent_http, msg_http = _send_email_via_http(to_email, f"CyberGuard AI — Your Recovery Code: {code}", html_content, f"Your CyberGuard AI recovery code is {code}. Valid for 15 minutes.")
+    if sent_http:
+        return True, msg_http
+
+    # 2. Try SMTP
     if smtp_host and smtp_user and smtp_pass:
         try:
             msg = MIMEMultipart("alternative")
@@ -743,7 +822,11 @@ def _send_recovery_email(to_email: str, code: str, user_name: str | None = None)
             logger.info("Security recovery code dispatched via SMTP to %s", to_email)
             return True, "Recovery email dispatched successfully via SMTP"
         except Exception as exc:
-            err_msg = f"SMTP error ({type(exc).__name__}): {str(exc)}"
+            err_str = str(exc)
+            if "101" in err_str or "unreachable" in err_str.lower():
+                err_msg = "Render blocks outbound SMTP port 587. For real emails, use RESEND_API_KEY (HTTPS Port 443), or use the test code shown on screen."
+            else:
+                err_msg = f"SMTP error ({type(exc).__name__}): {err_str}"
             logger.error("Failed to dispatch SMTP recovery email to %s: %s", to_email, exc)
             return False, err_msg
     else:
