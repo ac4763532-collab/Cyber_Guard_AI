@@ -58,6 +58,7 @@ export default function Login() {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isRecoveryLoading, setIsRecoveryLoading] = useState(false);
+  const [devRecoveryCode, setDevRecoveryCode] = useState<string | null>(null);
 
   const {
     register,
@@ -113,7 +114,13 @@ export default function Login() {
       const res = await api.post("/auth/forgot-password", {
         email: recoveryEmail.trim().toLowerCase(),
       });
-      toast.success(res.data?.message || "Verification code sent to your email!");
+      if (res.data?.preview_code) {
+        setDevRecoveryCode(res.data.preview_code);
+        toast.info("Server Notice: SMTP not configured. Test recovery code shown below.", { duration: 6000 });
+      } else {
+        setDevRecoveryCode(null);
+        toast.success(res.data?.message || "Verification code sent to your email!");
+      }
       setRecoveryStep(2);
     } catch (err: any) {
       const detail = err.response?.data?.detail || err.response?.data?.error?.message || err.message || "Failed to send code";
@@ -347,6 +354,26 @@ export default function Login() {
           {/* ── Step 2: Verify 6-Digit Code ──────────────────────────── */}
           {recoveryStep === 2 && (
             <form onSubmit={handleVerifyCode} className="space-y-4 py-2">
+              {devRecoveryCode && (
+                <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl text-xs space-y-1.5 text-slate-300">
+                  <div className="flex items-center gap-1.5 text-amber-400 font-bold">
+                    <span>⚠️ SMTP Not Configured on Render</span>
+                  </div>
+                  <p className="text-[11px] text-slate-400">
+                    To deliver real emails to your Gmail inbox, configure SMTP in Render settings. Meanwhile, your test code is:
+                  </p>
+                  <div className="flex items-center justify-between pt-1">
+                    <span className="font-mono text-xl font-black text-amber-300 tracking-widest">{devRecoveryCode}</span>
+                    <button
+                      type="button"
+                      onClick={() => setVerificationCode(devRecoveryCode)}
+                      className="px-2.5 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 rounded font-semibold text-[11px]"
+                    >
+                      Auto-fill Code
+                    </button>
+                  </div>
+                </div>
+              )}
               <div>
                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                   6-Digit Verification Code

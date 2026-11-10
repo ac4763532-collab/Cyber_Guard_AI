@@ -53,6 +53,7 @@ export default function Register() {
   const [verificationCode, setVerificationCode] = useState("");
   const [registrationToken, setRegistrationToken] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [devCode, setDevCode] = useState<string | null>(null);
 
   const {
     register,
@@ -80,7 +81,13 @@ export default function Register() {
         role: role,
       });
 
-      toast.success(res.data?.message || "Verification code sent to your email!");
+      if (res.data?.preview_code) {
+        setDevCode(res.data.preview_code);
+        toast.info("Server Notice: SMTP not configured. Test OTP shown below.", { duration: 6000 });
+      } else {
+        setDevCode(null);
+        toast.success(res.data?.message || "Verification code sent to your email!");
+      }
       setStep(2);
     } catch (error: any) {
       const msg = error.response?.data?.detail || error.response?.data?.error?.message || error.message || "Failed to initiate registration";
@@ -128,7 +135,12 @@ export default function Register() {
         full_name: data.fullName.trim(),
         role: role,
       });
-      toast.success(res.data?.message || "A new code has been dispatched to your email.");
+      if (res.data?.preview_code) {
+        setDevCode(res.data.preview_code);
+        toast.info(`New test code: ${res.data.preview_code}`);
+      } else {
+        toast.success(res.data?.message || "A new code has been dispatched to your email.");
+      }
     } catch (error: any) {
       const msg = error.response?.data?.detail || error.message || "Failed to resend code";
       toast.error(msg);
@@ -337,6 +349,27 @@ export default function Register() {
                   We dispatched a 6-digit verification code to <span className="font-semibold text-cyan-400">{getValues("email")}</span>.
                 </p>
               </div>
+
+              {devCode && (
+                <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl text-xs space-y-1.5 text-slate-300">
+                  <div className="flex items-center gap-1.5 text-amber-400 font-bold">
+                    <span>⚠️ SMTP Not Configured on Render</span>
+                  </div>
+                  <p className="text-[11px] text-slate-400">
+                    To send real emails to your Gmail inbox, configure SMTP in Render settings. Meanwhile, your test code is:
+                  </p>
+                  <div className="flex items-center justify-between pt-1">
+                    <span className="font-mono text-xl font-black text-amber-300 tracking-widest">{devCode}</span>
+                    <button
+                      type="button"
+                      onClick={() => setVerificationCode(devCode)}
+                      className="px-2.5 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 rounded font-semibold text-[11px]"
+                    >
+                      Auto-fill Code
+                    </button>
+                  </div>
+                </div>
+              )}
 
               <div>
                 <label className="block text-center text-xs font-medium text-slate-400 mb-1.5 uppercase tracking-wider">

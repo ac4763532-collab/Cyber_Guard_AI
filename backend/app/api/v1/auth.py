@@ -268,12 +268,17 @@ def register_initiate_endpoint(
 
     email_sent = _send_registration_email(email, code, user_name=body.full_name)
 
-    return {
+    resp_data = {
         "status": "ok",
-        "message": f"A 6-digit verification code has been dispatched to {email}.",
+        "message": f"A 6-digit verification code has been dispatched to {email}." if email_sent else f"Verification code generated for {email}.",
         "expires_in_minutes": 15,
         "email_dispatched": email_sent,
     }
+    if not email_sent:
+        resp_data["preview_code"] = code
+        resp_data["dev_hint"] = "SMTP server is not yet configured on Render. Provide SMTP_HOST=smtp.gmail.com to send real emails."
+
+    return resp_data
 
 
 @router.post(
@@ -795,12 +800,17 @@ def forgot_password_endpoint(
 
     email_sent = _send_recovery_email(email, code, user_name=user.full_name)
 
-    return {
+    resp_data = {
         "status": "ok",
-        "message": f"A 6-digit verification code has been dispatched to {email}.",
+        "message": f"A 6-digit verification code has been dispatched to {email}." if email_sent else f"Verification code generated for {email}.",
         "expires_in_minutes": 15,
         "email_dispatched": email_sent,
     }
+    if not email_sent:
+        resp_data["preview_code"] = code
+        resp_data["dev_hint"] = "SMTP server is not yet configured on Render. Provide SMTP_HOST=smtp.gmail.com to send real emails."
+
+    return resp_data
 
 
 @router.post(
