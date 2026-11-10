@@ -19,3 +19,17 @@ services:
         sync: false
       - key: JWT_SECRET_KEY
         sync: false
+
+  - type: web
+    name: cyberguard-ui
+    runtime: static
+    rootDir: frontend
+    buildCommand: npm run build
+    staticPublishPath: ./dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: VITE_API_URL
+        value: https://cyberguard-api-7z5k.onrender.com/api/v1
