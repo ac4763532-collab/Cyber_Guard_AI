@@ -70,6 +70,13 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any, Literal
 
+try:
+    import bcrypt
+    if not hasattr(bcrypt, "__about__"):
+        bcrypt.__about__ = type("About", (), {"__version__": getattr(bcrypt, "__version__", "4.0.1")})()
+except Exception:
+    pass
+
 from jose import JWTError, jwt
 from jose.exceptions import ExpiredSignatureError as JoseExpiredSignatureError
 from passlib.context import CryptContext

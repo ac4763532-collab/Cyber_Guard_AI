@@ -75,6 +75,14 @@ Usage
 
 from __future__ import annotations
 
+# ── Ensure bcrypt compatibility with passlib in newer Python environments ─────
+try:
+    import bcrypt
+    if not hasattr(bcrypt, "__about__"):
+        bcrypt.__about__ = type("About", (), {"__version__": getattr(bcrypt, "__version__", "4.0.1")})()
+except Exception:
+    pass
+
 import threading
 import time
 import uuid
@@ -616,8 +624,9 @@ async def unhandled_exception_handler(
         "error": {
             "code": "INTERNAL_ERROR",
             "message": (
-                "An internal error occurred. "
-                "Please contact support with the correlation ID."
+                f"Internal error: {type(exc).__name__}: {exc}"
+                if getattr(settings, "APP_ENV", "") != "production" or getattr(settings, "APP_DEBUG", False)
+                else "An internal error occurred. Please contact support with the correlation ID."
             ),
         }
     }
