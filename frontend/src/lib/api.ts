@@ -71,7 +71,7 @@ export function setUnauthorizedCallback(fn: () => void) {
 // ============================================================================
 
 export const api = axios.create({
-  baseURL: "/api/v1",
+  baseURL: import.meta.env.VITE_API_URL || "/api/v1",
   headers: { "Content-Type": "application/json" },
   timeout: 30_000, // 30 seconds (matches backend http_timeout_seconds)
 });
