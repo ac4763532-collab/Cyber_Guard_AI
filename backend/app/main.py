@@ -640,6 +640,15 @@ async def unhandled_exception_handler(
 # ============================================================================
 
 @app.get(
+    "/",
+    tags=["meta"],
+    summary="Root API info",
+)
+@app.head(
+    "/",
+    include_in_schema=False,
+)
+@app.get(
     "/api",
     tags=["meta"],
     summary="API information",

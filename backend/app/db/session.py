@@ -302,7 +302,9 @@ def health_check() -> bool:
         return True
     except Exception as exc:
         logger.warning(
-            "Database health check failed",
+            "Database health check failed: %s (%s)",
+            type(exc).__name__,
+            str(exc)[:300],
             extra={"error": type(exc).__name__, "detail": str(exc)[:200]},
         )
         return False
