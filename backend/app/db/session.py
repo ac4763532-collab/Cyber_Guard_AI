@@ -140,8 +140,26 @@ def _build_engine() -> Engine:
     keep behavior predictable.
     """
     db_url = str(settings.DATABASE_URL)
-    if db_url.startswith("postgresql://") and "+psycopg" not in db_url:
-        db_url = db_url.replace("postgresql://", "postgresql+psycopg://", 1)
+    has_psycopg2 = False
+    has_psycopg3 = False
+    try:
+        import psycopg2  # noqa: F401
+        has_psycopg2 = True
+    except ImportError:
+        pass
+    try:
+        import psycopg  # noqa: F401
+        has_psycopg3 = True
+    except ImportError:
+        pass
+
+    if db_url.startswith("postgresql://"):
+        if has_psycopg2:
+            db_url = db_url.replace("postgresql://", "postgresql+psycopg2://", 1)
+        elif has_psycopg3:
+            db_url = db_url.replace("postgresql://", "postgresql+psycopg://", 1)
+    elif db_url.startswith("postgresql+psycopg://") and not has_psycopg3 and has_psycopg2:
+        db_url = db_url.replace("postgresql+psycopg://", "postgresql+psycopg2://", 1)
 
     return create_engine(
         db_url,

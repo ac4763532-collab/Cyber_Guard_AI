@@ -24,6 +24,7 @@ email-validator==2.2.0
 sqlalchemy==2.0.35
 alembic==1.13.3
 psycopg2-binary>=2.9.9
+psycopg[binary]>=3.1.18
 
 # ── Authentication & Security ───────────────────────────────────────────────
 python-jose[cryptography]==3.3.0
