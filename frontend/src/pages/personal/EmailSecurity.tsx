@@ -138,8 +138,24 @@ export default function EmailSecurity() {
     }
   }, [searchParams, refetchGmailStatus, refetch]);
 
+  const handleConnectGoogleOAuth = async () => {
+    try {
+      const { data } = await api.get<{ auth_url: string }>("/email/gmail/auth-url");
+      if (data?.auth_url) {
+        window.location.href = data.auth_url;
+      }
+    } catch (err: any) {
+      const msg =
+        err.response?.data?.detail ||
+        err.response?.data?.error?.message ||
+        "Google OAuth configuration needed. Please add GOOGLE_CLIENT_ID & GOOGLE_CLIENT_SECRET to Render Environment Variables.";
+      toast.error(msg, { duration: 6000 });
+      setIsConnectModalOpen(true);
+    }
+  };
+
   const handleOpenConnectModal = () => {
-    setIsConnectModalOpen(true);
+    handleConnectGoogleOAuth();
   };
 
   const handleConnectDirectSubmit = async (e: React.FormEvent) => {
@@ -278,10 +294,10 @@ export default function EmailSecurity() {
           ) : (
             <Button
               size="sm"
-              onClick={handleOpenConnectModal}
+              onClick={handleConnectGoogleOAuth}
               className="bg-cyan-500 hover:bg-cyan-400 text-slate-950 text-xs font-bold shadow-md shadow-cyan-500/20"
             >
-              <Mail size={14} className="mr-1.5 text-slate-950" /> Connect Gmail Inbox
+              <Mail size={14} className="mr-1.5 text-slate-950" /> Sign in with Google
             </Button>
           )}
 
@@ -454,10 +470,10 @@ export default function EmailSecurity() {
             </div>
           </div>
           <Button
-            onClick={handleOpenConnectModal}
+            onClick={handleConnectGoogleOAuth}
             className="bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs shrink-0 shadow-md shadow-cyan-500/20"
           >
-            <Mail size={14} className="mr-1.5" /> Connect Gmail Account
+            <Mail size={14} className="mr-1.5" /> Sign in with Google
           </Button>
         </div>
       )}

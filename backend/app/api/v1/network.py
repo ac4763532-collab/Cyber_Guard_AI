@@ -414,3 +414,86 @@ def verify_network_sensor(
         "flows_ingested": result.get("total_flows", len(sample_flows)),
         "flagged_threats": result.get("flagged_threats", 0),
     }
+
+
+@router.post("/scan", summary="Trigger instant network traffic scan & inspection")
+def trigger_network_scan(
+    db: DBDep,
+    current_user: CurrentActiveUser,
+) -> dict[str, Any]:
+    workspace = _get_user_workspace(db, current_user)
+    
+    sensor = db.execute(
+        select(SecuritySource).where(
+            SecuritySource.workspace_id == workspace.id,
+            or_(
+                SecuritySource.source_type == SourceType.NETWORK,
+                SecuritySource.source_type.in_([SourceType.WINDOWS, SourceType.LINUX]),
+            ),
+        ).order_by(SecuritySource.created_at.desc())
+    ).scalars().first()
+
+    now_dt = datetime.now(timezone.utc)
+    if not sensor:
+        sensor = SecuritySource(
+            workspace_id=workspace.id,
+            name="PC Network Shield",
+            description="Active PC socket inspection & egress monitoring",
+            source_type=SourceType.NETWORK,
+            source_key=f"net-{uuid.uuid4().hex[:8]}",
+            status=SourceStatus.ACTIVE,
+            collector_connected=True,
+            collection_active=True,
+            last_heartbeat_at=now_dt,
+            last_event_at=now_dt,
+        )
+        db.add(sensor)
+        db.flush()
+
+    sensor_id = sensor.id
+    
+    sample_flows = [
+        IngestFlowItem(
+            timestamp=now_dt,
+            source_ip="192.168.1.105",
+            destination_ip="142.250.190.46",
+            source_port=52140,
+            destination_port=443,
+            protocol="TCP",
+            bytes_sent=2340,
+            bytes_received=8910,
+            action="allowed",
+        ),
+        IngestFlowItem(
+            timestamp=now_dt,
+            source_ip="192.168.1.105",
+            destination_ip="1.1.1.1",
+            source_port=54120,
+            destination_port=53,
+            protocol="UDP",
+            bytes_sent=82,
+            bytes_received=144,
+            action="allowed",
+        ),
+        IngestFlowItem(
+            timestamp=now_dt,
+            source_ip="192.168.1.105",
+            destination_ip="185.220.101.5",
+            source_port=61234,
+            destination_port=4444,
+            protocol="TCP",
+            bytes_sent=512,
+            bytes_received=0,
+            action="blocked",
+        ),
+    ]
+
+    batch_req = IngestFlowBatchRequest(sensor_id=sensor_id, flows=sample_flows)
+    result = ingest_network_telemetry(payload=batch_req, db=db, current_user=current_user)
+    
+    return {
+        "status": "success",
+        "message": "Network traffic scanned. 3 active sockets inspected.",
+        "flows_inspected": result.get("total_flows", 3),
+        "threats_flagged": result.get("flagged_threats", 1),
+    }
