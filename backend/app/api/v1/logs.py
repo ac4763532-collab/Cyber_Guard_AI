@@ -136,9 +136,10 @@ def get_log_summary(
         sev_val = ev.severity.value if hasattr(ev.severity, "value") else str(ev.severity)
         is_threat = sev_val in ("high", "critical", "medium")
 
-        # Noise reduction: Deduplicate identical recurring benign events
-        # Ensures harmful/suspicious events are permanently preserved while benign noise is streamlined
-        benign_key = f"{ev.hostname}|{summary_info['title']}|{summary_info['plain_english']}"
+        # Noise reduction: Deduplicate only identical recurring benign events for the SAME process/details
+        # Ensures all distinct applications and all harmful/suspicious events are permanently visible
+        proc_tag = summary_info.get("process_display") or ev.process_name or summary_info.get("event_id") or "sys"
+        benign_key = f"{ev.hostname}|{proc_tag}|{summary_info['title']}|{summary_info['friendly_details']}"
         if not is_threat and benign_key in seen_benign_keys:
             continue
         if not is_threat:

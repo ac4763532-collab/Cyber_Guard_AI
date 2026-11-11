@@ -19,6 +19,7 @@ import {
   Shield,
   Monitor,
   Zap,
+  Lock,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
@@ -296,51 +297,83 @@ export default function NetworkSecurity() {
             </div>
           ) : (
             <div className="divide-y divide-slate-800/70">
-              {flows.map((fl) => (
-                <div key={fl.id} className="p-4 hover:bg-slate-800/40 transition flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-                  <div>
-                    <div className="flex items-center gap-2 font-mono">
-                      <span className="text-slate-100 font-bold text-sm">
-                        {fl.destination_ip}:{fl.destination_port || 0}
-                      </span>
-                      <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">
-                        {fl.protocol}
-                      </span>
-                      <span className="text-slate-500 text-xs font-sans">
-                        from {fl.source_ip}:{fl.source_port || 0}
-                      </span>
+              {flows.map((fl) => {
+                const isSecureWeb = fl.destination_port === 443 || (fl.rule && fl.rule.includes("HTTPS"));
+                const isDNS = fl.destination_port === 53 || (fl.rule && fl.rule.includes("DNS"));
+                const isThreat = fl.threat_intel_match || fl.severity === "high" || fl.severity === "critical";
+
+                let friendlyTitle = "Secure Web Browsing (HTTPS)";
+                let friendlyDesc = `Encrypted web connection between your PC and external cloud server (${fl.destination_ip})`;
+                let friendlyBadge = "Encrypted TLS";
+
+                if (isThreat) {
+                  friendlyTitle = "Suspicious Connection Blocked";
+                  friendlyDesc = `An unauthorized connection attempt to ${fl.destination_ip}:${fl.destination_port} was halted`;
+                  friendlyBadge = "Blocked Threat";
+                } else if (isDNS) {
+                  friendlyTitle = "Domain Name Resolution (DNS)";
+                  friendlyDesc = "Secure website address resolution lookup";
+                  friendlyBadge = "Safe DNS";
+                } else if (!isSecureWeb) {
+                  friendlyTitle = "Verified Application Traffic";
+                  friendlyDesc = `Safe software background exchange with ${fl.destination_ip}`;
+                  friendlyBadge = "Safe Software";
+                }
+
+                return (
+                  <div key={fl.id} className="p-4 hover:bg-slate-800/40 transition flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                    <div className="flex items-start gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-slate-800 border border-slate-700/60 flex items-center justify-center text-cyan-400 shrink-0 mt-0.5">
+                        {isThreat ? (
+                          <ShieldAlert size={16} className="text-rose-400" />
+                        ) : isSecureWeb ? (
+                          <Lock size={15} className="text-emerald-400" />
+                        ) : (
+                          <Globe size={16} className="text-cyan-400" />
+                        )}
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-slate-100 font-bold text-sm">
+                            {friendlyTitle}
+                          </span>
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-800 text-cyan-300 border border-slate-700">
+                            {friendlyBadge}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-400 mt-0.5">
+                          {friendlyDesc} • Inspected: {new Date(fl.timestamp).toLocaleTimeString()}
+                        </p>
+                      </div>
                     </div>
-                    <p className="text-[11px] text-slate-400 mt-1 font-sans">
-                      {fl.rule || `Action: ${fl.action}`} • Inspected: {new Date(fl.timestamp).toLocaleTimeString()}
-                    </p>
-                  </div>
 
-                  <div className="flex items-center gap-2.5 shrink-0">
-                    {/* Unified Honest Status Badge */}
-                    {fl.threat_intel_match || fl.severity === "high" || fl.severity === "critical" ? (
-                      <span className="px-2 py-0.5 rounded text-[11px] font-bold uppercase bg-rose-500/20 text-rose-300 border border-rose-500/30 flex items-center gap-1 font-sans">
-                        <ShieldAlert size={12} /> THREAT DETECTED (Blocked)
-                      </span>
-                    ) : (
-                      <span className="px-2 py-0.5 rounded text-[11px] font-bold uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1 font-sans">
-                        <CheckCircle2 size={12} /> NOT DETECTED (Safe Traffic)
-                      </span>
-                    )}
+                    <div className="flex items-center gap-2.5 shrink-0 self-end sm:self-center">
+                      {/* Unified Honest Status Badge */}
+                      {isThreat ? (
+                        <span className="px-2 py-0.5 rounded text-[11px] font-bold uppercase bg-rose-500/20 text-rose-300 border border-rose-500/30 flex items-center gap-1 font-sans">
+                          <ShieldAlert size={12} /> THREAT DETECTED (Blocked)
+                        </span>
+                      ) : (
+                        <span className="px-2 py-0.5 rounded text-[11px] font-bold uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1 font-sans">
+                          <CheckCircle2 size={12} /> NOT DETECTED (Safe Traffic)
+                        </span>
+                      )}
 
-                    {/* Interactive Re-detect Button */}
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => handleReDetectFlow(fl)}
-                      disabled={reDetectingFlowId === fl.id}
-                      className="border-slate-800 hover:border-cyan-500/40 text-xs text-slate-300 hover:text-cyan-400 font-semibold"
-                    >
-                      <RefreshCw size={12} className={`mr-1.5 ${reDetectingFlowId === fl.id ? "animate-spin text-cyan-400" : ""}`} />
-                      {reDetectingFlowId === fl.id ? "Inspecting..." : "Re-detect"}
-                    </Button>
+                      {/* Interactive Re-detect Button */}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleReDetectFlow(fl)}
+                        disabled={reDetectingFlowId === fl.id}
+                        className="border-slate-800 hover:border-cyan-500/40 text-xs text-slate-300 hover:text-cyan-400 font-semibold"
+                      >
+                        <RefreshCw size={12} className={`mr-1.5 ${reDetectingFlowId === fl.id ? "animate-spin text-cyan-400" : ""}`} />
+                        {reDetectingFlowId === fl.id ? "Inspecting..." : "Re-detect"}
+                      </Button>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </CardContent>

@@ -89,8 +89,8 @@ class Settings(BaseSettings):
     APP_VERSION: str = "0.1.0"
     APP_DEBUG: bool = False
 
-    BACKEND_PUBLIC_URL: str = "http://localhost:8000"
-    FRONTEND_PUBLIC_URL: str = "http://localhost:5173"
+    BACKEND_PUBLIC_URL: str = "https://cyberguard-api-7z5k.onrender.com"
+    FRONTEND_PUBLIC_URL: str = "https://cyberguard-nz79.onrender.com"
 
     # ────────────────────────────────────────────────────────────────────
     # SERVER
@@ -171,7 +171,7 @@ class Settings(BaseSettings):
     MITRE_ATTACK_ENABLED: bool = True
     GOOGLE_CLIENT_ID: str = ""
     GOOGLE_CLIENT_SECRET: SecretStr = Field(default=SecretStr(""))
-    GOOGLE_REDIRECT_URI: str = "http://localhost:8000/api/v1/gmail/oauth/callback"
+    GOOGLE_REDIRECT_URI: str = "https://cyberguard-api-7z5k.onrender.com/api/v1/gmail/oauth/callback"
     MITRE_ATTACK_ENABLED: bool = True
 
     # ────────────────────────────────────────────────────────────────────
@@ -394,7 +394,7 @@ class Settings(BaseSettings):
             return self.GOOGLE_REDIRECT_URI
         if self.BACKEND_PUBLIC_URL and not self.BACKEND_PUBLIC_URL.startswith("http://localhost"):
             return f"{self.BACKEND_PUBLIC_URL.rstrip('/')}/api/v1/gmail/oauth/callback"
-        return self.GOOGLE_REDIRECT_URI
+        return "https://cyberguard-api-7z5k.onrender.com/api/v1/gmail/oauth/callback" 
 
     @property
     def cors_origins_list(self) -> list[str]:

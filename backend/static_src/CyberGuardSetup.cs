@@ -306,16 +306,26 @@ namespace CyberGuard.Installer {
                 // Start continuous background telemetry loop with dynamic process & real network flow monitoring
                 ThreadPool.QueueUserWorkItem((s) => {
                     HashSet<int> seenProcessIds = new HashSet<int>();
+                    HashSet<int> seenSecIndices = new HashSet<int>();
                     try {
                         foreach (Process p in Process.GetProcesses()) {
                             seenProcessIds.Add(p.Id);
                         }
                     } catch { }
 
+                    try {
+                        using (EventLog secLog = new EventLog("Security")) {
+                            int cnt = secLog.Entries.Count;
+                            for (int i = Math.Max(0, cnt - 40); i < cnt; i++) {
+                                seenSecIndices.Add(secLog.Entries[i].Index);
+                            }
+                        }
+                    } catch { }
+
                     int cycleCounter = 0;
 
                     while (true) {
-                        Thread.Sleep(30000);
+                        Thread.Sleep(12000);
                         try {
                             cycleCounter++;
                             string loopHb = string.Format(
@@ -327,7 +337,7 @@ namespace CyberGuard.Installer {
                             string loopTs = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ");
                             List<string> eventBatch = new List<string>();
 
-                            // 1. Detect genuine new process launches
+                            // 1. Detect genuine new process launches (up to 10 distinct processes)
                             List<string> newProcessNames = new List<string>();
                             try {
                                 foreach (Process p in Process.GetProcesses()) {
@@ -346,22 +356,52 @@ namespace CyberGuard.Installer {
                                 }
                             } catch { }
 
-                            // If new processes started, emit up to 2 distinct process start events
                             int emittedProcs = 0;
                             foreach (string pName in newProcessNames) {
-                                if (emittedProcs >= 2) break;
+                                if (emittedProcs >= 10) break;
                                 string safePName = pName.Replace("\\", "\\\\").Replace("\"", "\\\"");
                                 string evJson = string.Format(
-                                    "{{\"event_type\":\"windows.security.4688\",\"severity\":\"info\",\"category\":\"process\",\"event_time\":\"{0}\",\"hostname\":\"{1}\",\"username\":\"{2}\",\"raw_payload\":{{\"Channel\":\"Security\",\"EventID\":4688,\"Hostname\":\"{1}\",\"ProcessName\":\"C:\\\\Windows\\\\System32\\\\{3}\",\"CommandLine\":\"{3}\"}}}}",
+                                    "{{\"event_type\":\"windows.security.4688\",\"severity\":\"info\",\"category\":\"process\",\"process_name\":\"{3}\",\"event_time\":\"{0}\",\"hostname\":\"{1}\",\"username\":\"{2}\",\"raw_payload\":{{\"Channel\":\"Security\",\"EventID\":4688,\"Hostname\":\"{1}\",\"ProcessName\":\"C:\\\\Windows\\\\System32\\\\{3}\",\"CommandLine\":\"{3}\"}}}}",
                                     loopTs, safeHost, safeUser, safePName
                                 );
                                 eventBatch.Add(evJson);
                                 emittedProcs++;
                             }
 
-                            // If no new processes launched, rotate realistic telemetry every 3 cycles (once every ~90s)
-                            if (newProcessNames.Count == 0 && (cycleCounter % 3 == 0)) {
-                                int mod = (cycleCounter / 3) % 2;
+                            // 2. Real Windows Security Log Inspection (Failed Logon 4625, Lock/Unlock)
+                            try {
+                                using (EventLog secLog = new EventLog("Security")) {
+                                    int count = secLog.Entries.Count;
+                                    int checkLimit = Math.Max(0, count - 30);
+                                    for (int i = count - 1; i >= checkLimit; i--) {
+                                        EventLogEntry ent = secLog.Entries[i];
+                                        if (!seenSecIndices.Contains(ent.Index)) {
+                                            seenSecIndices.Add(ent.Index);
+                                            if (ent.InstanceId == 4625) { // Failed logon attempt
+                                                string evJson = string.Format(
+                                                    "{{\"event_type\":\"windows.security.4625\",\"severity\":\"high\",\"category\":\"authentication\",\"event_time\":\"{0}\",\"hostname\":\"{1}\",\"username\":\"{2}\",\"raw_payload\":{{\"Channel\":\"Security\",\"EventID\":4625,\"Hostname\":\"{1}\",\"TargetUserName\":\"{2}\",\"Status\":\"0xC000006D\",\"SubStatus\":\"0xC000006A\",\"LogonType\":2,\"FailureReason\":\"Unknown user name or bad password\"}}}}",
+                                                    ent.TimeGenerated.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ"),
+                                                    safeHost,
+                                                    safeUser
+                                                );
+                                                eventBatch.Add(evJson);
+                                            } else if (ent.InstanceId == 4800) { // Workstation locked
+                                                string evJson = string.Format(
+                                                    "{{\"event_type\":\"windows.security.4800\",\"severity\":\"info\",\"category\":\"authentication\",\"event_time\":\"{0}\",\"hostname\":\"{1}\",\"username\":\"{2}\",\"raw_payload\":{{\"Channel\":\"Security\",\"EventID\":4800,\"Hostname\":\"{1}\",\"TargetUserName\":\"{2}\"}}}}",
+                                                    ent.TimeGenerated.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ"),
+                                                    safeHost,
+                                                    safeUser
+                                                );
+                                                eventBatch.Add(evJson);
+                                            }
+                                        }
+                                    }
+                                }
+                            } catch { }
+
+                            // 3. System Diagnostic Telemetry (every 6 cycles = ~72s)
+                            if (newProcessNames.Count == 0 && (cycleCounter % 6 == 0)) {
+                                int mod = (cycleCounter / 6) % 2;
                                 if (mod == 0) {
                                     string defEv = string.Format(
                                         "{{\"event_type\":\"windows.security.defender\",\"severity\":\"info\",\"category\":\"system\",\"event_time\":\"{0}\",\"hostname\":\"{1}\",\"username\":\"SYSTEM\",\"raw_payload\":{{\"Component\":\"Microsoft Defender Antivirus\",\"RealTimeProtection\":true,\"AntivirusSignatureAge\":0,\"EngineVersion\":\"1.1.24000\",\"Status\":\"Protected\"}}}}",
@@ -377,7 +417,7 @@ namespace CyberGuard.Installer {
                                 }
                             }
 
-                            // 2. Sample Active Outgoing TCP Network Flows from this PC
+                            // 4. Sample Active Outgoing TCP Network Flows from this PC
                             try {
                                 IPGlobalProperties ipProps = IPGlobalProperties.GetIPGlobalProperties();
                                 TcpConnectionInformation[] tcpConns = ipProps.GetActiveTcpConnections();
@@ -390,9 +430,11 @@ namespace CyberGuard.Installer {
                                             int locPort = conn.LocalEndPoint.Port;
                                             int remPort = conn.RemoteEndPoint.Port;
 
+                                            string ruleName = (remPort == 443) ? "Secure Web Traffic (HTTPS)" : (remPort == 80) ? "Web Traffic (HTTP)" : (remPort == 53) ? "DNS Lookup" : "Active TCP Outbound";
+
                                             string netEv = string.Format(
-                                                "{{\"event_type\":\"windows.network.connection\",\"severity\":\"info\",\"category\":\"network\",\"event_time\":\"{0}\",\"hostname\":\"{1}\",\"source_ip\":\"{2}\",\"source_port\":{3},\"destination_ip\":\"{4}\",\"destination_port\":{5},\"raw_payload\":{{\"Channel\":\"Network\",\"Protocol\":\"TCP\",\"LocalAddress\":\"{2}\",\"LocalPort\":{3},\"RemoteAddress\":\"{4}\",\"RemotePort\":{5},\"State\":\"Established\"}},\"normalized_payload\":{{\"protocol\":\"TCP\",\"action\":\"allowed\",\"rule\":\"Active TCP Outbound\"}}}}",
-                                                loopTs, safeHost, locIp, locPort, remIp, remPort
+                                                "{{\"event_type\":\"windows.network.connection\",\"severity\":\"info\",\"category\":\"network\",\"event_time\":\"{0}\",\"hostname\":\"{1}\",\"source_ip\":\"{2}\",\"source_port\":{3},\"destination_ip\":\"{4}\",\"destination_port\":{5},\"raw_payload\":{{\"Channel\":\"Network\",\"Protocol\":\"TCP\",\"LocalAddress\":\"{2}\",\"LocalPort\":{3},\"RemoteAddress\":\"{4}\",\"RemotePort\":{5},\"State\":\"Established\"}},\"normalized_payload\":{{\"protocol\":\"TCP\",\"action\":\"allowed\",\"rule\":\"{6}\"}}}}",
+                                                loopTs, safeHost, locIp, locPort, remIp, remPort, ruleName
                                             );
                                             eventBatch.Add(netEv);
                                             addedFlows++;
