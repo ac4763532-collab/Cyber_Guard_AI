@@ -186,9 +186,16 @@ def _send_email_via_http(to_email: str, subject: str, html_content: str, text_co
         try:
             sender_email = (settings.EMAIL_FROM_ADDRESS or "").strip().strip("\"'")
             if not sender_email or "@" not in sender_email or any(sender_email.lower().endswith(d) for d in [".local", ".ai", "cyberguard.ai", "cyberguard.local"]):
-                sender_email = (settings.SMTP_USERNAME or "").strip().strip("\"'")
+                try:
+                    with httpx.Client(timeout=5.0) as client:
+                        acct_res = client.get("https://api.brevo.com/v3/account", headers={"api-key": brevo_key})
+                        if acct_res.status_code == 200:
+                            sender_email = acct_res.json().get("email") or ""
+                except Exception:
+                    pass
+
             if not sender_email or "@" not in sender_email:
-                sender_email = "apchavan047@gmail.com"
+                sender_email = (settings.SMTP_USERNAME or "apchavan047@gmail.com").strip().strip("\"'")
 
             payload = {
                 "sender": {"name": settings.EMAIL_FROM_NAME or "CyberGuard AI", "email": sender_email},
@@ -204,8 +211,13 @@ def _send_email_via_http(to_email: str, subject: str, html_content: str, text_co
                     json=payload,
                 )
                 if res.status_code in [200, 201]:
-                    logger.info("Email dispatched successfully via Brevo HTTPS API to %s", to_email)
-                    return True, "Email dispatched via Brevo HTTPS API"
+                    msg_id = ""
+                    try:
+                        msg_id = res.json().get("messageId", "")
+                    except Exception:
+                        pass
+                    logger.info("Email dispatched successfully via Brevo HTTPS API to %s (messageId: %s)", to_email, msg_id)
+                    return True, f"Email dispatched via Brevo HTTPS API (messageId: {msg_id})"
                 else:
                     err_snippet = res.text[:250]
                     logger.warning("Brevo API error for %s (HTTP %s): %s", to_email, res.status_code, err_snippet)
@@ -1071,7 +1083,7 @@ def email_status_endpoint() -> dict[str, Any]:
     smtp_host = (settings.SMTP_HOST or "").strip().strip("\"'").strip()
     smtp_user = (settings.SMTP_USERNAME or "").strip().strip("\"'").strip()
 
-    return {
+    resp_payload: dict[str, Any] = {
         "status": "ok",
         "resend_configured": bool(resend_key),
         "resend_key_prefix": f"{resend_key[:6]}..." if len(resend_key) > 6 else ("empty" if not resend_key else "set"),
@@ -1082,6 +1094,31 @@ def email_status_endpoint() -> dict[str, Any]:
         "email_from_address": settings.EMAIL_FROM_ADDRESS,
         "active_provider": "resend" if resend_key else ("brevo" if brevo_key else ("smtp" if smtp_host else "none")),
     }
+
+    if brevo_key:
+        try:
+            import httpx
+            with httpx.Client(timeout=6.0) as client:
+                acct = client.get("https://api.brevo.com/v3/account", headers={"api-key": brevo_key})
+                if acct.status_code == 200:
+                    data = acct.json()
+                    resp_payload["brevo_account"] = {
+                        "email": data.get("email"),
+                        "companyName": data.get("companyName"),
+                        "plan": [p.get("type") for p in data.get("plan", [])],
+                    }
+
+                senders_res = client.get("https://api.brevo.com/v3/senders", headers={"api-key": brevo_key})
+                if senders_res.status_code == 200:
+                    resp_payload["brevo_senders"] = senders_res.json().get("senders", [])
+
+                events_res = client.get("https://api.brevo.com/v3/smtp/statistics/events?limit=5", headers={"api-key": brevo_key})
+                if events_res.status_code == 200:
+                    resp_payload["brevo_recent_events"] = events_res.json().get("events", [])
+        except Exception as exc:
+            resp_payload["brevo_error"] = str(exc)
+
+    return resp_payload
 
 
 class EmailTestRequest(BaseModel):
