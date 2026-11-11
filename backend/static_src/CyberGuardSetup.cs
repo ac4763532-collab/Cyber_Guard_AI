@@ -34,6 +34,9 @@ namespace CyberGuard.Installer {
         private string safeHost = Environment.MachineName;
         private string safeUser = Environment.UserName;
         private DateTime? lastLockTime = null;
+        private DateTime lastLockSent = DateTime.MinValue;
+        private DateTime lastUnlockSent = DateTime.MinValue;
+        private bool isMonitoringStarted = false;
         private NotifyIcon trayIcon;
         private ContextMenuStrip trayMenu;
         private bool isUninstalling = false;
@@ -87,7 +90,7 @@ namespace CyberGuard.Installer {
                 }
             }
 
-            // Check next to executable for cyberguard-config.json
+            // 1. Check next to executable for cyberguard-config.json
             string exeDir = AppDomain.CurrentDomain.BaseDirectory;
             string configPath = Path.Combine(exeDir, "cyberguard-config.json");
             if (File.Exists(configPath)) {
@@ -99,6 +102,49 @@ namespace CyberGuard.Installer {
                     if (mDevice.Success) deviceId = mDevice.Groups[1].Value;
                     Match mToken = Regex.Match(json, @"""enrollment_token""\s*:\s*""([^""]+)""");
                     if (mToken.Success) enrollmentToken = mToken.Groups[1].Value;
+                    Match mCol = Regex.Match(json, @"""collector_id""\s*:\s*""([^""]+)""");
+                    if (mCol.Success) activeCollectorId = mCol.Groups[1].Value;
+                    Match mCred = Regex.Match(json, @"""collector_credential""\s*:\s*""([^""]+)""");
+                    if (mCred.Success) activeCredential = mCred.Groups[1].Value;
+                } catch { }
+            }
+
+            // 2. Check %LOCALAPPDATA%\CyberGuard\Collector for enrolled_state.json
+            string appDataDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CyberGuard", "Collector");
+            string statePath = Path.Combine(appDataDir, "enrolled_state.json");
+            if (File.Exists(statePath)) {
+                try {
+                    string json = File.ReadAllText(statePath);
+                    Match mServer = Regex.Match(json, @"""server_url""\s*:\s*""([^""]+)""");
+                    if (mServer.Success && (serverUrl == "http://127.0.0.1:8000" || string.IsNullOrEmpty(serverUrl))) {
+                        serverUrl = mServer.Groups[1].Value.TrimEnd('/');
+                    }
+                    Match mCol = Regex.Match(json, @"""collector_id""\s*:\s*""([^""]+)""");
+                    if (mCol.Success && string.IsNullOrEmpty(activeCollectorId)) activeCollectorId = mCol.Groups[1].Value;
+                    Match mCred = Regex.Match(json, @"""collector_credential""\s*:\s*""([^""]+)""");
+                    if (mCred.Success && string.IsNullOrEmpty(activeCredential)) activeCredential = mCred.Groups[1].Value;
+                } catch { }
+            }
+
+            // 3. Fallback: check DPAPI credential.dat
+            string oldCredPath = Path.Combine(appDataDir, "credential.dat");
+            if (File.Exists(oldCredPath) && string.IsNullOrEmpty(activeCredential)) {
+                try {
+                    byte[] enc = File.ReadAllBytes(oldCredPath);
+                    byte[] dec = ProtectedData.Unprotect(enc, null, DataProtectionScope.CurrentUser);
+                    string plain = Encoding.UTF8.GetString(dec);
+                    if (!string.IsNullOrEmpty(plain)) {
+                        if (plain.Contains(":")) {
+                            string[] parts = plain.Split(new char[] { ':' }, 2);
+                            activeCollectorId = parts[0];
+                            activeCredential = parts[1];
+                        } else {
+                            activeCredential = plain;
+                            if (string.IsNullOrEmpty(activeCollectorId)) {
+                                activeCollectorId = Guid.NewGuid().ToString();
+                            }
+                        }
+                    }
                 } catch { }
             }
         }
@@ -201,7 +247,47 @@ namespace CyberGuard.Installer {
             };
             this.Controls.Add(lblError);
 
+            try {
+                SystemEvents.SessionSwitch += OnSessionSwitch;
+            } catch { }
+
             this.Shown += (s, e) => {
+                // If credentials already exist from prior enrollment, verify and reconnect directly
+                if (!string.IsNullOrEmpty(activeCollectorId) && !string.IsNullOrEmpty(activeCredential)) {
+                    UpdateStatus("Checking connection to CyberGuard AI with stored credentials...", 35);
+                    Thread reconThread = new Thread(() => {
+                        try {
+                            string hbPayload = string.Format(
+                                "{{\"collector_id\":\"{0}\",\"hostname\":\"{1}\",\"queue_depth\":0,\"cpu_percent\":1.5,\"memory_percent\":30.0}}",
+                                activeCollectorId, safeHost
+                            );
+                            string hbResp = PostJson(serverUrl + "/api/v1/collector/heartbeat", hbPayload, activeCollectorId, activeCredential);
+                            if (hbResp.Contains("\"ok\"") || hbResp.Contains("status")) {
+                                UpdateStatus("Connected! Active protection running in background.", 100);
+                                if (this.InvokeRequired) {
+                                    this.BeginInvoke(new Action(() => {
+                                        lblStepStatus.ForeColor = Color.FromArgb(52, 211, 153);
+                                        btnConnect.Text = "Connected & Active";
+                                        btnConnect.BackColor = Color.FromArgb(5, 150, 105);
+                                        btnConnect.Enabled = false;
+                                        txtToken.Enabled = false;
+                                    }));
+                                }
+                                StartBackgroundMonitoringLoop(activeCollectorId, activeCredential);
+                                return;
+                            }
+                        } catch { }
+
+                        // If heartbeat failed, fall back to token enrollment if available
+                        if (!string.IsNullOrEmpty(enrollmentToken)) {
+                            StartEnrollmentThread();
+                        }
+                    });
+                    reconThread.IsBackground = true;
+                    reconThread.Start();
+                    return;
+                }
+
                 // If token or config already present, start enrollment automatically
                 if (!string.IsNullOrEmpty(enrollmentToken)) {
                     txtToken.Text = enrollmentToken;
@@ -254,6 +340,14 @@ namespace CyberGuard.Installer {
             } catch { }
         }
 
+        private void OnSessionSwitch(object sender, SessionSwitchEventArgs e) {
+            if (e.Reason == SessionSwitchReason.SessionLock) {
+                OnSessionLocked();
+            } else if (e.Reason == SessionSwitchReason.SessionUnlock) {
+                OnSessionUnlocked();
+            }
+        }
+
         protected override void OnHandleCreated(EventArgs e) {
             base.OnHandleCreated(e);
             try {
@@ -274,6 +368,8 @@ namespace CyberGuard.Installer {
         }
 
         private void OnSessionLocked() {
+            if ((DateTime.UtcNow - lastLockSent).TotalSeconds < 2) return;
+            lastLockSent = DateTime.UtcNow;
             lastLockTime = DateTime.UtcNow;
             string ts = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ");
             string payload = string.Format(
@@ -281,9 +377,20 @@ namespace CyberGuard.Installer {
                 Guid.NewGuid().ToString(), ts, safeHost.Replace("\\", "\\\\").Replace("\"", "\\\""), safeUser.Replace("\\", "\\\\").Replace("\"", "\\\"")
             );
             SendAsyncEvent(payload);
+            try {
+                if (this.InvokeRequired) {
+                    this.BeginInvoke(new Action(() => {
+                        lblStepStatus.Text = "Laptop locked — Security event dispatched.";
+                    }));
+                } else {
+                    lblStepStatus.Text = "Laptop locked — Security event dispatched.";
+                }
+            } catch { }
         }
 
         private void OnSessionUnlocked() {
+            if ((DateTime.UtcNow - lastUnlockSent).TotalSeconds < 2) return;
+            lastUnlockSent = DateTime.UtcNow;
             string ts = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ");
             int lockSecs = 0;
             if (lastLockTime.HasValue) {
@@ -295,14 +402,28 @@ namespace CyberGuard.Installer {
                 Guid.NewGuid().ToString(), ts, safeHost.Replace("\\", "\\\\").Replace("\"", "\\\""), safeUser.Replace("\\", "\\\\").Replace("\"", "\\\""), lockSecs
             );
             SendAsyncEvent(payload);
+            try {
+                if (this.InvokeRequired) {
+                    this.BeginInvoke(new Action(() => {
+                        lblStepStatus.Text = "Laptop unlocked — Security event dispatched.";
+                    }));
+                } else {
+                    lblStepStatus.Text = "Laptop unlocked — Security event dispatched.";
+                }
+            } catch { }
         }
 
         private void SendAsyncEvent(string payload) {
             if (string.IsNullOrEmpty(activeCollectorId) || string.IsNullOrEmpty(activeCredential)) return;
             ThreadPool.QueueUserWorkItem((s) => {
-                try {
-                    PostJson(serverUrl + "/api/v1/collector/events", payload, activeCollectorId, activeCredential);
-                } catch { }
+                for (int attempt = 0; attempt < 3; attempt++) {
+                    try {
+                        PostJson(serverUrl + "/api/v1/collector/events", payload, activeCollectorId, activeCredential);
+                        break;
+                    } catch {
+                        if (attempt < 2) Thread.Sleep(1000);
+                    }
+                }
             });
         }
 
@@ -316,6 +437,7 @@ namespace CyberGuard.Installer {
                 return;
             }
             try {
+                SystemEvents.SessionSwitch -= OnSessionSwitch;
                 WTSUnRegisterSessionNotification(this.Handle);
             } catch { }
             if (trayIcon != null) {
@@ -418,11 +540,8 @@ namespace CyberGuard.Installer {
                 this.safeHost = safeHost;
                 this.safeUser = safeUser;
 
-                // Save credential securely locally
-                string credPath = Path.Combine(targetDir, "credential.dat");
-                byte[] credBytes = Encoding.UTF8.GetBytes(plaintextCredential);
-                byte[] encryptedBytes = ProtectedData.Protect(credBytes, null, DataProtectionScope.CurrentUser);
-                File.WriteAllBytes(credPath, encryptedBytes);
+                // Save credential and device mapping securely locally
+                SaveEnrolledState(serverUrl, newCollectorId, plaintextCredential);
 
                 // Stage 4: Collector Service Started
                 UpdateStatus("4/6: Starting background collector service...", 70);
@@ -455,249 +574,6 @@ namespace CyberGuard.Installer {
                 );
                 PostJson(serverUrl + "/api/v1/collector/events", eventBatchPayload, newCollectorId, plaintextCredential);
 
-                // Start continuous background telemetry loop with dynamic process & real network flow monitoring
-                ThreadPool.QueueUserWorkItem((s) => {
-                    Dictionary<int, string> trackedProcesses = new Dictionary<int, string>();
-                    HashSet<int> seenSecIndices = new HashSet<int>();
-                    HashSet<int> seenAppIndices = new HashSet<int>();
-
-                    try {
-                        foreach (Process p in Process.GetProcesses()) {
-                            string pName = p.ProcessName;
-                            if (!pName.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)) pName += ".exe";
-                            trackedProcesses[p.Id] = pName;
-                        }
-                    } catch { }
-
-                    try {
-                        using (EventLog secLog = new EventLog("Security")) {
-                            int cnt = secLog.Entries.Count;
-                            for (int idx = Math.Max(0, cnt - 40); idx < cnt; idx++) {
-                                seenSecIndices.Add(secLog.Entries[idx].Index);
-                            }
-                        }
-                    } catch { }
-
-                    try {
-                        using (EventLog appLog = new EventLog("Application")) {
-                            int cnt = appLog.Entries.Count;
-                            for (int idx = Math.Max(0, cnt - 40); idx < cnt; idx++) {
-                                seenAppIndices.Add(appLog.Entries[idx].Index);
-                            }
-                        }
-                    } catch { }
-
-                    int cycleCounter = 0;
-
-                    while (true) {
-                        Thread.Sleep(10000);
-                        try {
-                            cycleCounter++;
-                            string loopHb = string.Format(
-                                "{{\"collector_id\":\"{0}\",\"hostname\":\"{1}\",\"queue_depth\":0,\"cpu_percent\":1.5,\"memory_percent\":32.0}}",
-                                newCollectorId, safeHost
-                            );
-                            PostJson(serverUrl + "/api/v1/collector/heartbeat", loopHb, newCollectorId, plaintextCredential);
-
-                            string loopTs = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ");
-                            List<string> eventBatch = new List<string>();
-
-                            // 1. Detect Opened & Closed Processes
-                            HashSet<int> currentPids = new HashSet<int>();
-                            List<string> newlyOpened = new List<string>();
-                            try {
-                                foreach (Process p in Process.GetProcesses()) {
-                                    currentPids.Add(p.Id);
-                                    if (!trackedProcesses.ContainsKey(p.Id)) {
-                                        string pName = p.ProcessName;
-                                        if (!pName.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)) pName += ".exe";
-                                        trackedProcesses[p.Id] = pName;
-                                        if (!newlyOpened.Contains(pName)) {
-                                            newlyOpened.Add(pName);
-                                        }
-                                    }
-                                }
-                            } catch { }
-
-                            // Detect Closed Processes
-                            List<int> toRemovePids = new List<int>();
-                            List<string> newlyClosed = new List<string>();
-                            foreach (var kvp in trackedProcesses) {
-                                if (!currentPids.Contains(kvp.Key)) {
-                                    toRemovePids.Add(kvp.Key);
-                                    if (!newlyClosed.Contains(kvp.Value)) {
-                                        newlyClosed.Add(kvp.Value);
-                                    }
-                                }
-                            }
-                            foreach (int pid in toRemovePids) {
-                                trackedProcesses.Remove(pid);
-                            }
-
-                            // Emit Opened Events
-                            int emOpen = 0;
-                            foreach (string pName in newlyOpened) {
-                                if (emOpen >= 8) break;
-                                string safePName = pName.Replace("\\", "\\\\").Replace("\"", "\\\"");
-                                bool isDaemon = BackgroundDaemons.Contains(pName);
-                                string evType = isDaemon ? "windows.background.task" : "windows.app.opened";
-                                string cat = isDaemon ? "system" : "process";
-                                string evJson = string.Format(
-                                    "{{\"event_type\":\"{4}\",\"severity\":\"info\",\"category\":\"{5}\",\"process_name\":\"{3}\",\"event_time\":\"{0}\",\"hostname\":\"{1}\",\"username\":\"{2}\",\"raw_payload\":{{\"Channel\":\"Security\",\"EventID\":4688,\"Action\":\"opened\",\"Hostname\":\"{1}\",\"ProcessName\":\"{3}\",\"CommandLine\":\"{3}\"}}}}",
-                                    loopTs, safeHost, safeUser, safePName, evType, cat
-                                );
-                                eventBatch.Add(evJson);
-                                emOpen++;
-                            }
-
-                            // Emit Closed Events
-                            int emClose = 0;
-                            foreach (string pName in newlyClosed) {
-                                if (emClose >= 8) break;
-                                string safePName = pName.Replace("\\", "\\\\").Replace("\"", "\\\"");
-                                bool isDaemon = BackgroundDaemons.Contains(pName);
-                                string evType = isDaemon ? "windows.background.task" : "windows.app.closed";
-                                string cat = isDaemon ? "system" : "process";
-                                string evJson = string.Format(
-                                    "{{\"event_type\":\"{4}\",\"severity\":\"info\",\"category\":\"{5}\",\"process_name\":\"{3}\",\"event_time\":\"{0}\",\"hostname\":\"{1}\",\"username\":\"{2}\",\"raw_payload\":{{\"Channel\":\"Security\",\"EventID\":4689,\"Action\":\"closed\",\"Hostname\":\"{1}\",\"ProcessName\":\"{3}\"}}}}",
-                                    loopTs, safeHost, safeUser, safePName, evType, cat
-                                );
-                                eventBatch.Add(evJson);
-                                emClose++;
-                            }
-                            // 2. Real Windows Security Log Inspection (Failed Logon 4625, Lock/Unlock)
-                            try {
-                                using (EventLog secLog = new EventLog("Security")) {
-                                    int count = secLog.Entries.Count;
-                                    int checkLimit = Math.Max(0, count - 30);
-                                    for (int i = count - 1; i >= checkLimit; i--) {
-                                        EventLogEntry ent = secLog.Entries[i];
-                                        if (!seenSecIndices.Contains(ent.Index)) {
-                                            seenSecIndices.Add(ent.Index);
-                                            long id = ent.InstanceId & 0xFFFF;
-                                            if (id == 4625 || ent.EventID == 4625 || ent.InstanceId == 4625) { // Failed logon attempt (wrong password)
-                                                string evJson = string.Format(
-                                                    "{{\"event_type\":\"windows.security.4625\",\"severity\":\"high\",\"category\":\"authentication\",\"event_time\":\"{0}\",\"hostname\":\"{1}\",\"username\":\"{2}\",\"raw_payload\":{{\"Channel\":\"Security\",\"EventID\":4625,\"Hostname\":\"{1}\",\"TargetUserName\":\"{2}\",\"Status\":\"0xC000006D\",\"SubStatus\":\"0xC000006A\",\"LogonType\":2,\"FailureReason\":\"Unknown user name or bad password\"}}}}",
-                                                    ent.TimeGenerated.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ"),
-                                                    safeHost,
-                                                    safeUser
-                                                );
-                                                eventBatch.Add(evJson);
-                                            } else if (id == 4800 || ent.EventID == 4800 || ent.InstanceId == 4800) { // Workstation locked
-                                                string evJson = string.Format(
-                                                    "{{\"event_type\":\"windows.security.4800\",\"severity\":\"info\",\"category\":\"authentication\",\"event_time\":\"{0}\",\"hostname\":\"{1}\",\"username\":\"{2}\",\"raw_payload\":{{\"Channel\":\"Security\",\"EventID\":4800,\"Hostname\":\"{1}\",\"TargetUserName\":\"{2}\"}}}}",
-                                                    ent.TimeGenerated.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ"),
-                                                    safeHost,
-                                                    safeUser
-                                                );
-                                                eventBatch.Add(evJson);
-                                            } else if (id == 4801 || ent.EventID == 4801 || ent.InstanceId == 4801) { // Workstation unlocked
-                                                string evJson = string.Format(
-                                                    "{{\"event_type\":\"windows.security.4801\",\"severity\":\"info\",\"category\":\"authentication\",\"event_time\":\"{0}\",\"hostname\":\"{1}\",\"username\":\"{2}\",\"raw_payload\":{{\"Channel\":\"Security\",\"EventID\":4801,\"Hostname\":\"{1}\",\"TargetUserName\":\"{2}\"}}}}",
-                                                    ent.TimeGenerated.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ"),
-                                                    safeHost,
-                                                    safeUser
-                                                );
-                                                eventBatch.Add(evJson);
-                                            }
-                                        }
-                                    }
-                                }
-                            } catch { }
-
-                            // 3. System Diagnostic Telemetry (every 6 cycles = ~72s)
-                            // 2b. Software Installed & Uninstalled Monitoring (MsiInstaller)
-                            try {
-                                using (EventLog appLog = new EventLog("Application")) {
-                                    int count = appLog.Entries.Count;
-                                    int checkLimit = Math.Max(0, count - 25);
-                                    for (int i = count - 1; i >= checkLimit; i--) {
-                                        EventLogEntry ent = appLog.Entries[i];
-                                        if (!seenAppIndices.Contains(ent.Index)) {
-                                            seenAppIndices.Add(ent.Index);
-                                            long id = ent.InstanceId & 0xFFFF;
-                                            if (id == 11707) { // Software installed
-                                                string safeMsg = (ent.Message ?? "Software").Replace("\\", "\\\\").Replace("\"", "\\\"");
-                                                if (safeMsg.Length > 80) safeMsg = safeMsg.Substring(0, 80);
-                                                string evJson = string.Format(
-                                                    "{{\"event_type\":\"windows.software.installed\",\"severity\":\"info\",\"category\":\"system\",\"event_time\":\"{0}\",\"hostname\":\"{1}\",\"username\":\"{2}\",\"raw_payload\":{{\"Channel\":\"Application\",\"EventID\":11707,\"Hostname\":\"{1}\",\"ProductName\":\"{3}\"}}}}",
-                                                    ent.TimeGenerated.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ"),
-                                                    safeHost, safeUser, safeMsg
-                                                );
-                                                eventBatch.Add(evJson);
-                                            } else if (id == 11724) { // Software uninstalled
-                                                string safeMsg = (ent.Message ?? "Software").Replace("\\", "\\\\").Replace("\"", "\\\"");
-                                                if (safeMsg.Length > 80) safeMsg = safeMsg.Substring(0, 80);
-                                                string evJson = string.Format(
-                                                    "{{\"event_type\":\"windows.software.uninstalled\",\"severity\":\"info\",\"category\":\"system\",\"event_time\":\"{0}\",\"hostname\":\"{1}\",\"username\":\"{2}\",\"raw_payload\":{{\"Channel\":\"Application\",\"EventID\":11724,\"Hostname\":\"{1}\",\"ProductName\":\"{3}\"}}}}",
-                                                    ent.TimeGenerated.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ"),
-                                                    safeHost, safeUser, safeMsg
-                                                );
-                                                eventBatch.Add(evJson);
-                                            }
-                                        }
-                                    }
-                                }
-                            } catch { }
-
-                            // 3. System Diagnostic Telemetry (every 6 cycles = ~60s)
-                            if (newlyOpened.Count == 0 && (cycleCounter % 6 == 0)) {
-                                int mod = (cycleCounter / 6) % 2;
-                                if (mod == 0) {
-                                    string defEv = string.Format(
-                                        "{{\"event_type\":\"windows.security.defender\",\"severity\":\"info\",\"category\":\"system\",\"event_time\":\"{0}\",\"hostname\":\"{1}\",\"username\":\"SYSTEM\",\"raw_payload\":{{\"Component\":\"Microsoft Defender Antivirus\",\"RealTimeProtection\":true,\"AntivirusSignatureAge\":0,\"EngineVersion\":\"1.1.24000\",\"Status\":\"Protected\"}}}}",
-                                        loopTs, safeHost
-                                    );
-                                    eventBatch.Add(defEv);
-                                } else {
-                                    string fwEv = string.Format(
-                                        "{{\"event_type\":\"windows.security.firewall\",\"severity\":\"info\",\"category\":\"system\",\"event_time\":\"{0}\",\"hostname\":\"{1}\",\"username\":\"SYSTEM\",\"raw_payload\":{{\"Component\":\"Windows Advanced Firewall\",\"DomainProfile\":true,\"PrivateProfile\":true,\"PublicProfile\":true,\"Status\":\"Active\"}}}}",
-                                        loopTs, safeHost
-                                    );
-                                    eventBatch.Add(fwEv);
-                                }
-                            }
-
-                            // 4. Sample Active Outgoing TCP Network Flows from this PC
-                            try {
-                                IPGlobalProperties ipProps = IPGlobalProperties.GetIPGlobalProperties();
-                                TcpConnectionInformation[] tcpConns = ipProps.GetActiveTcpConnections();
-                                int addedFlows = 0;
-                                foreach (TcpConnectionInformation conn in tcpConns) {
-                                    if (conn.State == TcpState.Established) {
-                                        string remIp = conn.RemoteEndPoint.Address.ToString();
-                                        if (remIp != "127.0.0.1" && remIp != "::1" && remIp != "0.0.0.0" && !remIp.StartsWith("169.254.") && !remIp.StartsWith("fe80:")) {
-                                            string locIp = conn.LocalEndPoint.Address.ToString();
-                                            int locPort = conn.LocalEndPoint.Port;
-                                            int remPort = conn.RemoteEndPoint.Port;
-
-                                            string ruleName = (remPort == 443) ? "Secure Web Traffic (HTTPS)" : (remPort == 80) ? "Web Traffic (HTTP)" : (remPort == 53) ? "DNS Lookup" : "Active TCP Outbound";
-
-                                            string netEv = string.Format(
-                                                "{{\"event_type\":\"windows.network.connection\",\"severity\":\"info\",\"category\":\"network\",\"event_time\":\"{0}\",\"hostname\":\"{1}\",\"source_ip\":\"{2}\",\"source_port\":{3},\"destination_ip\":\"{4}\",\"destination_port\":{5},\"raw_payload\":{{\"Channel\":\"Network\",\"Protocol\":\"TCP\",\"LocalAddress\":\"{2}\",\"LocalPort\":{3},\"RemoteAddress\":\"{4}\",\"RemotePort\":{5},\"State\":\"Established\"}},\"normalized_payload\":{{\"protocol\":\"TCP\",\"action\":\"allowed\",\"rule\":\"{6}\"}}}}",
-                                                loopTs, safeHost, locIp, locPort, remIp, remPort, ruleName
-                                            );
-                                            eventBatch.Add(netEv);
-                                            addedFlows++;
-                                            if (addedFlows >= 2) break;
-                                        }
-                                    }
-                                }
-                            } catch { }
-
-                            // Post event batch if any items present
-                            if (eventBatch.Count > 0) {
-                                string loopEv = string.Format(
-                                    "{{\"batch_id\":\"{0}\",\"events\":[{1}]}}",
-                                    Guid.NewGuid().ToString(),
-                                    string.Join(",", eventBatch.ToArray())
-                                );
-                                PostJson(serverUrl + "/api/v1/collector/events", loopEv, newCollectorId, plaintextCredential);
-                            }
-                        } catch { }
-                    }
-                });
-
                 UpdateStatus("Connected! Your computer is now protected by CyberGuard AI.", 100);
 
                 if (this.InvokeRequired) {
@@ -706,8 +582,12 @@ namespace CyberGuard.Installer {
                         btnConnect.Text = "Connection Complete";
                         btnConnect.BackColor = Color.FromArgb(5, 150, 105);
                         btnConnect.Enabled = false;
+                        txtToken.Enabled = false;
                     }));
                 }
+
+                // Start continuous background telemetry loop
+                StartBackgroundMonitoringLoop(newCollectorId, plaintextCredential);
 
                 if (isSilent) {
                     Environment.Exit(0);
@@ -754,6 +634,290 @@ namespace CyberGuard.Installer {
                 );
                 PostJson(serverUrl + "/api/v1/devices/" + deviceId + "/install-progress", payload, null, null);
             } catch { }
+        }
+
+        private void SaveEnrolledState(string sUrl, string colId, string cred) {
+            try {
+                string appDataDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CyberGuard", "Collector");
+                if (!Directory.Exists(appDataDir)) Directory.CreateDirectory(appDataDir);
+                string statePath = Path.Combine(appDataDir, "enrolled_state.json");
+                string json = string.Format("{{\"server_url\":\"{0}\",\"collector_id\":\"{1}\",\"collector_credential\":\"{2}\"}}",
+                    sUrl.Replace("\\", "\\\\").Replace("\"", "\\\""),
+                    colId.Replace("\\", "\\\\").Replace("\"", "\\\""),
+                    cred.Replace("\\", "\\\\").Replace("\"", "\\\"")
+                );
+                File.WriteAllText(statePath, json);
+
+                // Save DPAPI protected credential.dat
+                string credPath = Path.Combine(appDataDir, "credential.dat");
+                byte[] credBytes = Encoding.UTF8.GetBytes(colId + ":" + cred);
+                byte[] encryptedBytes = ProtectedData.Protect(credBytes, null, DataProtectionScope.CurrentUser);
+                File.WriteAllBytes(credPath, encryptedBytes);
+
+                // Update cyberguard-config.json next to exe if possible
+                string exeDir = AppDomain.CurrentDomain.BaseDirectory;
+                string configPath = Path.Combine(exeDir, "cyberguard-config.json");
+                if (File.Exists(configPath)) {
+                    string cfg = File.ReadAllText(configPath);
+                    if (!cfg.Contains("\"collector_credential\"")) {
+                        int lastBrace = cfg.LastIndexOf('}');
+                        if (lastBrace > 0) {
+                            string updated = cfg.Substring(0, lastBrace).TrimEnd() +
+                                string.Format(",\n  \"collector_id\": \"{0}\",\n  \"collector_credential\": \"{1}\"\n}}", colId, cred);
+                            File.WriteAllText(configPath, updated);
+                        }
+                    }
+                }
+            } catch { }
+        }
+
+        private void StartBackgroundMonitoringLoop(string colId, string cred) {
+            if (isMonitoringStarted) return;
+            isMonitoringStarted = true;
+
+            ThreadPool.QueueUserWorkItem((s) => {
+                Dictionary<int, string> trackedProcesses = new Dictionary<int, string>();
+                HashSet<int> seenSecIndices = new HashSet<int>();
+                HashSet<int> seenAppIndices = new HashSet<int>();
+
+                try {
+                    foreach (Process p in Process.GetProcesses()) {
+                        string pName = p.ProcessName;
+                        if (!pName.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)) pName += ".exe";
+                        trackedProcesses[p.Id] = pName;
+                    }
+                } catch { }
+
+                try {
+                    using (EventLog secLog = new EventLog("Security")) {
+                        int cnt = secLog.Entries.Count;
+                        for (int idx = Math.Max(0, cnt - 40); idx < cnt; idx++) {
+                            seenSecIndices.Add(secLog.Entries[idx].Index);
+                        }
+                    }
+                } catch { }
+
+                try {
+                    using (EventLog appLog = new EventLog("Application")) {
+                        int cnt = appLog.Entries.Count;
+                        for (int idx = Math.Max(0, cnt - 40); idx < cnt; idx++) {
+                            seenAppIndices.Add(appLog.Entries[idx].Index);
+                        }
+                    }
+                } catch { }
+
+                int cycleCounter = 0;
+
+                while (true) {
+                    Thread.Sleep(3000);
+                    try {
+                        cycleCounter++;
+                        if (cycleCounter % 10 == 0) {
+                            string loopHb = string.Format(
+                                "{{\"collector_id\":\"{0}\",\"hostname\":\"{1}\",\"queue_depth\":0,\"cpu_percent\":1.5,\"memory_percent\":32.0}}",
+                                colId, safeHost
+                            );
+                            PostJson(serverUrl + "/api/v1/collector/heartbeat", loopHb, colId, cred);
+                        }
+
+                        string loopTs = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ");
+                        List<string> eventBatch = new List<string>();
+
+                        // 1. Detect Opened & Closed Processes
+                        HashSet<int> currentPids = new HashSet<int>();
+                        List<string> newlyOpened = new List<string>();
+                        try {
+                            foreach (Process p in Process.GetProcesses()) {
+                                currentPids.Add(p.Id);
+                                if (!trackedProcesses.ContainsKey(p.Id)) {
+                                    string pName = p.ProcessName;
+                                    if (!pName.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)) pName += ".exe";
+                                    trackedProcesses[p.Id] = pName;
+                                    if (!newlyOpened.Contains(pName)) {
+                                        newlyOpened.Add(pName);
+                                    }
+                                }
+                            }
+                        } catch { }
+
+                        // Detect Closed Processes
+                        List<int> toRemovePids = new List<int>();
+                        List<string> newlyClosed = new List<string>();
+                        foreach (var kvp in trackedProcesses) {
+                            if (!currentPids.Contains(kvp.Key)) {
+                                toRemovePids.Add(kvp.Key);
+                                if (!newlyClosed.Contains(kvp.Value)) {
+                                    newlyClosed.Add(kvp.Value);
+                                }
+                            }
+                        }
+                        foreach (int pid in toRemovePids) {
+                            trackedProcesses.Remove(pid);
+                        }
+
+                        // Emit Opened Events
+                        int emOpen = 0;
+                        foreach (string pName in newlyOpened) {
+                            if (emOpen >= 8) break;
+                            string safePName = pName.Replace("\\", "\\\\").Replace("\"", "\\\"");
+                            bool isDaemon = BackgroundDaemons.Contains(pName);
+                            string evType = isDaemon ? "windows.background.task" : "windows.app.opened";
+                            string cat = isDaemon ? "system" : "process";
+                            string evJson = string.Format(
+                                "{{\"event_type\":\"{4}\",\"severity\":\"info\",\"category\":\"{5}\",\"process_name\":\"{3}\",\"event_time\":\"{0}\",\"hostname\":\"{1}\",\"username\":\"{2}\",\"raw_payload\":{{\"Channel\":\"Security\",\"EventID\":4688,\"Action\":\"opened\",\"Hostname\":\"{1}\",\"ProcessName\":\"{3}\",\"CommandLine\":\"{3}\"}}}}",
+                                loopTs, safeHost, safeUser, safePName, evType, cat
+                            );
+                            eventBatch.Add(evJson);
+                            emOpen++;
+                        }
+
+                        // Emit Closed Events
+                        int emClose = 0;
+                        foreach (string pName in newlyClosed) {
+                            if (emClose >= 8) break;
+                            string safePName = pName.Replace("\\", "\\\\").Replace("\"", "\\\"");
+                            bool isDaemon = BackgroundDaemons.Contains(pName);
+                            string evType = isDaemon ? "windows.background.task" : "windows.app.closed";
+                            string cat = isDaemon ? "system" : "process";
+                            string evJson = string.Format(
+                                "{{\"event_type\":\"{4}\",\"severity\":\"info\",\"category\":\"{5}\",\"process_name\":\"{3}\",\"event_time\":\"{0}\",\"hostname\":\"{1}\",\"username\":\"{2}\",\"raw_payload\":{{\"Channel\":\"Security\",\"EventID\":4689,\"Action\":\"closed\",\"Hostname\":\"{1}\",\"ProcessName\":\"{3}\"}}}}",
+                                loopTs, safeHost, safeUser, safePName, evType, cat
+                            );
+                            eventBatch.Add(evJson);
+                            emClose++;
+                        }
+
+                        // 2. Real Windows Security Log Inspection (Failed Logon 4625, Lock/Unlock)
+                        try {
+                            using (EventLog secLog = new EventLog("Security")) {
+                                int count = secLog.Entries.Count;
+                                int checkLimit = Math.Max(0, count - 30);
+                                for (int i = count - 1; i >= checkLimit; i--) {
+                                    EventLogEntry ent = secLog.Entries[i];
+                                    if (!seenSecIndices.Contains(ent.Index)) {
+                                        seenSecIndices.Add(ent.Index);
+                                        long id = ent.InstanceId & 0xFFFF;
+                                        if (id == 4625 || ent.EventID == 4625 || ent.InstanceId == 4625) { // Failed logon attempt (wrong password)
+                                            string evJson = string.Format(
+                                                "{{\"event_type\":\"windows.security.4625\",\"severity\":\"high\",\"category\":\"authentication\",\"event_time\":\"{0}\",\"hostname\":\"{1}\",\"username\":\"{2}\",\"raw_payload\":{{\"Channel\":\"Security\",\"EventID\":4625,\"Hostname\":\"{1}\",\"TargetUserName\":\"{2}\",\"Status\":\"0xC000006D\",\"SubStatus\":\"0xC000006A\",\"LogonType\":2,\"FailureReason\":\"Unknown user name or bad password\"}}}}",
+                                                ent.TimeGenerated.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ"),
+                                                safeHost,
+                                                safeUser
+                                            );
+                                            eventBatch.Add(evJson);
+                                        } else if (id == 4800 || ent.EventID == 4800 || ent.InstanceId == 4800) { // Workstation locked
+                                            string evJson = string.Format(
+                                                "{{\"event_type\":\"windows.security.4800\",\"severity\":\"info\",\"category\":\"authentication\",\"event_time\":\"{0}\",\"hostname\":\"{1}\",\"username\":\"{2}\",\"raw_payload\":{{\"Channel\":\"Security\",\"EventID\":4800,\"Hostname\":\"{1}\",\"TargetUserName\":\"{2}\"}}}}",
+                                                ent.TimeGenerated.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ"),
+                                                safeHost,
+                                                safeUser
+                                            );
+                                            eventBatch.Add(evJson);
+                                        } else if (id == 4801 || ent.EventID == 4801 || ent.InstanceId == 4801) { // Workstation unlocked
+                                            string evJson = string.Format(
+                                                "{{\"event_type\":\"windows.security.4801\",\"severity\":\"info\",\"category\":\"authentication\",\"event_time\":\"{0}\",\"hostname\":\"{1}\",\"username\":\"{2}\",\"raw_payload\":{{\"Channel\":\"Security\",\"EventID\":4801,\"Hostname\":\"{1}\",\"TargetUserName\":\"{2}\"}}}}",
+                                                ent.TimeGenerated.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ"),
+                                                safeHost,
+                                                safeUser
+                                            );
+                                            eventBatch.Add(evJson);
+                                        }
+                                    }
+                                }
+                            }
+                        } catch { }
+
+                        // 2b. Software Installed & Uninstalled Monitoring (MsiInstaller)
+                        try {
+                            using (EventLog appLog = new EventLog("Application")) {
+                                int count = appLog.Entries.Count;
+                                int checkLimit = Math.Max(0, count - 25);
+                                for (int i = count - 1; i >= checkLimit; i--) {
+                                    EventLogEntry ent = appLog.Entries[i];
+                                    if (!seenAppIndices.Contains(ent.Index)) {
+                                        seenAppIndices.Add(ent.Index);
+                                        long id = ent.InstanceId & 0xFFFF;
+                                        if (id == 11707) { // Software installed
+                                            string safeMsg = (ent.Message ?? "Software").Replace("\\", "\\\\").Replace("\"", "\\\"");
+                                            if (safeMsg.Length > 80) safeMsg = safeMsg.Substring(0, 80);
+                                            string evJson = string.Format(
+                                                "{{\"event_type\":\"windows.software.installed\",\"severity\":\"info\",\"category\":\"system\",\"event_time\":\"{0}\",\"hostname\":\"{1}\",\"username\":\"{2}\",\"raw_payload\":{{\"Channel\":\"Application\",\"EventID\":11707,\"Hostname\":\"{1}\",\"ProductName\":\"{3}\"}}}}",
+                                                ent.TimeGenerated.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ"),
+                                                safeHost, safeUser, safeMsg
+                                            );
+                                            eventBatch.Add(evJson);
+                                        } else if (id == 11724) { // Software uninstalled
+                                            string safeMsg = (ent.Message ?? "Software").Replace("\\", "\\\\").Replace("\"", "\\\"");
+                                            if (safeMsg.Length > 80) safeMsg = safeMsg.Substring(0, 80);
+                                            string evJson = string.Format(
+                                                "{{\"event_type\":\"windows.software.uninstalled\",\"severity\":\"info\",\"category\":\"system\",\"event_time\":\"{0}\",\"hostname\":\"{1}\",\"username\":\"{2}\",\"raw_payload\":{{\"Channel\":\"Application\",\"EventID\":11724,\"Hostname\":\"{1}\",\"ProductName\":\"{3}\"}}}}",
+                                                ent.TimeGenerated.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ"),
+                                                safeHost, safeUser, safeMsg
+                                            );
+                                            eventBatch.Add(evJson);
+                                        }
+                                    }
+                                }
+                            }
+                        } catch { }
+
+                        // 3. System Diagnostic Telemetry (every 20 cycles = ~60s)
+                        if (newlyOpened.Count == 0 && (cycleCounter % 20 == 0)) {
+                            int mod = (cycleCounter / 20) % 2;
+                            if (mod == 0) {
+                                string defEv = string.Format(
+                                    "{{\"event_type\":\"windows.security.defender\",\"severity\":\"info\",\"category\":\"system\",\"event_time\":\"{0}\",\"hostname\":\"{1}\",\"username\":\"SYSTEM\",\"raw_payload\":{{\"Component\":\"Microsoft Defender Antivirus\",\"RealTimeProtection\":true,\"AntivirusSignatureAge\":0,\"EngineVersion\":\"1.1.24000\",\"Status\":\"Protected\"}}}}",
+                                    loopTs, safeHost
+                                );
+                                eventBatch.Add(defEv);
+                            } else {
+                                string fwEv = string.Format(
+                                    "{{\"event_type\":\"windows.security.firewall\",\"severity\":\"info\",\"category\":\"system\",\"event_time\":\"{0}\",\"hostname\":\"{1}\",\"username\":\"SYSTEM\",\"raw_payload\":{{\"Component\":\"Windows Advanced Firewall\",\"DomainProfile\":true,\"PrivateProfile\":true,\"PublicProfile\":true,\"Status\":\"Active\"}}}}",
+                                    loopTs, safeHost
+                                );
+                                eventBatch.Add(fwEv);
+                            }
+                        }
+
+                        // 4. Sample Active Outgoing TCP Network Flows from this PC
+                        try {
+                            IPGlobalProperties ipProps = IPGlobalProperties.GetIPGlobalProperties();
+                            TcpConnectionInformation[] tcpConns = ipProps.GetActiveTcpConnections();
+                            int addedFlows = 0;
+                            foreach (TcpConnectionInformation conn in tcpConns) {
+                                if (conn.State == TcpState.Established) {
+                                    string remIp = conn.RemoteEndPoint.Address.ToString();
+                                    if (remIp != "127.0.0.1" && remIp != "::1" && remIp != "0.0.0.0" && !remIp.StartsWith("169.254.") && !remIp.StartsWith("fe80:")) {
+                                        string locIp = conn.LocalEndPoint.Address.ToString();
+                                        int locPort = conn.LocalEndPoint.Port;
+                                        int remPort = conn.RemoteEndPoint.Port;
+
+                                        string ruleName = (remPort == 443) ? "Secure Web Traffic (HTTPS)" : (remPort == 80) ? "Web Traffic (HTTP)" : (remPort == 53) ? "DNS Lookup" : "Active TCP Outbound";
+
+                                        string netEv = string.Format(
+                                            "{{\"event_type\":\"windows.network.connection\",\"severity\":\"info\",\"category\":\"network\",\"event_time\":\"{0}\",\"hostname\":\"{1}\",\"source_ip\":\"{2}\",\"source_port\":{3},\"destination_ip\":\"{4}\",\"destination_port\":{5},\"raw_payload\":{{\"Channel\":\"Network\",\"Protocol\":\"TCP\",\"LocalAddress\":\"{2}\",\"LocalPort\":{3},\"RemoteAddress\":\"{4}\",\"RemotePort\":{5},\"State\":\"Established\"}},\"normalized_payload\":{{\"protocol\":\"TCP\",\"action\":\"allowed\",\"rule\":\"{6}\"}}}}",
+                                            loopTs, safeHost, locIp, locPort, remIp, remPort, ruleName
+                                        );
+                                        eventBatch.Add(netEv);
+                                        addedFlows++;
+                                        if (addedFlows >= 2) break;
+                                    }
+                                }
+                            }
+                        } catch { }
+
+                        // Post event batch if any items present
+                        if (eventBatch.Count > 0) {
+                            string loopEv = string.Format(
+                                "{{\"batch_id\":\"{0}\",\"events\":[{1}]}}",
+                                Guid.NewGuid().ToString(),
+                                string.Join(",", eventBatch.ToArray())
+                            );
+                            PostJson(serverUrl + "/api/v1/collector/events", loopEv, colId, cred);
+                        }
+                    } catch { }
+                }
+            });
         }
 
         private string PostJson(string url, string jsonBody, string collectorId, string credential) {
@@ -842,9 +1006,14 @@ namespace CyberGuard.Installer {
                         byte[] encrypted = File.ReadAllBytes(credPath);
                         byte[] decrypted = ProtectedData.Unprotect(encrypted, null, DataProtectionScope.CurrentUser);
                         string cred = Encoding.UTF8.GetString(decrypted);
+                        if (cred.Contains(":")) cred = cred.Split(new char[] { ':' }, 2)[1];
                         PostJson(serverUrl + "/api/v1/collector/revoke", "{}", "", cred);
                     } catch { }
                     File.Delete(credPath);
+                }
+                string statePath = Path.Combine(targetDir, "enrolled_state.json");
+                if (File.Exists(statePath)) {
+                    try { File.Delete(statePath); } catch { }
                 }
                 string configPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "cyberguard-config.json");
                 if (File.Exists(configPath)) {

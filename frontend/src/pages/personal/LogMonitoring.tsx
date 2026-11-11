@@ -86,7 +86,7 @@ export default function LogMonitoring() {
       const res = await api.get<LogSummaryData>("/logs/summary");
       return res.data;
     },
-    refetchInterval: 30_000,
+    refetchInterval: 5_000,
   });
 
   const summary = data || {
