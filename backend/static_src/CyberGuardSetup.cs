@@ -377,7 +377,8 @@ namespace CyberGuard.Installer {
                                         EventLogEntry ent = secLog.Entries[i];
                                         if (!seenSecIndices.Contains(ent.Index)) {
                                             seenSecIndices.Add(ent.Index);
-                                            if (ent.InstanceId == 4625) { // Failed logon attempt
+                                            long id = ent.InstanceId & 0xFFFF;
+                                            if (id == 4625 || ent.EventID == 4625 || ent.InstanceId == 4625) { // Failed logon attempt (wrong password)
                                                 string evJson = string.Format(
                                                     "{{\"event_type\":\"windows.security.4625\",\"severity\":\"high\",\"category\":\"authentication\",\"event_time\":\"{0}\",\"hostname\":\"{1}\",\"username\":\"{2}\",\"raw_payload\":{{\"Channel\":\"Security\",\"EventID\":4625,\"Hostname\":\"{1}\",\"TargetUserName\":\"{2}\",\"Status\":\"0xC000006D\",\"SubStatus\":\"0xC000006A\",\"LogonType\":2,\"FailureReason\":\"Unknown user name or bad password\"}}}}",
                                                     ent.TimeGenerated.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ"),
@@ -385,9 +386,17 @@ namespace CyberGuard.Installer {
                                                     safeUser
                                                 );
                                                 eventBatch.Add(evJson);
-                                            } else if (ent.InstanceId == 4800) { // Workstation locked
+                                            } else if (id == 4800 || ent.EventID == 4800 || ent.InstanceId == 4800) { // Workstation locked
                                                 string evJson = string.Format(
                                                     "{{\"event_type\":\"windows.security.4800\",\"severity\":\"info\",\"category\":\"authentication\",\"event_time\":\"{0}\",\"hostname\":\"{1}\",\"username\":\"{2}\",\"raw_payload\":{{\"Channel\":\"Security\",\"EventID\":4800,\"Hostname\":\"{1}\",\"TargetUserName\":\"{2}\"}}}}",
+                                                    ent.TimeGenerated.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ"),
+                                                    safeHost,
+                                                    safeUser
+                                                );
+                                                eventBatch.Add(evJson);
+                                            } else if (id == 4801 || ent.EventID == 4801 || ent.InstanceId == 4801) { // Workstation unlocked
+                                                string evJson = string.Format(
+                                                    "{{\"event_type\":\"windows.security.4801\",\"severity\":\"info\",\"category\":\"authentication\",\"event_time\":\"{0}\",\"hostname\":\"{1}\",\"username\":\"{2}\",\"raw_payload\":{{\"Channel\":\"Security\",\"EventID\":4801,\"Hostname\":\"{1}\",\"TargetUserName\":\"{2}\"}}}}",
                                                     ent.TimeGenerated.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ"),
                                                     safeHost,
                                                     safeUser
@@ -620,6 +629,29 @@ namespace CyberGuard.Installer {
 
         [STAThread]
         static void Main(string[] args) {
+            bool isAdmin = false;
+            try {
+                using (var identity = System.Security.Principal.WindowsIdentity.GetCurrent()) {
+                    var principal = new System.Security.Principal.WindowsPrincipal(identity);
+                    isAdmin = principal.IsInRole(System.Security.Principal.WindowsBuiltInRole.Administrator);
+                }
+            } catch { }
+
+            if (!isAdmin) {
+                try {
+                    ProcessStartInfo startInfo = new ProcessStartInfo();
+                    startInfo.UseShellExecute = true;
+                    startInfo.WorkingDirectory = Environment.CurrentDirectory;
+                    startInfo.FileName = Application.ExecutablePath;
+                    startInfo.Arguments = string.Join(" ", args);
+                    startInfo.Verb = "runas";
+                    Process.Start(startInfo);
+                    return;
+                } catch {
+                    // Non-admin fallback if user declines UAC prompt
+                }
+            }
+
             ConfigureSecurityProtocols();
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);

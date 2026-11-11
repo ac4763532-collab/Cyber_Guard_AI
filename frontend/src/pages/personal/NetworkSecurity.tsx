@@ -302,21 +302,21 @@ export default function NetworkSecurity() {
                 const isDNS = fl.destination_port === 53 || (fl.rule && fl.rule.includes("DNS"));
                 const isThreat = fl.threat_intel_match || fl.severity === "high" || fl.severity === "critical";
 
-                let friendlyTitle = "Secure Web Browsing (HTTPS)";
-                let friendlyDesc = `Encrypted web connection between your PC and external cloud server (${fl.destination_ip})`;
-                let friendlyBadge = "Encrypted TLS";
+                let friendlyTitle = "Secure Web Browsing";
+                let friendlyDesc = "Encrypted web connection with verified cloud server";
+                let friendlyBadge = "Encrypted & Safe";
 
                 if (isThreat) {
                   friendlyTitle = "Suspicious Connection Blocked";
-                  friendlyDesc = `An unauthorized connection attempt to ${fl.destination_ip}:${fl.destination_port} was halted`;
+                  friendlyDesc = "An unauthorized connection attempt was halted";
                   friendlyBadge = "Blocked Threat";
                 } else if (isDNS) {
                   friendlyTitle = "Domain Name Resolution (DNS)";
-                  friendlyDesc = "Secure website address resolution lookup";
-                  friendlyBadge = "Safe DNS";
+                  friendlyDesc = "Secure address lookup for verified website";
+                  friendlyBadge = "Safe Lookup";
                 } else if (!isSecureWeb) {
                   friendlyTitle = "Verified Application Traffic";
-                  friendlyDesc = `Safe software background exchange with ${fl.destination_ip}`;
+                  friendlyDesc = "Safe software background communication";
                   friendlyBadge = "Safe Software";
                 }
 

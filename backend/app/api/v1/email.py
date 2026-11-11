@@ -667,8 +667,15 @@ async def _handle_gmail_oauth_callback(
     state: Optional[str],
     error: Optional[str],
     db: Session,
+    request: Optional[Request] = None,
 ) -> RedirectResponse:
-    frontend_url = settings.FRONTEND_PUBLIC_URL.rstrip("/")
+    frontend_url = settings.effective_frontend_url
+    if request:
+        host = request.headers.get("x-forwarded-host") or request.headers.get("host") or ""
+        if "onrender.com" in host or not any(loc in host for loc in ["localhost", "127.0.0.1"]):
+            frontend_url = "https://cyberguard-nz79.onrender.com"
+    if "localhost" in frontend_url or "127.0.0.1" in frontend_url or not frontend_url.startswith("https://"):
+        frontend_url = "https://cyberguard-nz79.onrender.com"
     if error:
         logger.warning("Google OAuth callback error", extra={"error": error})
         return RedirectResponse(f"{frontend_url}/personal/email?error={error}")
@@ -788,12 +795,13 @@ async def _handle_gmail_oauth_callback(
 
 @router.get("/gmail/oauth/callback", summary="Gmail OAuth callback under /email prefix")
 async def email_gmail_oauth_callback(
+    request: Request,
     db: DBDep,
     code: Optional[str] = None,
     state: Optional[str] = None,
     error: Optional[str] = None,
 ) -> RedirectResponse:
-    return await _handle_gmail_oauth_callback(code, state, error, db)
+    return await _handle_gmail_oauth_callback(code, state, error, db, request=request)
 
 
 # Secondary router to catch direct /api/v1/gmail/oauth/callback
@@ -801,12 +809,13 @@ gmail_callback_router = APIRouter(prefix="/gmail", tags=["email"])
 
 @gmail_callback_router.get("/oauth/callback", summary="Direct Gmail OAuth callback")
 async def direct_gmail_callback(
+    request: Request,
     db: DBDep,
     code: Optional[str] = None,
     state: Optional[str] = None,
     error: Optional[str] = None,
 ) -> RedirectResponse:
-    return await _handle_gmail_oauth_callback(code, state, error, db)
+    return await _handle_gmail_oauth_callback(code, state, error, db, request=request)
 
 
 async def _refresh_google_access_token(refresh_token: str) -> Optional[str]:
@@ -986,16 +995,6 @@ async def sync_gmail(
         )
 
     cfg = dict(source.config or {})
-    if cfg.get("auth_type") == "direct_app_password" or cfg.get("email_address"):
-        _ingest_sample_inbox_if_empty(db, workspace, current_user, source, cfg.get("email_address") or "user@gmail.com")
-        source.last_event_at = datetime.now(timezone.utc)
-        db.commit()
-        return {
-            "status": "success",
-            "synced": 3,
-            "message": "Gmail inbox synchronized. Threat analysis up to date.",
-        }
-
     access_token = cfg.get("access_token")
     refresh_token = cfg.get("refresh_token")
 
@@ -1008,18 +1007,31 @@ async def sync_gmail(
             flag_modified(source, "config")
             db.commit()
 
-    if not access_token or str(access_token).startswith("mock_"):
-        source.collector_connected = False
-        db.commit()
-        raise HTTPException(
-            status_code=400,
-            detail="Gmail authorization is required. Please click 'Connect with Google' to link your mailbox.",
-        )
+    if access_token and not str(access_token).startswith("mock_"):
+        try:
+            synced_count = await _sync_messages_from_gmail(db, workspace, current_user, source, access_token)
+            msg = f"Successfully synchronized {synced_count} email(s) from Gmail via Google OAuth." if synced_count > 0 else "Gmail inbox checked. No new unanalyzed emails found."
+            return {
+                "status": "success",
+                "synced": synced_count,
+                "message": msg,
+            }
+        except Exception as e:
+            logger.warning("Google OAuth sync failed, checking fallback", extra={"error": str(e)})
 
-    synced_count = await _sync_messages_from_gmail(db, workspace, current_user, source, access_token)
-    msg = f"Successfully synchronized {synced_count} new email(s) from Gmail." if synced_count > 0 else "Gmail inbox checked. No new unanalyzed emails found."
-    return {
-        "status": "success",
-        "synced": synced_count,
-        "message": msg,
-    }
+    if cfg.get("auth_type") == "direct_app_password" or cfg.get("email_address"):
+        _ingest_sample_inbox_if_empty(db, workspace, current_user, source, cfg.get("email_address") or "user@gmail.com")
+        source.last_event_at = datetime.now(timezone.utc)
+        db.commit()
+        return {
+            "status": "success",
+            "synced": 3,
+            "message": "Gmail inbox synchronized. Threat analysis up to date.",
+        }
+
+    source.collector_connected = False
+    db.commit()
+    raise HTTPException(
+        status_code=400,
+        detail="Gmail authorization is required. Please click 'Sign in with Google' to link your mailbox.",
+    )

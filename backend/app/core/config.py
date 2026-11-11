@@ -394,7 +394,13 @@ class Settings(BaseSettings):
             return self.GOOGLE_REDIRECT_URI
         if self.BACKEND_PUBLIC_URL and not self.BACKEND_PUBLIC_URL.startswith("http://localhost"):
             return f"{self.BACKEND_PUBLIC_URL.rstrip('/')}/api/v1/gmail/oauth/callback"
-        return "https://cyberguard-api-7z5k.onrender.com/api/v1/gmail/oauth/callback" 
+        return "https://cyberguard-api-7z5k.onrender.com/api/v1/gmail/oauth/callback"
+
+    @property
+    def effective_frontend_url(self) -> str:
+        if self.FRONTEND_PUBLIC_URL and not any(loc in self.FRONTEND_PUBLIC_URL for loc in ["localhost", "127.0.0.1"]):
+            return self.FRONTEND_PUBLIC_URL.rstrip("/")
+        return "https://cyberguard-nz79.onrender.com"
 
     @property
     def cors_origins_list(self) -> list[str]:
