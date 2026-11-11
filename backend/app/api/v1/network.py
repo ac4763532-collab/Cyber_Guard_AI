@@ -14,7 +14,7 @@ from typing import Any, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app.agents.base import AgentContext
@@ -109,7 +109,11 @@ def get_network_summary(
         select(func.count(SecuritySource.id))
         .where(
             SecuritySource.workspace_id == workspace.id,
-            SecuritySource.source_type == SourceType.NETWORK,
+            or_(
+                SecuritySource.source_type == SourceType.NETWORK,
+                SecuritySource.source_type.in_([SourceType.WINDOWS, SourceType.LINUX]),
+            ),
+            SecuritySource.collector_connected == True,
         )
     ).scalar() or 0
 

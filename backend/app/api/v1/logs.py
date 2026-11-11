@@ -121,6 +121,8 @@ def get_log_summary(
     )
 
     ev_list = []
+    seen_benign_keys: set[str] = set()
+
     for ev in recent_events:
         summary_info = windows_event_explainer.get_friendly_event_summary(
             event_type=ev.event_type,
@@ -130,6 +132,17 @@ def get_log_summary(
             process_name=ev.process_name,
             category=ev.category.value if hasattr(ev.category, "value") else str(ev.category),
         )
+
+        sev_val = ev.severity.value if hasattr(ev.severity, "value") else str(ev.severity)
+        is_threat = sev_val in ("high", "critical", "medium")
+
+        # Noise reduction: Deduplicate identical recurring benign events
+        # Ensures harmful/suspicious events are permanently preserved while benign noise is streamlined
+        benign_key = f"{ev.hostname}|{summary_info['title']}|{summary_info['plain_english']}"
+        if not is_threat and benign_key in seen_benign_keys:
+            continue
+        if not is_threat:
+            seen_benign_keys.add(benign_key)
 
         ev_list.append({
             "id": str(ev.id),
@@ -142,7 +155,7 @@ def get_log_summary(
             "category_label": summary_info["category_label"],
             "process_display": summary_info["process_display"],
             "badge_label": summary_info["badge_label"],
-            "severity": ev.severity.value,
+            "severity": sev_val,
             "details": summary_info["friendly_details"],
             "hostname": ev.hostname,
             "username": ev.username,

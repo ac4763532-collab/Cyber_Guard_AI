@@ -291,7 +291,7 @@ def check_collector_update(
         "latest_version": "1.0.0",
         "is_update_available": False,
         "download_url": "/api/v1/devices/installer",
-        "sha256": "e6d8f6579e1737d110ff6f94567b4b775a8d35838e35ad0db12de035de6a560c",
+        "sha256": "7b5e81301ea068be7ced1997485f1fd27459b4627722bbc2221308295a7c63b2",
         "mandatory": False,
         "changelog": "CyberGuard AI non-technical collector service release.",
     }
