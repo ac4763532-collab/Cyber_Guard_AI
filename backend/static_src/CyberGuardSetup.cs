@@ -56,7 +56,8 @@ namespace CyberGuard.Installer {
             "svchost.exe", "runtimebroker.exe", "audiodg.exe", "conhost.exe", "wmiprvse.exe",
             "backgroundtaskhost.exe", "searchhost.exe", "shellexperiencehost.exe", "startmenuexperiencehost.exe",
             "sihost.exe", "fontdrvhost.exe", "dwm.exe", "csrss.exe", "lsass.exe", "smss.exe", "services.exe",
-            "spoolsv.exe", "ctfmon.exe", "smartscreen.exe", "securityhealthservice.exe", "microsoftedgeupdate.exe", "googleupdate.exe"
+            "spoolsv.exe", "ctfmon.exe", "smartscreen.exe", "securityhealthservice.exe", "microsoftedgeupdate.exe", "googleupdate.exe",
+            "searchfilterhost.exe", "winlogon.exe", "dllhost.exe", "taskhostw.exe", "applicationframehost.exe", "searchindexer.exe", "wlanext.exe"
         };
 
         private Label lblTitle;
@@ -680,13 +681,38 @@ namespace CyberGuard.Installer {
                 HashSet<int> seenSecIndices = new HashSet<int>();
                 HashSet<int> seenAppIndices = new HashSet<int>();
 
+                List<string> initialDesktopApps = new List<string>();
                 try {
                     foreach (Process p in Process.GetProcesses()) {
                         string pName = p.ProcessName;
                         if (!pName.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)) pName += ".exe";
                         trackedProcesses[p.Id] = pName;
+                        try {
+                            if (!BackgroundDaemons.Contains(pName) && !string.IsNullOrEmpty(p.MainWindowTitle)) {
+                                if (!initialDesktopApps.Contains(pName)) {
+                                    initialDesktopApps.Add(pName);
+                                }
+                            }
+                        } catch { }
                     }
                 } catch { }
+
+                if (initialDesktopApps.Count > 0) {
+                    try {
+                        string initTs = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ");
+                        List<string> initBatch = new List<string>();
+                        foreach (string pName in initialDesktopApps) {
+                            string safePName = pName.Replace("\\", "\\\\").Replace("\"", "\\\"");
+                            string evJson = string.Format(
+                                "{{\"event_type\":\"windows.app.opened\",\"severity\":\"info\",\"category\":\"process\",\"process_name\":\"{3}\",\"event_time\":\"{0}\",\"hostname\":\"{1}\",\"username\":\"{2}\",\"raw_payload\":{{\"Channel\":\"Security\",\"EventID\":4688,\"Action\":\"opened\",\"Hostname\":\"{1}\",\"ProcessName\":\"{3}\",\"CommandLine\":\"{3}\"}}}}",
+                                initTs, safeHost, safeUser, safePName
+                            );
+                            initBatch.Add(evJson);
+                        }
+                        string initBatchPayload = "{\"events\":[" + string.Join(",", initBatch.ToArray()) + "]}";
+                        PostJson(serverUrl + "/api/v1/collector/events", initBatchPayload, colId, cred);
+                    } catch { }
+                }
 
                 try {
                     using (EventLog secLog = new EventLog("Security")) {

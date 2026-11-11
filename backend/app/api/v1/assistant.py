@@ -65,7 +65,6 @@ def _get_or_create_assistant_conversation(db: Session, workspace: Workspace, use
     ).scalars().first()
 
     if not conv:
-        # Check or create system security case
         sec_case = db.execute(
             select(SecurityCase).where(
                 SecurityCase.workspace_id == workspace.id,
@@ -200,35 +199,9 @@ def send_assistant_message(
     db.add(user_msg)
     db.flush()
 
-    # 2. Check if an LLM provider is configured
+    # 2. Check provider settings
     provider = getattr(settings, "LLM_PROVIDER", "none").lower()
     is_ollama = (provider == "ollama")
-    has_api_key = bool(
-        getattr(settings, "GEMINI_API_KEY", None)
-        or getattr(settings, "OPENAI_API_KEY", None)
-        or getattr(settings, "ANTHROPIC_API_KEY", None)
-    )
-
-    from app.llm import free_llm
-    if False:
-        reply_text = "AI provider unavailable. Configure a supported provider to enable AI assistance."
-        asst_msg = CaseMessage(
-            conversation_id=conv.id,
-            sender_id=None,
-            body=reply_text,
-            message_type=MessageType.TEXT,
-            metadata_json={"evidence_ref": None},
-        )
-        db.add(asst_msg)
-        db.commit()
-
-        return AssistantMessageResponse(
-            id=str(asst_msg.id),
-            reply=reply_text,
-            provider_available=False,
-            evidence_ref=None,
-            timestamp=now.strftime("%I:%M %p"),
-        )
 
     # 3. Genuinely retrieve verified tenant context from database
     sources_count = db.execute(
@@ -267,9 +240,9 @@ def send_assistant_message(
         evidence_items.extend([f"Alert: {a.title} [Severity: {a.severity.value}]" for a in active_alerts])
 
     evidence_str = "; ".join(evidence_items) if evidence_items else "No active alerts or findings in workspace"
-    evidence_ref = active_findings[0].rule_id if active_findings else None
+    evidence_ref = str(active_findings[0].rule_id) if (active_findings and hasattr(active_findings[0], "rule_id")) else None
 
-    # Construct evidence-grounded response
+    # Construct evidence-grounded context
     evidence_summary = (
         f"Verified Workspace Telemetry: {sources_count} enrolled device(s). "
         f"{len(active_alerts)} active alert(s), {len(active_findings)} active finding(s). Evidence: {evidence_str}."
@@ -280,15 +253,20 @@ def send_assistant_message(
     if free_llm.is_configured:
         try:
             system_prompt = (
-                "You are CyberGuard AI, an elite cybersecurity assistant. "
-                "Answer the user's inquiry strictly grounded in their real security telemetry:\n"
+                "You are CyberGuard AI, an intelligent, helpful cybersecurity assistant for the CyberGuard platform. "
+                "Respond directly, naturally, and helpfully to the user's specific inquiry. Use their verified security telemetry as helpful context when relevant:\n"
                 f"{evidence_summary}\n"
-                "CRITICAL: Keep your response extremely concise, direct, and actionable (maximum 2 to 3 sentences). Do not use filler greetings or disclaimers."
+                "Guidelines:\n"
+                "- If the user says hello or greets you, greet them warmly and offer to help with their endpoint security, alerts, or system status.\n"
+                "- If the user asks how Gmail or email detection works, explain that CyberGuard connects via OAuth, checks SPF/DKIM/DMARC headers to stop spoofing, scans URLs against threat intelligence, and inspects attachments for malware.\n"
+                "- If the user asks about CyberGuard or how you can help, explain its capabilities (real-time desktop app monitoring, lock/unlock tracking, threat correlation, and alert investigations).\n"
+                "- If the user asks about alerts, safety, or threats, explain their current telemetry clearly.\n"
+                "- Keep your response extremely concise, direct, and actionable (2 to 4 sentences). Do not repeat boilerplate disclaimers."
             )
             reply_text = free_llm.explain(
                 system_prompt=system_prompt,
                 user_prompt=f"User question: {payload.message}",
-                max_tokens=200,
+                max_tokens=250,
             )
         except Exception as exc:
             logger.warning("FreeLLM call failed", extra={"error": str(exc)[:200]})
@@ -296,10 +274,10 @@ def send_assistant_message(
         try:
             import httpx
             system_prompt = (
-                "You are CyberGuard AI, an elite cybersecurity assistant. "
-                "Answer the user's inquiry strictly grounded in their real security telemetry:\n"
+                "You are CyberGuard AI, an intelligent, helpful cybersecurity assistant for the CyberGuard platform. "
+                "Respond directly and naturally to the user's inquiry, using their verified security telemetry as context:\n"
                 f"{evidence_summary}\n"
-                "CRITICAL: Keep your response extremely concise, direct, and actionable (maximum 2 to 3 sentences). Do not use filler greetings or disclaimers."
+                "Keep response concise and direct (2 to 3 sentences)."
             )
             with httpx.Client(timeout=120.0) as client:
                 res = client.post(
@@ -311,7 +289,7 @@ def send_assistant_message(
                         "stream": False,
                         "keep_alive": "60m",
                         "options": {
-                            "num_predict": 120,
+                            "num_predict": 150,
                             "temperature": 0.2,
                             "top_k": 20,
                             "num_thread": 8,
@@ -323,23 +301,66 @@ def send_assistant_message(
         except Exception as exc:
             logger.warning("Ollama call failed or timed out", extra={"error": str(exc)[:200]})
 
+    # Intelligent intent routing fallback if external LLM inference did not return
     if not reply_text or reply_text.startswith("[AI analysis"):
-        if not evidence_items:
-            lower_msg = payload.message.lower()
-            if any(w in lower_msg for w in ["safe", "status", "health", "protect", "ok"]):
-                reply_text = f"Your endpoint environment is currently safe and secure. CyberGuard AI has {sources_count} active log source(s) connected with 0 critical breaches or active threats."
-            elif any(w in lower_msg for w in ["lock", "unlock", "screen", "login", "password"]):
-                reply_text = "Workstation session tracking is active. Real-time screen lock, unlock, and interactive logon events are actively audited on your computer."
-            elif any(w in lower_msg for w in ["app", "process", "software", "program", "running"]):
-                reply_text = "Process lifecycle monitoring is active. Application opened and closed events are tracked in real time, and background system services are isolated to maintain clear visibility."
-            elif any(w in lower_msg for w in ["alert", "threat", "anomaly", "finding", "issue"]):
-                reply_text = "No active security alerts or anomalies flagged across your connected endpoints. All monitored system activity is within normal security baselines."
+        lower_msg = payload.message.lower().strip()
+
+        # 1. Conversational Greetings
+        if lower_msg in ["hi", "hello", "hey", "hola", "sup", "greetings", "hi there"] or any(lower_msg.startswith(g) for g in ["hi ", "hello ", "hey "]):
+            reply_text = (
+                "Hello! I am your CyberGuard AI Security Assistant. I monitor your endpoints, background processes, "
+                "desktop applications, and email security in real time. How can I assist you with your cybersecurity today?"
+            )
+        # 2. Gmail / Email Security detection mechanics
+        elif any(w in lower_msg for w in ["gmail", "email", "mail", "inbox", "phish"]):
+            reply_text = (
+                "CyberGuard protects Gmail via secure OAuth synchronization: it inspects incoming email headers for SPF, DKIM, and DMARC "
+                "authentication to block impersonation, validates links against live global threat intelligence feeds, and scans attachments "
+                "for malicious signatures before you interact with them."
+            )
+        # 3. Platform Capabilities / Assistance questions
+        elif any(w in lower_msg for w in ["cyberguard", "what can you do", "help me", "how can you help", "who are you", "features", "capabilities", "answere related", "answer related"]):
+            reply_text = (
+                "CyberGuard is an AI-driven endpoint defense and threat management platform. I track real-time desktop application lifecycles, "
+                "workstation screen lock/unlock events, background services, and correlated threat intelligence. You can ask me to investigate "
+                "any security alert, explain suspicious processes, or review your system security health."
+            )
+        # 4. Explicit Alert / Threat / Finding inquiries
+        elif any(w in lower_msg for w in ["alert", "threat", "anomaly", "finding", "naukri", "incident", "malicious", "danger"]):
+            if active_alerts or active_findings:
+                reply_text = (
+                    f"Your workspace currently has {len(active_alerts)} active alert(s) and {len(active_findings)} finding(s). "
+                    f"Recent telemetry: {evidence_str}. You can investigate these in detail in the Security Alert Center or dismiss them if they reflect benign activity."
+                )
             else:
-                reply_text = f"CyberGuard AI Defense is active. Telemetry verified: {sources_count} active device(s), zero uncontained anomalies, and automated protective containment running."
+                reply_text = "No active security alerts or anomalies are flagged across your connected endpoints. All monitored system activity is within normal security baselines."
+        # 5. Screen lock / Session / Unlock
+        elif any(w in lower_msg for w in ["lock", "unlock", "screen", "login", "password", "logon"]):
+            reply_text = "Workstation session tracking is active. Real-time screen lock, unlock, and interactive logon events are actively audited on your computer."
+        # 6. Desktop application & Process monitoring
+        elif any(w in lower_msg for w in ["app", "process", "software", "program", "task manager", "running"]):
+            reply_text = "Process lifecycle monitoring is active. Application opened and closed events are tracked in real time, and background system services are isolated to maintain clear visibility."
+        # 7. Safety / Status / Health
+        elif any(w in lower_msg for w in ["safe", "status", "health", "protect", "ok"]):
+            if active_alerts or active_findings:
+                reply_text = (
+                    f"CyberGuard is actively defending {sources_count} enrolled device(s). While {len(active_alerts)} alert(s) are flagged "
+                    f"(including: {evidence_items[0] if evidence_items else 'telemetry finding'}), your core system remains under protective monitoring."
+                )
+            else:
+                reply_text = f"Your endpoint environment is currently safe and secure. CyberGuard AI has {sources_count} active log source(s) connected with 0 critical breaches or active threats."
+        # 8. Dynamic general fallback
         else:
-            reply_text = f"Based on your verified telemetry: Found {len(active_alerts)} active alert(s) and {len(active_findings)} finding(s). Recent evidence: {evidence_str}."
-        if is_ollama:
-            pass
+            if active_alerts or active_findings:
+                reply_text = (
+                    f"I've received your inquiry: \"{payload.message}\". CyberGuard defense is actively protecting {sources_count} connected device(s) "
+                    f"with {len(active_alerts)} alert(s) monitored. Let me know if you would like me to analyze a specific process, file, or alert."
+                )
+            else:
+                reply_text = (
+                    f"I've received your inquiry: \"{payload.message}\". CyberGuard AI Defense is active and monitoring {sources_count} device(s) "
+                    f"with all systems operating within secure baselines."
+                )
 
     asst_msg = CaseMessage(
         conversation_id=conv.id,

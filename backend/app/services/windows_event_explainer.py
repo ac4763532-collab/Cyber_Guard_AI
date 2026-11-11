@@ -411,6 +411,14 @@ KNOWN_APPS: Dict[str, Dict[str, str]] = {
     "lsass.exe": {"name": "Local Security Authority", "type": "security_system", "icon": "🛡️"},
     "msmpeng.exe": {"name": "Microsoft Defender Antivirus Engine", "type": "security_system", "icon": "🛡️"},
     "nissrv.exe": {"name": "Microsoft Defender Network Inspection", "type": "security_system", "icon": "🛡️"},
+    "winlogon.exe": {"name": "Windows Logon Subsystem", "type": "background_system", "icon": "🔐"},
+    "searchfilterhost.exe": {"name": "Windows Search Filter Host", "type": "background_system", "icon": "🔍"},
+    "searchindexer.exe": {"name": "Windows Search Indexer", "type": "background_system", "icon": "🔍"},
+    "dllhost.exe": {"name": "COM Surrogate Host", "type": "background_system", "icon": "⚙️"},
+    "taskhostw.exe": {"name": "Windows Task Host", "type": "background_system", "icon": "⚙️"},
+    "applicationframehost.exe": {"name": "Application Frame Host", "type": "background_system", "icon": "🪟"},
+    "wlanext.exe": {"name": "Windows Wireless LAN Extension", "type": "background_system", "icon": "📡"},
+    "whatsapp.exe": {"name": "WhatsApp", "type": "desktop_app", "icon": "💬"},
 }
 
 
@@ -443,8 +451,8 @@ def explain_folder_path(path_str: str) -> str:
 
 def resolve_friendly_app_name(raw_name: Optional[str]) -> Tuple[str, str, str]:
     """Returns (friendly_name, app_type, icon) for any executable or process name in plain English."""
-    if not raw_name:
-        return "Application", "desktop_app", "💻"
+    if not raw_name or str(raw_name).strip() in ("", "-", "None", "null"):
+        return "System Application", "background_system", "⚙️"
 
     # Robust cross-platform extraction: handle Windows backslashes even when running on Linux (Render)
     raw_str = str(raw_name).strip()
@@ -460,9 +468,25 @@ def resolve_friendly_app_name(raw_name: Optional[str]) -> Tuple[str, str, str]:
         entry = KNOWN_APPS[exe_key]
         return entry["name"], entry["type"], entry["icon"]
 
-    # Clean universal fallback formatting for ANY app (e.g. my_custom_tool.exe -> My Custom Tool)
+    # Detect generic background system helpers so they never leak into Desktop Apps
+    is_bg = (
+        clean.endswith("host.exe")
+        or clean.endswith("svc.exe")
+        or clean.endswith("service.exe")
+        or clean.endswith("daemon.exe")
+        or clean.endswith("broker.exe")
+        or clean.endswith("agent.exe")
+        or clean in (
+            "winlogon.exe", "dllhost.exe", "searchfilterhost.exe",
+            "searchindexer.exe", "lsass.exe", "csrss.exe", "smss.exe", "services.exe",
+        )
+    )
+    app_type = "background_system" if is_bg else "desktop_app"
+    icon = "⚙️" if is_bg else "💻"
     base = exe_key[:-4].replace("-", " ").replace("_", " ").title()
-    return base, "desktop_app", "💻"
+    if not base or base.lower() == "application":
+        base = "Background System Process" if is_bg else "Desktop Application"
+    return base, app_type, icon
 
 
 def get_friendly_event_summary(

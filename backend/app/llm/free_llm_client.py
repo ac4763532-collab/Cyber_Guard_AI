@@ -31,7 +31,7 @@ class FreeLLMClient:
         gemini_api_key: Optional[str] = None,
         groq_api_key: Optional[str] = None,
         gemini_model: str = "gemini-1.5-flash",
-        groq_model: str = "llama-3.3-70b-versatile",
+        groq_model: str = "openai/gpt-oss-20b",
         timeout: float = 20.0,
     ):
         self.gemini_key = (gemini_api_key or os.getenv("GEMINI_API_KEY", "")).strip().strip('"').strip("'")
@@ -135,26 +135,40 @@ class FreeLLMClient:
             return None
 
     def _call_groq(self, messages: List[Dict[str, str]], max_tokens: int, temperature: float) -> Optional[str]:
-        """Call Groq using their ultra-fast OpenAI-compatible endpoint."""
+        """Call Groq using their ultra-fast OpenAI-compatible endpoint with automatic model fallback."""
         url = "https://api.groq.com/openai/v1/chat/completions"
         headers = {
             "Content-Type": "application/json",
             "Authorization": f"Bearer {self.groq_key}",
         }
-        payload = {
-            "model": self.groq_model,
-            "messages": messages,
-            "temperature": temperature,
-            "max_tokens": max_tokens,
-        }
+        candidate_models = [self.groq_model, "openai/gpt-oss-20b", "qwen/qwen3.8-27b"]
+        # Deduplicate while preserving order
+        seen_models = set()
+        ordered_models = []
+        for m in candidate_models:
+            if m and m not in seen_models:
+                seen_models.add(m)
+                ordered_models.append(m)
+
         with httpx.Client(timeout=self.timeout) as client:
-            resp = client.post(url, headers=headers, json=payload)
-            if resp.status_code == 200:
-                data = resp.json()
-                choices = data.get("choices", [])
-                if choices and "message" in choices[0]:
-                    return choices[0]["message"]["content"].strip()
-            logger.warning("Groq API non-200 response", extra={"status": resp.status_code, "text": resp.text[:200]})
+            for model_name in ordered_models:
+                try:
+                    payload = {
+                        "model": model_name,
+                        "messages": messages,
+                        "temperature": temperature,
+                        "max_tokens": max_tokens,
+                    }
+                    resp = client.post(url, headers=headers, json=payload)
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        choices = data.get("choices", [])
+                        if choices and "message" in choices[0]:
+                            return choices[0]["message"]["content"].strip()
+                    logger.warning("Groq API non-200 response", extra={"model": model_name, "status": resp.status_code, "text": resp.text[:200]})
+                except Exception as exc:
+                    logger.warning("Groq model attempt failed", extra={"model": model_name, "error": str(exc)[:200]})
+
             return None
 
 
