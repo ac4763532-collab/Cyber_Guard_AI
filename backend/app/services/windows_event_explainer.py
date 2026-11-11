@@ -406,25 +406,30 @@ KNOWN_APPS: Dict[str, Dict[str, str]] = {
 
 
 def explain_folder_path(path_str: str) -> str:
-    """Translates raw filesystem directory paths into human-friendly folder names."""
+    """Translates raw filesystem directory paths into human-friendly folder names in plain English."""
     if not path_str:
         return ""
     p = path_str.replace("/", "\\")
-    if re.search(r"C:\\Users\\[^\\]+\\Downloads", p, re.IGNORECASE):
+    p_lower = p.lower()
+
+    if "downloads" in p_lower:
         return "Downloads folder"
-    if re.search(r"C:\\Users\\[^\\]+\\Desktop", p, re.IGNORECASE):
+    if "desktop" in p_lower:
         return "Desktop"
-    if re.search(r"C:\\Users\\[^\\]+\\Documents", p, re.IGNORECASE):
+    if "documents" in p_lower:
         return "Documents folder"
-    if re.search(r"C:\\Program Files", p, re.IGNORECASE):
+    if "program files" in p_lower:
         return "Program Files (Installed Software)"
-    if re.search(r"C:\\Windows\\System32", p, re.IGNORECASE):
-        return "Windows System folder"
-    if re.search(r"C:\\Users\\[^\\]+\\AppData\\Local\\Temp", p, re.IGNORECASE):
+    if "temp" in p_lower:
         return "Temporary Files folder"
-    if re.search(r"C:\\Users\\[^\\]+\\AppData", p, re.IGNORECASE):
+    if "system32" in p_lower or "windows" in p_lower:
+        return "Windows System folder"
+    if "appdata" in p_lower:
         return "Application Data folder"
-    return os.path.dirname(p) or "Local Drive"
+    if re.match(r"^[A-Za-z]:\\", p):
+        drive = p[0].upper()
+        return f"Local Drive ({drive}:)"
+    return "Local Drive"
 
 
 def resolve_friendly_app_name(raw_name: Optional[str]) -> Tuple[str, str, str]:
