@@ -1,22 +1,20 @@
 /**
- * CyberGuard AI — Authentication Context
+ * CyberGuard AI — Auth Provider & Session Manager
  * ============================================================================
  * 
- * Provides the global authentication state to the entire React tree.
- * 
- * Responsibilities:
- *   1. **Boot check** — On app load, checks for an existing token in
+ * Strict Enterprise Authentication Lifecycle:
+ *   1. **Boot check** - On app load, checks for an existing token in
  *      localStorage. If found, validates it by calling `GET /auth/me`.
- *   2. **Auth actions** — Exposes `login()`, `register()`, and `logout()`.
- *   3. **Global 401 Handling** — Registers the `setUnauthorizedCallback`
+ *   2. **Auth actions** - Exposes `login()`, `register()`, `switchRole()`, and `logout()`.
+ *   3. **Global 401 Handling** - Registers the `setUnauthorizedCallback`
  *      from `api.ts` so that if a token expires mid-session, the user
  *      is automatically logged out and redirected to /login.
- *   4. **Cache clearing** — On logout, wipes the React Query cache so
+ *   4. **Cache clearing** - On logout, wipes the React Query cache so
  *      one user never sees another user's data.
  */
 
 import React, { createContext, useContext, useEffect, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { queryClient } from "@/lib/queryClient";
 import { api, tokenStore, setUnauthorizedCallback } from "@/lib/api";
 import type { User, TokenResponse } from "@/types";
 
@@ -29,8 +27,9 @@ export interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (email: string, password: string) => Promise<User>;
+  login: (email: string, password: string, targetRole?: string) => Promise<User>;
   register: (email: string, password: string, fullName?: string, role?: string) => Promise<User>;
+  switchRole: (newRole: string) => Promise<User>;
   logout: () => void;
 }
 
@@ -44,12 +43,10 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  
-  const queryClient = useQueryClient();
 
-  // ── Logout function (clears tokens, user state, and cache) ────────────
+  // ── Logout action ──────────────────────────────────────────────────────
   const logout = () => {
-    tokenStore.clear();
+    tokenStore.clear();  // Clear access & refresh tokens
     setUser(null);
     queryClient.clear(); // Wipe all cached API data
     
@@ -59,48 +56,62 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  // ── Boot sequence (runs once on mount) ────────────────────────────────
+  // ── Boot sequence (runs once on mount) ─────────────────────────────────
   useEffect(() => {
-    // 1. Register the global 401 callback (from api.ts)
-    setUnauthorizedCallback(logout);
+    // 1. Wire the 401 handler so expired tokens trigger a clean logout
+    setUnauthorizedCallback(() => {
+      logout();
+    });
 
-    // 2. Check for existing token
-    const token = tokenStore.getAccess();
-    if (!token) {
-      setIsLoading(false);
-      return;
-    }
+    // 2. Validate any token left over from a previous session
+    const initializeAuth = async () => {
+      const token = tokenStore.getAccess();
+      if (!token) {
+        setIsLoading(false);
+        return;
+      }
 
-    // 3. Validate the token by fetching the user profile
-    const fetchMe = async () => {
       try {
-        const { data } = await api.get<User>("/auth/me");
-        setUser(data);
+        // Validate with the backend
+        const { data: userProfile } = await api.get<User>("/auth/me");
+        setUser(userProfile);
       } catch (error) {
-        // The `api` interceptor will try to refresh. If it fails, it 
-        // calls `logout()` automatically. We just catch to prevent
-        // an unhandled rejection warning.
-        console.debug("Initial auth check failed:", error);
+        // Token is invalid, expired, or user suspended
+        tokenStore.clear();
+        setUser(null);
       } finally {
         setIsLoading(false);
       }
     };
 
-    fetchMe();
+    initializeAuth();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Login action ──────────────────────────────────────────────────────
-  const login = async (email: string, password: string) => {
-    // 1. Get tokens
+  const login = async (email: string, password: string, targetRole?: string) => {
+    // 1. Get tokens (passing target_role if specified)
     const { data: tokens } = await api.post<TokenResponse>("/auth/login", {
       email,
       password,
+      ...(targetRole ? { target_role: targetRole } : {}),
     });
 
     // 2. Persist tokens to localStorage
     tokenStore.set(tokens.access_token, tokens.refresh_token);
 
     // 3. Fetch the full user profile
+    const { data: userProfile } = await api.get<User>("/auth/me");
+    setUser(userProfile);
+    return userProfile;
+  };
+
+  // ── Switch Workspace Role action ──────────────────────────────────────
+  const switchRole = async (newRole: string) => {
+    const { data: tokens } = await api.post<TokenResponse>("/auth/switch-role", {
+      role: newRole,
+    });
+
+    tokenStore.set(tokens.access_token, tokens.refresh_token);
     const { data: userProfile } = await api.get<User>("/auth/me");
     setUser(userProfile);
     return userProfile;
@@ -120,9 +131,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     tokenStore.set(tokens.access_token, tokens.refresh_token);
 
     // 3. Fetch profile
-    // Note: The backend creates the user in PENDING_VERIFICATION status.
-    // They are technically "logged in" but most actions will be blocked
-    // until they verify their email.
     const { data: userProfile } = await api.get<User>("/auth/me");
     setUser(userProfile);
     return userProfile;
@@ -141,6 +149,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         isLoading,
         login,
         register,
+        switchRole,
         logout,
       }}
     >
@@ -154,12 +163,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 // HOOK
 // ============================================================================
 
-/**
- * Access the current auth state. Throws if used outside `<AuthProvider>`.
- * 
- * Usage:
- *   const { user, logout, isAuthenticated } = useAuth();
- */
 export function useAuth() {
   const context = useContext(AuthContext);
   if (context === undefined) {

@@ -41,12 +41,23 @@ import {
   UserPlus,
   Copy,
   Check,
+  Layers,
+  Laptop,
+  ShieldAlert,
+  Building2,
 } from "lucide-react";
 
 import { useAuth } from "@/auth/AuthProvider";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/Button";
 import { toast } from "sonner";
+import {
+  Modal,
+  ModalContent,
+  ModalHeader,
+  ModalTitle,
+  ModalDescription,
+} from "@/components/ui/Modal";
 
 interface NavItem {
   label: string;
@@ -96,11 +107,27 @@ const organizationNav: NavItem[] = [
 ];
 
 export function AppShell() {
-  const { user, logout } = useAuth();
+  const { user, logout, switchRole } = useAuth();
   const navigate = useNavigate();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [copiedId, setCopiedId] = useState(false);
+  const [showRoleModal, setShowRoleModal] = useState(false);
+  const [isSwitchingRole, setIsSwitchingRole] = useState(false);
+
+  const handleSwitchWorkspace = async (targetRole: string, targetPath: string) => {
+    setIsSwitchingRole(true);
+    try {
+      await switchRole(targetRole);
+      setShowRoleModal(false);
+      navigate(targetPath, { replace: true });
+      toast.success(`Switched to ${targetRole} workspace!`);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to switch workspace");
+    } finally {
+      setIsSwitchingRole(false);
+    }
+  };
 
   const role = (user?.role || "individual").toLowerCase();
   
@@ -174,6 +201,13 @@ export function AppShell() {
             <span className={cn("text-[11px] font-semibold px-2 py-0.5 rounded-full border uppercase tracking-wider", roleBadgeClass)}>
               {roleTitle}
             </span>
+            <button
+              onClick={() => setShowRoleModal(true)}
+              className="text-[10px] font-bold text-cyan-400 hover:text-cyan-300 flex items-center gap-1 hover:underline transition"
+              title="Switch Workspace Portal"
+            >
+              <Layers size={11} /> Switch
+            </button>
           </div>
 
           <div className="flex items-center justify-between bg-slate-900 border border-slate-800 rounded-lg p-2.5">
@@ -277,6 +311,16 @@ export function AppShell() {
               </Button>
             )}
 
+            {/* Quick Portal Switcher Button */}
+            <button
+              onClick={() => setShowRoleModal(true)}
+              className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-800/80 hover:bg-slate-800 text-slate-300 hover:text-cyan-400 border border-slate-700 hover:border-cyan-500/40 transition shadow-sm"
+              title="Switch Workspace Portal"
+            >
+              <Layers size={13} className="text-cyan-400" />
+              <span>Portal: <strong className="capitalize text-slate-100">{role === "organizer" || role === "org_admin" ? "Organization" : role}</strong></span>
+            </button>
+
             {/* Dark Mode Toggle */}
             <button
               onClick={toggleDarkMode}
@@ -302,6 +346,98 @@ export function AppShell() {
           </div>
         </main>
       </div>
+
+      {/* ── Workspace Role Switcher Modal ────────────────────────────── */}
+      <Modal open={showRoleModal} onOpenChange={setShowRoleModal}>
+        <ModalContent className="max-w-md">
+          <ModalHeader>
+            <div className="flex items-center gap-2 text-cyan-400 mb-1">
+              <Layers size={20} />
+              <ModalTitle>Switch Workspace Portal</ModalTitle>
+            </div>
+            <ModalDescription>
+              Select the workspace you want to enter. Your authorized permissions will update seamlessly.
+            </ModalDescription>
+          </ModalHeader>
+
+          <div className="space-y-3 py-2">
+            {/* Individual */}
+            <button
+              onClick={() => handleSwitchWorkspace("individual", "/personal/dashboard")}
+              disabled={isSwitchingRole}
+              className={cn(
+                "w-full text-left p-3.5 rounded-xl border transition flex items-start gap-3.5 cursor-pointer",
+                role === "individual"
+                  ? "border-cyan-500 bg-cyan-500/10 text-cyan-300"
+                  : "border-slate-800 bg-slate-900/60 hover:border-slate-700 text-slate-300"
+              )}
+            >
+              <div className="p-2 rounded-lg bg-slate-800 text-cyan-400 shrink-0">
+                <Laptop size={18} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-100">Individual Protection</span>
+                  {role === "individual" && <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">Active</span>}
+                </div>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Personal endpoint defense, Gmail security, system logs, and AI Assistant.
+                </p>
+              </div>
+            </button>
+
+            {/* Analyst */}
+            <button
+              onClick={() => handleSwitchWorkspace("analyst", "/analyst/dashboard")}
+              disabled={isSwitchingRole}
+              className={cn(
+                "w-full text-left p-3.5 rounded-xl border transition flex items-start gap-3.5 cursor-pointer",
+                role === "analyst"
+                  ? "border-emerald-500 bg-emerald-500/10 text-emerald-300"
+                  : "border-slate-800 bg-slate-900/60 hover:border-slate-700 text-slate-300"
+              )}
+            >
+              <div className="p-2 rounded-lg bg-slate-800 text-emerald-400 shrink-0">
+                <ShieldAlert size={18} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-100">Security Analyst (SOC)</span>
+                  {role === "analyst" && <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">Active</span>}
+                </div>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  SOC case workbench, threat hunting, evidence vault, and investigation reports.
+                </p>
+              </div>
+            </button>
+
+            {/* Organization */}
+            <button
+              onClick={() => handleSwitchWorkspace("organizer", "/organization/dashboard")}
+              disabled={isSwitchingRole}
+              className={cn(
+                "w-full text-left p-3.5 rounded-xl border transition flex items-start gap-3.5 cursor-pointer",
+                role === "organizer" || role === "org_admin"
+                  ? "border-blue-500 bg-blue-500/10 text-blue-300"
+                  : "border-slate-800 bg-slate-900/60 hover:border-slate-700 text-slate-300"
+              )}
+            >
+              <div className="p-2 rounded-lg bg-slate-800 text-blue-400 shrink-0">
+                <Building2 size={18} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-100">Organization Console</span>
+                  {(role === "organizer" || role === "org_admin") && <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30">Active</span>}
+                </div>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Enterprise telemetry, department rooms, employee monitoring, and analyst hiring.
+                </p>
+              </div>
+            </button>
+          </div>
+        </ModalContent>
+      </Modal>
     </div>
   );
 }

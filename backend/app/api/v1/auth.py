@@ -100,6 +100,7 @@ from app.schemas.auth import (
     LoginRequest,
     RefreshRequest,
     RegisterRequest,
+    SwitchRoleRequest,
     TokenResponse,
 )
 from app.schemas.user import UserRead
@@ -541,6 +542,32 @@ def login(
         password=body.password,
     )
 
+    # If user explicitly logged into a specialized portal (e.g. analyst or organizer), activate that role
+    if body.target_role:
+        target_role = body.target_role.lower().strip()
+        if target_role == "organization":
+            target_role = "organizer"
+        if target_role in ("individual", "analyst", "organizer", "org_admin"):
+            user.role = target_role
+            if target_role == "analyst":
+                from app.models.analyst import AnalystProfile
+                existing = db.execute(
+                    select(AnalystProfile).where(AnalystProfile.user_id == user.id)
+                ).scalar_one_or_none()
+                if not existing:
+                    profile = AnalystProfile.build_application(
+                        user_id=user.id,
+                        display_name=user.full_name or "Security Analyst",
+                        specializations=["Incident Response", "Threat Hunting"],
+                        headline="Cybersecurity Analyst",
+                        bio="Verified security analyst performing SOC investigations.",
+                        hourly_rate_cents=8500,
+                        certifications=[{"name": "Security Analyst"}],
+                        verification_documents=[],
+                    )
+                    profile.verified = True
+                    db.add(profile)
+
     tokens = build_token_response(
         user_id=user.id,
         extra_claims={"role": user.role, "public_user_id": user.public_user_id},
@@ -549,7 +576,7 @@ def login(
 
     logger.info(
         "User logged in",
-        extra={"user_id": str(user.id)},
+        extra={"user_id": str(user.id), "role": user.role},
     )
 
     return tokens
@@ -641,6 +668,64 @@ def get_me(
     not declared on `UserRead` are silently dropped.
     """
     return UserRead.model_validate(current_user)
+
+
+# ============================================================================
+# POST /switch-role
+# ============================================================================
+
+@router.post(
+    "/switch-role",
+    response_model=TokenResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Switch active workspace role (individual, analyst, organizer)",
+)
+def switch_role(
+    body: SwitchRoleRequest,
+    current_user: CurrentActiveUser,
+    db: DBDep,
+) -> TokenResponse:
+    target_role = body.role.lower().strip()
+    if target_role == "organization":
+        target_role = "organizer"
+
+    if target_role not in ("individual", "analyst", "organizer", "org_admin"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid role: {target_role}. Must be individual, analyst, or organizer.",
+        )
+
+    current_user.role = target_role
+    if target_role == "analyst":
+        from app.models.analyst import AnalystProfile
+        existing = db.execute(
+            select(AnalystProfile).where(AnalystProfile.user_id == current_user.id)
+        ).scalar_one_or_none()
+        if not existing:
+            profile = AnalystProfile.build_application(
+                user_id=current_user.id,
+                display_name=current_user.full_name or "Security Analyst",
+                specializations=["Incident Response", "Threat Hunting"],
+                headline="Cybersecurity Analyst",
+                bio="Verified security analyst performing SOC investigations.",
+                hourly_rate_cents=8500,
+                certifications=[{"name": "Security Analyst"}],
+                verification_documents=[],
+            )
+            profile.verified = True
+            db.add(profile)
+
+    tokens = build_token_response(
+        user_id=current_user.id,
+        extra_claims={"role": current_user.role, "public_user_id": current_user.public_user_id},
+    )
+    db.commit()
+
+    logger.info(
+        "User switched active role",
+        extra={"user_id": str(current_user.id), "new_role": current_user.role},
+    )
+    return tokens
 
 
 # ============================================================================

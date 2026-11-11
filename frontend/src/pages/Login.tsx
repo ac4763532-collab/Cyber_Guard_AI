@@ -1,12 +1,12 @@
 /**
- * CyberGuard AI — Login Page
+ * CyberGuard AI — Login Page with Role-Based Workspace Portals
  * ============================================================================
  * 
  * Strict Enterprise Authentication:
- *   - Form validation using Zod + React Hook Form
- *   - Secure Email + Password authentication
+ *   - Dedicated Role & Workspace Selector: Individual, Security Analyst, Organization
+ *   - Direct routing to role-specific authorized dashboards
  *   - Multi-step 2FA-verified Account Recovery (Email OTP verification code via Gmail/SMTP)
- *   - Rate-limiting & lockout-aware error handling
+ *   - Form validation using Zod + React Hook Form
  *   - Full dark mode support
  */
 
@@ -15,21 +15,98 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useNavigate, useLocation, Link } from "react-router-dom";
-import { ShieldCheck, Mail, Lock, ArrowLeft, KeyRound, CheckCircle2 } from "lucide-react";
+import { 
+  ShieldCheck, 
+  Mail, 
+  Lock, 
+  ArrowLeft, 
+  KeyRound, 
+  Laptop, 
+  ShieldAlert, 
+  Building2, 
+  CheckCircle2,
+  ArrowRight
+} from "lucide-react";
 import { toast } from "sonner";
 
 import { useAuth } from "@/auth/AuthProvider";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { cn } from "@/lib/utils";
 import {
   Modal,
   ModalContent,
   ModalHeader,
   ModalTitle,
   ModalDescription,
-  ModalFooter,
 } from "@/components/ui/Modal";
+
+type PortalType = "individual" | "analyst" | "organizer";
+
+interface PortalConfig {
+  id: PortalType;
+  title: string;
+  badge: string;
+  description: string;
+  destination: string;
+  icon: React.ReactNode;
+  activeColor: string;
+  activeBorder: string;
+  activeBg: string;
+  badgeClass: string;
+  buttonText: string;
+  registerText: string;
+  registerLink: string;
+}
+
+const PORTALS: Record<PortalType, PortalConfig> = {
+  individual: {
+    id: "individual",
+    title: "Individual",
+    badge: "Personal Defense",
+    description: "Monitor personal computers, Gmail threat security, active processes, and logs.",
+    destination: "/personal/dashboard",
+    icon: <Laptop size={18} />,
+    activeColor: "text-cyan-400",
+    activeBorder: "border-cyan-500",
+    activeBg: "bg-cyan-500/10",
+    badgeClass: "bg-cyan-500/10 text-cyan-400 border-cyan-500/30",
+    buttonText: "Sign In to Personal Protection",
+    registerText: "Create a Personal Account",
+    registerLink: "/register?type=individual",
+  },
+  analyst: {
+    id: "analyst",
+    title: "Security Analyst",
+    badge: "SOC Operations",
+    description: "Case investigation workbench, evidence library, threat hunting & advisory.",
+    destination: "/analyst/dashboard",
+    icon: <ShieldAlert size={18} />,
+    activeColor: "text-emerald-400",
+    activeBorder: "border-emerald-500",
+    activeBg: "bg-emerald-500/10",
+    badgeClass: "bg-emerald-500/10 text-emerald-400 border-emerald-500/30",
+    buttonText: "Sign In to Analyst SOC",
+    registerText: "Apply as a Verified Security Analyst",
+    registerLink: "/analyst/register",
+  },
+  organizer: {
+    id: "organizer",
+    title: "Organization",
+    badge: "Enterprise Console",
+    description: "Company infrastructure, department rooms, employee telemetry & security teams.",
+    destination: "/organization/dashboard",
+    icon: <Building2 size={18} />,
+    activeColor: "text-blue-400",
+    activeBorder: "border-blue-500",
+    activeBg: "bg-blue-500/10",
+    badgeClass: "bg-blue-500/10 text-blue-400 border-blue-500/30",
+    buttonText: "Sign In to Organization Console",
+    registerText: "Create an Organization Workspace",
+    registerLink: "/organization/create",
+  },
+};
 
 const loginSchema = z.object({
   email: z
@@ -48,6 +125,25 @@ export default function Login() {
   const navigate = useNavigate();
   const location = useLocation();
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Parse portal from URL parameters if passed (e.g. /login?portal=analyst)
+  const searchParams = new URLSearchParams(location.search);
+  const initialPortalParam = (
+    searchParams.get("portal") ||
+    searchParams.get("role") ||
+    searchParams.get("type") ||
+    "individual"
+  ).toLowerCase();
+
+  const initialPortal: PortalType = 
+    initialPortalParam === "analyst" 
+      ? "analyst" 
+      : (initialPortalParam === "organizer" || initialPortalParam === "organization")
+      ? "organizer"
+      : "individual";
+
+  const [selectedPortal, setSelectedPortal] = useState<PortalType>(initialPortal);
+  const currentPortal = PORTALS[selectedPortal];
 
   // Multi-step Password Recovery State (Email -> 6-Digit Code -> New Password)
   const [showForgotModal, setShowForgotModal] = useState(false);
@@ -75,23 +171,33 @@ export default function Login() {
   const onSubmit = async (data: LoginFormValues) => {
     setIsSubmitting(true);
     try {
-      const loggedInUser = await login(data.email, data.password);
-      toast.success("Welcome back!");
+      const loggedInUser = await login(data.email, data.password, selectedPortal);
+      toast.success(`Welcome back to CyberGuard!`);
 
-      // If bounced here with a specific destination, return there
-      if (location.state?.from?.pathname && location.state.from.pathname !== "/login" && location.state.from.pathname !== "/dashboard") {
+      // If bounced here with a specific return destination, honor it
+      if (
+        location.state?.from?.pathname && 
+        location.state.from.pathname !== "/login" && 
+        location.state.from.pathname !== "/dashboard"
+      ) {
         navigate(location.state.from.pathname, { replace: true });
         return;
       }
 
-      // Otherwise, navigate directly to authorized role-based workspace
-      const role = (loggedInUser?.role || "individual").toLowerCase();
-      if (role === "analyst") {
+      // Route directly to selected portal dashboard
+      if (selectedPortal === "analyst") {
         navigate("/analyst/dashboard", { replace: true });
-      } else if (role === "organizer" || role === "org_admin" || role === "organization") {
+      } else if (selectedPortal === "organizer") {
         navigate("/organization/dashboard", { replace: true });
       } else {
-        navigate("/personal/dashboard", { replace: true });
+        const userRole = (loggedInUser?.role || "individual").toLowerCase();
+        if (userRole === "analyst") {
+          navigate("/analyst/dashboard", { replace: true });
+        } else if (userRole === "organizer" || userRole === "org_admin" || userRole === "organization") {
+          navigate("/organization/dashboard", { replace: true });
+        } else {
+          navigate("/personal/dashboard", { replace: true });
+        }
       }
     } catch (error: any) {
       toast.error(error.message || "Invalid email or password.");
@@ -176,7 +282,6 @@ export default function Login() {
       toast.success(res.data?.message || "Password updated successfully! You can now log in.");
       setValue("email", recoveryEmail);
       setShowForgotModal(false);
-      // Reset modal state
       setRecoveryStep(1);
       setRecoveryEmail("");
       setVerificationCode("");
@@ -205,10 +310,10 @@ export default function Login() {
       <div className="w-full max-w-md">
         
         {/* ── Brand Header ────────────────────────────────────────────── */}
-        <div className="mb-8 flex flex-col items-center text-center">
+        <div className="mb-6 flex flex-col items-center text-center">
           <Link
             to="/"
-            className="flex h-12 w-12 items-center justify-center rounded-xl bg-brand-100 text-brand-600 dark:bg-brand-900/50 dark:text-brand-400 hover:scale-105 transition-transform shadow-md"
+            className="flex h-12 w-12 items-center justify-center rounded-xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 hover:scale-105 transition-transform shadow-md shadow-cyan-500/20"
             title="Back to Home"
           >
             <ShieldCheck size={28} />
@@ -216,19 +321,73 @@ export default function Login() {
           <h1 className="mt-4 text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
             Welcome to CyberGuard
           </h1>
-          <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-            Sign in to your security operations account
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+            Select your workspace portal and sign in to your dashboard
           </p>
         </div>
 
+        {/* ── Portal Switcher Tabs ────────────────────────────────────── */}
+        <div className="mb-4 rounded-xl border border-slate-200 bg-white p-1.5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+          <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 px-2 py-1 flex items-center justify-between">
+            <span>Select Dashboard Portal</span>
+            <span className="text-[10px] text-cyan-400 font-mono lowercase">role-authenticated</span>
+          </div>
+          <div className="grid grid-cols-3 gap-1.5 mt-1">
+            {(Object.values(PORTALS) as PortalConfig[]).map((portal) => {
+              const isSelected = selectedPortal === portal.id;
+              return (
+                <button
+                  key={portal.id}
+                  type="button"
+                  onClick={() => setSelectedPortal(portal.id)}
+                  className={cn(
+                    "flex flex-col items-center justify-center gap-1.5 py-2.5 px-2 rounded-lg text-xs font-medium transition-all cursor-pointer",
+                    isSelected
+                      ? `${portal.activeBg} ${portal.activeBorder} ${portal.activeColor} border shadow-sm font-bold`
+                      : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/40 border border-transparent"
+                  )}
+                >
+                  <div className="w-5 h-5 flex items-center justify-center">
+                    {portal.icon}
+                  </div>
+                  <span className="leading-tight text-center">{portal.title}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
         {/* ── Login Card ──────────────────────────────────────────────── */}
-        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8 dark:border-slate-800 dark:bg-slate-900">
+        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm sm:p-7 dark:border-slate-800 dark:bg-slate-900">
+          
+          {/* Active Portal Header Banner */}
+          <div className="mb-5 p-3 rounded-lg bg-slate-950/80 border border-slate-800 flex items-start gap-3">
+            <div className={cn("p-2 rounded-md bg-slate-900 border border-slate-800 shrink-0", currentPortal.activeColor)}>
+              {currentPortal.icon}
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-bold text-slate-100">{currentPortal.title} Portal</span>
+                <span className={cn("text-[10px] font-mono px-2 py-0.5 rounded-full border", currentPortal.badgeClass)}>
+                  {currentPortal.badge}
+                </span>
+              </div>
+              <p className="text-xs text-slate-400 mt-1 leading-relaxed">
+                {currentPortal.description}
+              </p>
+              <div className="mt-2 text-[10px] text-slate-500 font-mono flex items-center gap-1">
+                <span>Direct Destination:</span>
+                <span className="text-cyan-400 font-semibold">{currentPortal.destination}</span>
+              </div>
+            </div>
+          </div>
+
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             
             <Input
-              label="Email"
+              label="Account Email"
               type="email"
-              placeholder="operator@company.com"
+              placeholder={selectedPortal === "analyst" ? "analyst@soc.company.com" : selectedPortal === "organizer" ? "admin@enterprise.com" : "you@example.com"}
               leftIcon={<Mail size={16} />}
               autoComplete="email"
               error={errors.email?.message}
@@ -260,25 +419,35 @@ export default function Login() {
 
             <Button
               type="submit"
-              className="w-full mt-2"
+              className="w-full mt-2 font-semibold"
               size="lg"
               isLoading={isSubmitting}
             >
-              Sign In
+              {currentPortal.buttonText}
             </Button>
           </form>
 
-          {/* ── Footer Links ────────────────────────────────────────────── */}
-          <div className="mt-6 text-center text-sm">
-            <span className="text-slate-500 dark:text-slate-400">
-              Don't have an account?{" "}
-            </span>
-            <Link
-              to="/register"
-              className="font-semibold text-brand-600 hover:text-brand-500 dark:text-brand-400 dark:hover:text-brand-300"
-            >
-              Get started
-            </Link>
+          {/* ── Footer Dynamic Role Links ───────────────────────────────── */}
+          <div className="mt-6 pt-5 border-t border-slate-100 dark:border-slate-800/80 space-y-3 text-center text-sm">
+            <div className="text-xs text-slate-400">
+              Need a new {currentPortal.title.toLowerCase()} account?{" "}
+              <Link
+                to={currentPortal.registerLink}
+                className="font-semibold text-cyan-400 hover:text-cyan-300 underline underline-offset-2 ml-1"
+              >
+                {currentPortal.registerText}
+              </Link>
+            </div>
+
+            <div className="text-xs text-slate-500 flex items-center justify-center gap-1.5 pt-1">
+              <span>Looking for other accounts?</span>
+              <Link
+                to="/select-account"
+                className="text-slate-400 hover:text-cyan-400 transition-colors inline-flex items-center gap-1 font-medium"
+              >
+                Choose Account Type <ArrowRight size={12} />
+              </Link>
+            </div>
           </div>
         </div>
 
@@ -318,139 +487,77 @@ export default function Login() {
           {recoveryStep === 1 && (
             <form onSubmit={handleSendCode} className="space-y-4 py-2">
               <Input
-                label="Registered Account Email"
+                label="Registered Email"
                 type="email"
                 placeholder="operator@company.com"
                 value={recoveryEmail}
                 onChange={(e) => setRecoveryEmail(e.target.value)}
-                required
                 leftIcon={<Mail size={16} />}
+                autoComplete="email"
+                required
               />
-              <ModalFooter className="mt-6">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setShowForgotModal(false)}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  type="submit"
-                  isLoading={isRecoveryLoading}
-                >
-                  Send Verification Code
-                </Button>
-              </ModalFooter>
+              <Button type="submit" className="w-full" isLoading={isRecoveryLoading}>
+                Send 6-Digit Code
+              </Button>
             </form>
           )}
 
-          {/* ── Step 2: Verify 6-Digit Code ──────────────────────────── */}
+          {/* ── Step 2: Verify Code ──────────────────────────────────── */}
           {recoveryStep === 2 && (
             <form onSubmit={handleVerifyCode} className="space-y-4 py-2">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                  6-Digit Verification Code
-                </label>
-                <input
-                  type="text"
-                  maxLength={6}
-                  placeholder="000000"
-                  value={verificationCode}
-                  onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, ""))}
-                  required
-                  className="w-full text-center text-2xl font-mono tracking-widest px-4 py-3 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-cyan-500"
-                />
-                <p className="mt-1.5 text-xs text-slate-400">
-                  Check your inbox for the code. Valid for 15 minutes.
-                </p>
+              <div className="text-center p-3 bg-slate-50 dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 mb-2">
+                <p className="text-xs text-slate-500 dark:text-slate-400">A 6-digit OTP code was sent to:</p>
+                <p className="font-mono text-sm font-bold text-cyan-600 dark:text-cyan-400 mt-0.5">{recoveryEmail}</p>
               </div>
-
-              <div className="flex justify-between items-center text-xs">
-                <button
-                  type="button"
-                  onClick={() => setRecoveryStep(1)}
-                  className="text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
-                >
-                  Change email
-                </button>
-                <button
-                  type="button"
-                  onClick={handleSendCode}
-                  disabled={isRecoveryLoading}
-                  className="text-cyan-500 hover:underline font-medium"
-                >
-                  Resend code
-                </button>
-              </div>
-
-              <ModalFooter className="mt-6">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setShowForgotModal(false)}
-                >
-                  Cancel
+              <Input
+                label="6-Digit Verification Code"
+                type="text"
+                placeholder="123456"
+                value={verificationCode}
+                onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                leftIcon={<KeyRound size={16} />}
+                maxLength={6}
+                required
+              />
+              <div className="flex gap-2">
+                <Button type="button" variant="outline" className="w-1/3" onClick={() => setRecoveryStep(1)}>
+                  Back
                 </Button>
-                <Button
-                  type="submit"
-                  isLoading={isRecoveryLoading}
-                >
+                <Button type="submit" className="w-2/3" isLoading={isRecoveryLoading}>
                   Verify Code
                 </Button>
-              </ModalFooter>
+              </div>
             </form>
           )}
 
-          {/* ── Step 3: Enter New Password ──────────────────────────── */}
+          {/* ── Step 3: New Password ─────────────────────────────────── */}
           {recoveryStep === 3 && (
             <form onSubmit={handleResetPassword} className="space-y-4 py-2">
-              <div className="flex items-center gap-2 p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs">
-                <CheckCircle2 size={16} />
-                <span>Identity verified for {recoveryEmail}</span>
-              </div>
-
               <Input
                 label="New Password"
                 type="password"
-                placeholder="Minimum 8 characters"
+                placeholder="Min 8 chars with letters & numbers"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
-                required
                 leftIcon={<Lock size={16} />}
-                helperText="At least 8 characters with letters and numbers."
+                required
               />
-
               <Input
                 label="Confirm New Password"
                 type="password"
-                placeholder="Re-enter new password"
+                placeholder="••••••••"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
+                leftIcon={<CheckCircle2 size={16} />}
                 required
-                leftIcon={<Lock size={16} />}
               />
-
-              <ModalFooter className="mt-6">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setShowForgotModal(false)}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  type="submit"
-                  isLoading={isRecoveryLoading}
-                >
-                  Update Password
-                </Button>
-              </ModalFooter>
+              <Button type="submit" className="w-full" isLoading={isRecoveryLoading}>
+                Update Password & Log In
+              </Button>
             </form>
           )}
-
         </ModalContent>
       </Modal>
-
     </div>
   );
 }

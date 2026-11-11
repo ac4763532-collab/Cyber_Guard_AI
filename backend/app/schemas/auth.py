@@ -38,7 +38,7 @@ Usage
 -----
     from app.schemas.auth import (
         RegisterRequest, LoginRequest, RefreshRequest,
-        TokenResponse, TokenPayload, PasswordChangeRequest,
+        TokenResponse, TokenPayload, PasswordChangeRequest, SwitchRoleRequest,
     )
 
     @router.post("/register")
@@ -172,12 +172,27 @@ class LoginRequest(CyberGuardBaseSchema):
         description="Plaintext password.",
     )
 
+    target_role: str | None = Field(
+        default=None,
+        description="Optional workspace portal intent: 'individual', 'analyst', 'organizer'.",
+    )
+
     @field_validator("email", mode="before")
     @classmethod
     def _normalize_email(cls, v: object) -> str:
         if not isinstance(v, str):
             raise ValueError("email must be a string")
         return v.strip().lower()
+
+
+class SwitchRoleRequest(CyberGuardBaseSchema):
+    """
+    Request body for POST /api/v1/auth/switch-role.
+    """
+    role: str = Field(
+        ...,
+        description="Desired active workspace role: 'individual', 'analyst', 'organizer'.",
+    )
 
 
 class RefreshRequest(CyberGuardBaseSchema):
@@ -247,7 +262,6 @@ class PasswordChangeRequest(CyberGuardBaseSchema):
     @field_validator("new_password")
     @classmethod
     def _require_different_password(cls, v: str, info) -> str:
-        # `info.data` contains previously-validated fields in the same model.
         old = info.data.get("old_password")
         if old and old == v:
             raise ValueError("New password must differ from old password.")
@@ -264,10 +278,6 @@ class TokenResponse(CyberGuardBaseSchema):
 
     Standard OAuth2 bearer token response. The client sends
     `Authorization: Bearer <access_token>` on subsequent requests.
-
-    Note: does **not** include the user object — the client calls
-    `GET /me` to fetch the user. This avoids a circular schema dependency
-    between auth and user modules.
     """
 
     access_token: str = Field(
@@ -299,10 +309,6 @@ class TokenResponse(CyberGuardBaseSchema):
 class TokenPayload(CyberGuardBaseSchema):
     """
     Decoded JWT claims. Internal use only — not returned to any client.
-
-    Populated by `app.auth.dependencies.get_current_user` after calling
-    `app.core.security.decode_access_token`. The `sub` (subject) is the
-    user's UUID string; `type` distinguishes access from refresh tokens.
     """
 
     sub: str = Field(
@@ -330,7 +336,6 @@ class TokenPayload(CyberGuardBaseSchema):
         description="Unique token ID. Used for revocation in a future blocklist.",
     )
 
-    # Allow extra claims (e.g. org_id, permissions scoped to a request)
     model_config = {
         "extra": "allow",
         "str_strip_whitespace": True,
@@ -339,10 +344,6 @@ class TokenPayload(CyberGuardBaseSchema):
 
     @property
     def user_id(self) -> uuid.UUID:
-        """
-        Parse `sub` as UUID. Raises ValueError if malformed — callers
-        should treat that as an authentication failure.
-        """
         return uuid.UUID(self.sub)
 
 
@@ -356,6 +357,7 @@ __all__ = [
     "LoginRequest",
     "RefreshRequest",
     "PasswordChangeRequest",
+    "SwitchRoleRequest",
     # Responses
     "TokenResponse",
     # Internal
