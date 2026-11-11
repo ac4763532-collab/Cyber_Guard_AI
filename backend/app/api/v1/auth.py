@@ -360,17 +360,19 @@ def register_initiate_endpoint(
 
     email_sent, status_desc = _send_registration_email(email, code, user_name=body.full_name)
 
-    resp_data = {
-        "status": "ok",
-        "message": f"A 6-digit verification code has been dispatched to {email}." if email_sent else f"Verification code generated for {email}.",
-        "expires_in_minutes": 15,
-        "email_dispatched": email_sent,
-    }
     if not email_sent:
-        resp_data["preview_code"] = code
-        resp_data["dev_hint"] = status_desc
+        logger.error("Registration email dispatch failed to %s: %s", email, status_desc)
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Unable to dispatch verification email to {email}. Error: {status_desc}",
+        )
 
-    return resp_data
+    return {
+        "status": "ok",
+        "message": f"A 6-digit verification code has been dispatched to {email}. Please check your inbox.",
+        "expires_in_minutes": 15,
+        "email_dispatched": True,
+    }
 
 
 @router.post(
@@ -911,17 +913,19 @@ def forgot_password_endpoint(
 
     email_sent, status_desc = _send_recovery_email(email, code, user_name=user.full_name)
 
-    resp_data = {
-        "status": "ok",
-        "message": f"A 6-digit verification code has been dispatched to {email}." if email_sent else f"Verification code generated for {email}.",
-        "expires_in_minutes": 15,
-        "email_dispatched": email_sent,
-    }
     if not email_sent:
-        resp_data["preview_code"] = code
-        resp_data["dev_hint"] = status_desc
+        logger.error("Password recovery email dispatch failed to %s: %s", email, status_desc)
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Unable to dispatch recovery email to {email}. Error: {status_desc}",
+        )
 
-    return resp_data
+    return {
+        "status": "ok",
+        "message": f"A 6-digit verification code has been dispatched to {email}. Please check your inbox.",
+        "expires_in_minutes": 15,
+        "email_dispatched": True,
+    }
 
 
 @router.post(
