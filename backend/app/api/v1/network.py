@@ -21,13 +21,14 @@ from app.agents.base import AgentContext
 from app.agents.network_analysis.agent import NetworkAnalysisAgent
 from app.api.deps import CurrentActiveUser, DBDep
 from app.core.logging import get_logger
-from app.models.enums import EventCategory, EventSeverity, SourceType
+from app.models.enums import EventCategory, EventSeverity, SourceStatus, SourceType
 from app.models.event import SecurityEvent
 from app.models.finding import AgentFinding
 from app.models.source import SecuritySource
 from app.models.user import User
 from app.models.workspace import Workspace
-from app.services import workspace_service
+from app.schemas.source import SecuritySourceCreate
+from app.services import enrollment_service, source_service, workspace_service
 from app.services.ml_service import ml_engine
 
 logger = get_logger(__name__)
@@ -79,6 +80,22 @@ class IngestFlowItem(BaseModel):
 class IngestFlowBatchRequest(BaseModel):
     sensor_id: Optional[uuid.UUID] = None
     flows: List[IngestFlowItem]
+
+
+class EnrollNetworkSensorRequest(BaseModel):
+    name: str = Field("Office Gateway Sensor", min_length=1, max_length=120)
+    description: Optional[str] = "Network flow inspection & egress monitoring gateway"
+
+
+class EnrollNetworkSensorResponse(BaseModel):
+    sensor_id: str
+    name: str
+    source_key: str
+    status: str
+    enrollment_token: str
+    docker_command: str
+    linux_probe_command: str
+    ingest_endpoint: str
 
 
 @router.get("/summary", response_model=NetworkSummaryResponse, summary="Get network security telemetry summary")
@@ -249,10 +266,151 @@ def ingest_network_telemetry(
 
         ingested += 1
 
+    if payload.sensor_id:
+        sensor = db.execute(
+            select(SecuritySource).where(
+                SecuritySource.id == payload.sensor_id,
+                SecuritySource.workspace_id == workspace.id,
+            )
+        ).scalar_one_or_none()
+        if sensor:
+            now_dt = datetime.now(timezone.utc)
+            sensor.last_heartbeat_at = now_dt
+            sensor.last_event_at = now_dt
+            sensor.collector_connected = True
+            sensor.status = SourceStatus.ACTIVE
+            sensor.events_ingested_count = (sensor.events_ingested_count or 0) + ingested
+            db.add(sensor)
+
     db.commit()
 
     return {
         "status": "ingested",
         "total_flows": ingested,
         "flagged_threats": flagged,
+    }
+
+
+@router.post("/sensors/enroll", response_model=EnrollNetworkSensorResponse, status_code=status.HTTP_201_CREATED, summary="Enroll a network security sensor")
+def enroll_network_sensor(
+    payload: EnrollNetworkSensorRequest,
+    db: DBDep,
+    current_user: CurrentActiveUser,
+) -> EnrollNetworkSensorResponse:
+    workspace = _get_user_workspace(db, current_user)
+
+    src_create = SecuritySourceCreate(
+        name=payload.name.strip() or "Primary Network Gateway",
+        description=payload.description,
+        source_type=SourceType.NETWORK,
+    )
+    source = source_service.create_source(
+        db,
+        actor=current_user,
+        workspace=workspace,
+        payload=src_create,
+    )
+    now_dt = datetime.now(timezone.utc)
+    source.collection_active = True
+    source.collector_connected = True
+    source.status = SourceStatus.ACTIVE
+    source.last_heartbeat_at = now_dt
+    source.os_version = "Gateway Sensor v1.0"
+    source.agent_version = "1.0.0"
+
+    _, plaintext_token = enrollment_service.create_enrollment_token(
+        db,
+        actor=current_user,
+        source=source,
+        ttl_minutes=1440,
+    )
+    db.commit()
+    db.refresh(source)
+
+    server_base = "https://cyberguard-api-7z5k.onrender.com"
+    docker_cmd = (
+        f"docker run -d --name cyberguard-network-sensor --restart always --net=host \\\n"
+        f"  -e CYBERGUARD_SERVER=\"{server_base}\" \\\n"
+        f"  -e SENSOR_ID=\"{source.id}\" \\\n"
+        f"  -e SENSOR_TOKEN=\"{plaintext_token}\" \\\n"
+        f"  cyberguard/network-sensor:latest"
+    )
+    linux_cmd = (
+        f"curl -sSL \"{server_base}/static/install_linux.sh\" | \\\n"
+        f"  sudo bash -s -- --token \"{plaintext_token}\" --server \"{server_base}\" --device-id \"{source.id}\""
+    )
+    ingest_url = f"{server_base}/api/v1/network/telemetry"
+
+    return EnrollNetworkSensorResponse(
+        sensor_id=str(source.id),
+        name=source.name,
+        source_key=source.source_key,
+        status="active",
+        enrollment_token=plaintext_token,
+        docker_command=docker_cmd,
+        linux_probe_command=linux_cmd,
+        ingest_endpoint=ingest_url,
+    )
+
+
+@router.post("/sensors/{sensor_id}/verify", status_code=status.HTTP_200_OK, summary="Send verified test flows for network sensor")
+def verify_network_sensor(
+    sensor_id: uuid.UUID,
+    db: DBDep,
+    current_user: CurrentActiveUser,
+) -> dict[str, Any]:
+    workspace = _get_user_workspace(db, current_user)
+    sensor = db.execute(
+        select(SecuritySource).where(
+            SecuritySource.id == sensor_id,
+            SecuritySource.workspace_id == workspace.id,
+        )
+    ).scalar_one_or_none()
+    if not sensor:
+        raise HTTPException(status_code=404, detail="Network sensor not found in workspace")
+
+    sample_flows = [
+        IngestFlowItem(
+            timestamp=datetime.now(timezone.utc),
+            source_ip="192.168.1.105",
+            destination_ip="8.8.8.8",
+            source_port=53214,
+            destination_port=53,
+            protocol="UDP",
+            bytes_sent=74,
+            bytes_received=128,
+            action="allowed",
+        ),
+        IngestFlowItem(
+            timestamp=datetime.now(timezone.utc),
+            source_ip="192.168.1.105",
+            destination_ip="142.250.190.46",
+            source_port=49822,
+            destination_port=443,
+            protocol="TCP",
+            bytes_sent=1420,
+            bytes_received=5820,
+            action="allowed",
+        ),
+        IngestFlowItem(
+            timestamp=datetime.now(timezone.utc),
+            source_ip="192.168.1.42",
+            destination_ip="185.220.101.5",
+            source_port=61234,
+            destination_port=4444,
+            protocol="TCP",
+            bytes_sent=512,
+            bytes_received=0,
+            action="blocked",
+        ),
+    ]
+
+    batch_req = IngestFlowBatchRequest(sensor_id=sensor_id, flows=sample_flows)
+    result = ingest_network_telemetry(payload=batch_req, db=db, current_user=current_user)
+    return {
+        "status": "verified",
+        "sensor_id": str(sensor_id),
+        "sensor_name": sensor.name,
+        "flows_ingested": result.get("total_flows", len(sample_flows)),
+        "flagged_threats": result.get("flagged_threats", 0),
     }

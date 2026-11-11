@@ -18,6 +18,7 @@ import { useNavigate } from "react-router-dom";
 import {
   Monitor,
   Server,
+  Radio,
   Download,
   ShieldCheck,
   CheckCircle2,
@@ -54,7 +55,7 @@ import { api } from "@/lib/api";
 import { formatRelativeTime } from "@/lib/utils";
 import { toast } from "sonner";
 
-export type OSType = "windows" | "linux";
+export type OSType = "windows" | "linux" | "network";
 
 interface DeviceRegisterResponse {
   id: string;
@@ -160,15 +161,28 @@ export function DeviceConnectionWizard({
   useEffect(() => {
     if (preselectedDevice) {
       setDeviceName(preselectedDevice.name);
-      setOs(preselectedDevice.os_type === "linux" ? "linux" : "windows");
+      const ost = (preselectedDevice.os_type || "").toLowerCase();
+      if (ost.includes("network") || ost.includes("sensor")) {
+        setOs("network");
+      } else if (ost.includes("linux")) {
+        setOs("linux");
+      } else {
+        setOs("windows");
+      }
     }
   }, [preselectedDevice]);
 
   // ── Mutation: Register Device & Generate One-Time Challenge ─────────
   const registerMutation = useMutation({
     mutationFn: async () => {
+      const defaultName =
+        os === "windows"
+          ? "My Windows PC"
+          : os === "linux"
+          ? "My Linux Machine"
+          : "My Network Gateway Sensor";
       const { data } = await api.post<DeviceRegisterResponse>("/devices", {
-        name: deviceName.trim() || `My ${os === "windows" ? "Windows PC" : "Linux Machine"}`,
+        name: deviceName.trim() || defaultName,
         os_type: os,
       });
       return data;
@@ -386,41 +400,40 @@ export function DeviceConnectionWizard({
             <div className="space-y-6">
               <div>
                 <h3 className="text-base font-semibold text-slate-100">
-                  Select your operating system
+                  Select your operating system or device type
                 </h3>
                 <p className="text-xs text-slate-400 mt-0.5">
-                  Choose the type of computer you want to protect. CyberGuard AI provides pre-configured installers for both platforms.
+                  Choose the device you want to protect. CyberGuard AI provides dedicated collectors and sensors.
                 </p>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 {/* Windows Option */}
                 <button
                   type="button"
                   onClick={() => setOs("windows")}
-                  className={`text-left p-4 rounded-xl border transition-all flex flex-col justify-between ${
+                  className={`text-left p-3.5 rounded-xl border transition-all flex flex-col justify-between ${
                     os === "windows"
                       ? "border-cyan-500 bg-cyan-950/30 ring-1 ring-cyan-500/50"
                       : "border-slate-800 bg-slate-950/60 hover:border-slate-700"
                   }`}
                 >
                   <div className="flex items-start justify-between">
-                    <div className="p-2.5 rounded-lg bg-sky-500/10 text-sky-400 border border-sky-500/20">
-                      <Monitor size={28} />
+                    <div className="p-2 rounded-lg bg-sky-500/10 text-sky-400 border border-sky-500/20">
+                      <Monitor size={24} />
                     </div>
                     {os === "windows" && (
-                      <CheckCircle2 size={18} className="text-cyan-400" />
+                      <CheckCircle2 size={16} className="text-cyan-400" />
                     )}
                   </div>
-                  <div className="mt-4">
-                    <h4 className="text-sm font-bold text-slate-100">Windows Computer</h4>
-                    <p className="text-xs text-slate-400 mt-1">
-                      Windows 10, Windows 11 & Windows Server
+                  <div className="mt-3">
+                    <h4 className="text-xs font-bold text-slate-100">Windows PC</h4>
+                    <p className="text-[11px] text-slate-400 mt-1">
+                      Windows 10, 11 & Server
                     </p>
-                    <div className="mt-3 pt-3 border-t border-slate-800/80 text-[11px] text-slate-500 space-y-1">
-                      <div>• 64-bit architecture (x64 / ARM64)</div>
-                      <div>• Automated double-click installer (.exe)</div>
-                      <div>• Standard Windows UAC permission</div>
+                    <div className="mt-2.5 pt-2.5 border-t border-slate-800/80 text-[10px] text-slate-500 space-y-0.5">
+                      <div>• Automated .exe setup</div>
+                      <div>• UAC service installer</div>
                     </div>
                   </div>
                 </button>
@@ -429,29 +442,58 @@ export function DeviceConnectionWizard({
                 <button
                   type="button"
                   onClick={() => setOs("linux")}
-                  className={`text-left p-4 rounded-xl border transition-all flex flex-col justify-between ${
+                  className={`text-left p-3.5 rounded-xl border transition-all flex flex-col justify-between ${
                     os === "linux"
                       ? "border-cyan-500 bg-cyan-950/30 ring-1 ring-cyan-500/50"
                       : "border-slate-800 bg-slate-950/60 hover:border-slate-700"
                   }`}
                 >
                   <div className="flex items-start justify-between">
-                    <div className="p-2.5 rounded-lg bg-amber-500/10 text-amber-400 border border-amber-500/20">
-                      <Server size={28} />
+                    <div className="p-2 rounded-lg bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                      <Server size={24} />
                     </div>
                     {os === "linux" && (
-                      <CheckCircle2 size={18} className="text-cyan-400" />
+                      <CheckCircle2 size={16} className="text-cyan-400" />
                     )}
                   </div>
-                  <div className="mt-4">
-                    <h4 className="text-sm font-bold text-slate-100">Linux Computer</h4>
-                    <p className="text-xs text-slate-400 mt-1">
-                      Ubuntu, Debian, RHEL, CentOS & Fedora
+                  <div className="mt-3">
+                    <h4 className="text-xs font-bold text-slate-100">Linux Computer</h4>
+                    <p className="text-[11px] text-slate-400 mt-1">
+                      Ubuntu, Debian, RHEL
                     </p>
-                    <div className="mt-3 pt-3 border-t border-slate-800/80 text-[11px] text-slate-500 space-y-1">
-                      <div>• systemd init system supported</div>
-                      <div>• Self-contained configuration package</div>
-                      <div>• Root or sudo elevation for service</div>
+                    <div className="mt-2.5 pt-2.5 border-t border-slate-800/80 text-[10px] text-slate-500 space-y-0.5">
+                      <div>• systemd daemon script</div>
+                      <div>• Self-contained bundle</div>
+                    </div>
+                  </div>
+                </button>
+
+                {/* Network Sensor Option */}
+                <button
+                  type="button"
+                  onClick={() => setOs("network")}
+                  className={`text-left p-3.5 rounded-xl border transition-all flex flex-col justify-between ${
+                    os === "network"
+                      ? "border-cyan-500 bg-cyan-950/30 ring-1 ring-cyan-500/50"
+                      : "border-slate-800 bg-slate-950/60 hover:border-slate-700"
+                  }`}
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                      <Radio size={24} />
+                    </div>
+                    {os === "network" && (
+                      <CheckCircle2 size={16} className="text-cyan-400" />
+                    )}
+                  </div>
+                  <div className="mt-3">
+                    <h4 className="text-xs font-bold text-slate-100">Network Sensor</h4>
+                    <p className="text-[11px] text-slate-400 mt-1">
+                      Gateway Tap & NetFlow
+                    </p>
+                    <div className="mt-2.5 pt-2.5 border-t border-slate-800/80 text-[10px] text-slate-500 space-y-0.5">
+                      <div>• Docker & flow probe</div>
+                      <div>• Egress & port sweep</div>
                     </div>
                   </div>
                 </button>
@@ -460,7 +502,13 @@ export function DeviceConnectionWizard({
               <div>
                 <Input
                   label="Device Friendly Name (Optional)"
-                  placeholder={os === "windows" ? "e.g. Work Laptop or Office PC" : "e.g. Web Server or Database Host"}
+                  placeholder={
+                    os === "windows"
+                      ? "e.g. Work Laptop or Office PC"
+                      : os === "linux"
+                      ? "e.g. Web Server or Database Host"
+                      : "e.g. Office Gateway Sensor or Router Tap"
+                  }
                   value={deviceName}
                   onChange={(e) => setDeviceName(e.target.value)}
                   helperText="If omitted, CyberGuard AI automatically labels it using your computer hostname."
@@ -520,7 +568,7 @@ export function DeviceConnectionWizard({
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-800">
                   <div className="flex items-center gap-3">
                     <div className="p-2.5 rounded-lg bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
-                      {os === "windows" ? <Monitor size={24} /> : <Server size={24} />}
+                      {os === "windows" ? <Monitor size={24} /> : os === "linux" ? <Server size={24} /> : <Radio size={24} />}
                     </div>
                     <div>
                       <div className="text-sm font-bold text-slate-200">
@@ -569,7 +617,7 @@ export function DeviceConnectionWizard({
                   isLoading={isDownloading}
                 >
                   <Download size={18} />
-                  Download CyberGuard for {os === "windows" ? "Windows (.exe)" : "Linux (.sh)"}
+                  Download CyberGuard for {os === "windows" ? "Windows (.exe)" : os === "linux" ? "Linux (.sh)" : "Network Gateway (.sh)"}
                 </Button>
 
                 <div className="text-center pt-1">

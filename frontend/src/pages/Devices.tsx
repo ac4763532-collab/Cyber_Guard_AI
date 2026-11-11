@@ -16,7 +16,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Monitor, Server, Apple, CheckCircle2, XCircle, AlertCircle, Trash2 } from "lucide-react";
+import { Plus, Monitor, Server, Apple, Radio, CheckCircle2, XCircle, AlertCircle, Trash2 } from "lucide-react";
 import { formatRelativeTime } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -182,6 +182,7 @@ export default function Devices() {
                       {device.type === "windows" && <Monitor size={16} />}
                       {device.type === "linux" && <Server size={16} />}
                       {device.type === "macos" && <Apple size={16} />}
+                      {device.type === "network" && <Radio size={16} className="text-cyan-400" />}
                       {device.type}
                     </div>
                   </TableCell>

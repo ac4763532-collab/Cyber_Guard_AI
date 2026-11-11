@@ -232,6 +232,7 @@ def _map_source_type_to_frontend(st: SourceType) -> str:
         SourceType.LINUX: "server",
         SourceType.MACOS: "desktop",
         SourceType.ANDROID: "mobile",
+        SourceType.NETWORK: "network",
     }
     return mapping.get(st, "other")
 
@@ -310,6 +311,9 @@ def register_device(
         "linux": SourceType.LINUX,
         "macos": SourceType.MACOS,
         "android": SourceType.ANDROID,
+        "network": SourceType.NETWORK,
+        "network_sensor": SourceType.NETWORK,
+        "sensor": SourceType.NETWORK,
     }
     src_type = st_map.get(payload.os_type.lower(), SourceType.OTHER)
 
