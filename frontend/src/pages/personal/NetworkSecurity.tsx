@@ -148,6 +148,7 @@ export default function NetworkSecurity() {
       toast.success(
         `Verified! Ingested ${data.flows_ingested || 3} test flows into network telemetry.`
       );
+      setEnrolledSensor(prev => prev ? { ...prev, status: "active" } : null);
       queryClient.invalidateQueries({ queryKey: ["network-summary"] });
       queryClient.invalidateQueries({ queryKey: ["network-flows"] });
       queryClient.invalidateQueries({ queryKey: ["devices"] });
@@ -392,10 +393,10 @@ export default function NetworkSecurity() {
                 <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between">
                   <div>
                     <div className="flex items-center gap-2">
-                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+                      <span className={`w-2.5 h-2.5 rounded-full ${enrolledSensor.status === "active" ? "bg-emerald-400" : "bg-cyan-400"} animate-pulse`} />
                       <span className="text-sm font-bold text-slate-100">{enrolledSensor.name}</span>
-                      <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
-                        {enrolledSensor.status}
+                      <span className={`text-[10px] uppercase font-mono px-2 py-0.5 rounded ${enrolledSensor.status === "active" ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/30" : "bg-cyan-500/10 text-cyan-400 border border-cyan-500/30"}`}>
+                        {enrolledSensor.status === "active" ? "Active • Verified" : "Ready • Awaiting Flows"}
                       </span>
                     </div>
                     <p className="text-xs text-slate-400 font-mono mt-1">

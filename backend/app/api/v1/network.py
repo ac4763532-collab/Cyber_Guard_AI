@@ -310,11 +310,7 @@ def enroll_network_sensor(
         workspace=workspace,
         payload=src_create,
     )
-    now_dt = datetime.now(timezone.utc)
     source.collection_active = True
-    source.collector_connected = True
-    source.status = SourceStatus.ACTIVE
-    source.last_heartbeat_at = now_dt
     source.os_version = "Gateway Sensor v1.0"
     source.agent_version = "1.0.0"
 
@@ -322,7 +318,7 @@ def enroll_network_sensor(
         db,
         actor=current_user,
         source=source,
-        ttl_minutes=1440,
+        ttl_minutes=60,
     )
     db.commit()
     db.refresh(source)
@@ -345,7 +341,7 @@ def enroll_network_sensor(
         sensor_id=str(source.id),
         name=source.name,
         source_key=source.source_key,
-        status="active",
+        status="ready",
         enrollment_token=plaintext_token,
         docker_command=docker_cmd,
         linux_probe_command=linux_cmd,
