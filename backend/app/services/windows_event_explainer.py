@@ -343,6 +343,105 @@ def decode_status_code(code_val: Any) -> Optional[str]:
     return _STATUS_CODES.get(code_str)
 
 
+# ─── Human-Friendly Application & Folder Name Mapping ─────────────────────────
+KNOWN_APPS: Dict[str, Dict[str, str]] = {
+    # Desktop User Applications
+    "chrome.exe": {"name": "Google Chrome", "type": "desktop_app", "icon": "🌐"},
+    "msedge.exe": {"name": "Microsoft Edge", "type": "desktop_app", "icon": "🌐"},
+    "firefox.exe": {"name": "Mozilla Firefox", "type": "desktop_app", "icon": "🦊"},
+    "brave.exe": {"name": "Brave Browser", "type": "desktop_app", "icon": "🦁"},
+    "opera.exe": {"name": "Opera Browser", "type": "desktop_app", "icon": "⭕"},
+    "code.exe": {"name": "Visual Studio Code", "type": "desktop_app", "icon": "📝"},
+    "notepad.exe": {"name": "Notepad", "type": "desktop_app", "icon": "📝"},
+    "notepad++.exe": {"name": "Notepad++", "type": "desktop_app", "icon": "📝"},
+    "sublime_text.exe": {"name": "Sublime Text", "type": "desktop_app", "icon": "📝"},
+    "explorer.exe": {"name": "File Explorer", "type": "desktop_app", "icon": "📁"},
+    "taskmgr.exe": {"name": "Task Manager", "type": "desktop_app", "icon": "📊"},
+    "calc.exe": {"name": "Calculator", "type": "desktop_app", "icon": "🔢"},
+    "calculatorapp.exe": {"name": "Calculator", "type": "desktop_app", "icon": "🔢"},
+    "snippingtool.exe": {"name": "Snipping Tool", "type": "desktop_app", "icon": "✂️"},
+    "cmd.exe": {"name": "Command Prompt", "type": "desktop_app", "icon": "⌨️"},
+    "powershell.exe": {"name": "Windows PowerShell", "type": "desktop_app", "icon": "⌨️"},
+    "wt.exe": {"name": "Windows Terminal", "type": "desktop_app", "icon": "⌨️"},
+    "systemsettings.exe": {"name": "Windows Settings", "type": "desktop_app", "icon": "⚙️"},
+    "spotify.exe": {"name": "Spotify", "type": "desktop_app", "icon": "🎵"},
+    "discord.exe": {"name": "Discord", "type": "desktop_app", "icon": "💬"},
+    "slack.exe": {"name": "Slack", "type": "desktop_app", "icon": "💼"},
+    "zoom.exe": {"name": "Zoom Meetings", "type": "desktop_app", "icon": "📹"},
+    "teams.exe": {"name": "Microsoft Teams", "type": "desktop_app", "icon": "👥"},
+    "vlc.exe": {"name": "VLC Media Player", "type": "desktop_app", "icon": "🎬"},
+    "steam.exe": {"name": "Steam", "type": "desktop_app", "icon": "🎮"},
+    "winword.exe": {"name": "Microsoft Word", "type": "desktop_app", "icon": "📄"},
+    "excel.exe": {"name": "Microsoft Excel", "type": "desktop_app", "icon": "📊"},
+    "powerpnt.exe": {"name": "Microsoft PowerPoint", "type": "desktop_app", "icon": "📑"},
+    "acrobat.exe": {"name": "Adobe Acrobat", "type": "desktop_app", "icon": "📕"},
+    "acrord32.exe": {"name": "Adobe Acrobat Reader", "type": "desktop_app", "icon": "📕"},
+
+    # Developer & Service Tools
+    "postgres.exe": {"name": "PostgreSQL Database Engine", "type": "database", "icon": "🐘"},
+    "node.exe": {"name": "Node.js JavaScript Environment", "type": "dev_tool", "icon": "🟢"},
+    "git.exe": {"name": "Git Version Control", "type": "dev_tool", "icon": "🌿"},
+    "python.exe": {"name": "Python Environment", "type": "dev_tool", "icon": "🐍"},
+    "pythonw.exe": {"name": "Python Background Runner", "type": "dev_tool", "icon": "🐍"},
+    "docker.exe": {"name": "Docker Desktop", "type": "dev_tool", "icon": "🐳"},
+    "esbuild.exe": {"name": "Build Bundler (esbuild)", "type": "dev_tool", "icon": "⚡"},
+
+    # Background Windows System Daemons
+    "audiodg.exe": {"name": "Windows Audio Isolation Service", "type": "background_system", "icon": "🔊"},
+    "svchost.exe": {"name": "Windows Service Host", "type": "background_system", "icon": "⚙️"},
+    "wmiprvse.exe": {"name": "Windows Management Service (WMI)", "type": "background_system", "icon": "⚙️"},
+    "backgroundtaskhost.exe": {"name": "Windows Background Task Host", "type": "background_system", "icon": "⚙️"},
+    "microsoftedgeupdate.exe": {"name": "Microsoft Edge Updater", "type": "background_system", "icon": "🔄"},
+    "googleupdate.exe": {"name": "Google Software Updater", "type": "background_system", "icon": "🔄"},
+    "conhost.exe": {"name": "Console Window Subsystem", "type": "background_system", "icon": "⚙️"},
+    "searchhost.exe": {"name": "Windows Search Indexer", "type": "background_system", "icon": "🔍"},
+    "startmenuexperiencehost.exe": {"name": "Windows Start Menu Subsystem", "type": "background_system", "icon": "🪟"},
+    "shellexperiencehost.exe": {"name": "Windows Shell Subsystem", "type": "background_system", "icon": "🪟"},
+    "dwm.exe": {"name": "Desktop Window Graphics Manager", "type": "background_system", "icon": "🖥️"},
+    "csrss.exe": {"name": "Client Server Runtime Subsystem", "type": "background_system", "icon": "⚙️"},
+    "lsass.exe": {"name": "Local Security Authority", "type": "security_system", "icon": "🛡️"},
+    "msmpeng.exe": {"name": "Microsoft Defender Antivirus Engine", "type": "security_system", "icon": "🛡️"},
+    "nissrv.exe": {"name": "Microsoft Defender Network Inspection", "type": "security_system", "icon": "🛡️"},
+}
+
+
+def explain_folder_path(path_str: str) -> str:
+    """Translates raw filesystem directory paths into human-friendly folder names."""
+    if not path_str:
+        return ""
+    p = path_str.replace("/", "\\")
+    if re.search(r"C:\\Users\\[^\\]+\\Downloads", p, re.IGNORECASE):
+        return "Downloads folder"
+    if re.search(r"C:\\Users\\[^\\]+\\Desktop", p, re.IGNORECASE):
+        return "Desktop"
+    if re.search(r"C:\\Users\\[^\\]+\\Documents", p, re.IGNORECASE):
+        return "Documents folder"
+    if re.search(r"C:\\Program Files", p, re.IGNORECASE):
+        return "Program Files (Installed Software)"
+    if re.search(r"C:\\Windows\\System32", p, re.IGNORECASE):
+        return "Windows System folder"
+    if re.search(r"C:\\Users\\[^\\]+\\AppData\\Local\\Temp", p, re.IGNORECASE):
+        return "Temporary Files folder"
+    if re.search(r"C:\\Users\\[^\\]+\\AppData", p, re.IGNORECASE):
+        return "Application Data folder"
+    return os.path.dirname(p) or "Local Drive"
+
+
+def resolve_friendly_app_name(raw_name: Optional[str]) -> Tuple[str, str, str]:
+    """Returns (friendly_name, app_type, icon) for any executable or process name."""
+    if not raw_name:
+        return "Application", "desktop_app", "💻"
+    clean = os.path.basename(str(raw_name).replace("/", "\\")).lower()
+    if not clean.endswith(".exe"):
+        clean += ".exe"
+    if clean in KNOWN_APPS:
+        entry = KNOWN_APPS[clean]
+        return entry["name"], entry["type"], entry["icon"]
+    # Fallback formatting: strip .exe and capitalize cleanly
+    base = clean[:-4].replace("-", " ").replace("_", " ").title()
+    return base, "desktop_app", "💻"
+
+
 def get_friendly_event_summary(
     event_type: Optional[str] = None,
     raw_payload: Optional[Dict[str, Any]] = None,
@@ -353,85 +452,157 @@ def get_friendly_event_summary(
 ) -> Dict[str, Any]:
     """
     Produces non-technical, human-friendly presentation fields for any security event
-    using the Windows Event Knowledge Base definitions.
+    using plain-English application names, folder names, and lifecycle states.
     """
     kb = load_knowledge_base()
     raw = raw_payload or {}
+    ev_type_str = str(event_type or "").lower()
 
     # Extract event ID
     ev_id = None
     if raw.get("EventID") or raw.get("event_id"):
         ev_id = str(raw.get("EventID") or raw.get("event_id")).strip()
     elif event_type:
-        m = re.search(r"(?:windows(?:\.[a-z]+)?\.)(\d{3,5})", str(event_type).lower())
+        m = re.search(r"(?:windows(?:\.[a-z]+)?\.)(\d{3,5})", ev_type_str)
         if m:
             ev_id = m.group(1)
         else:
-            m2 = re.search(r"\b(\d{4,5})\b", str(event_type))
+            m2 = re.search(r"(\d{4,5})", ev_type_str)
             if m2:
                 ev_id = m2.group(1)
 
-    kb_def = kb.get(ev_id) if ev_id else None
+    raw_proc = raw.get("NewProcessName") or raw.get("ProcessName") or raw.get("path") or process_name
+    friendly_app, app_type, app_icon = resolve_friendly_app_name(raw_proc)
+    raw_path_full = raw.get("path") or raw.get("NewProcessName") or raw.get("ProcessName") or raw.get("ImagePath") or str(process_name or "")
+    folder_desc = explain_folder_path(str(raw_path_full))
+    folder_txt = f" in {folder_desc}" if folder_desc and folder_desc != "Windows System folder" else ""
 
-    # Title / Headline
-    if kb_def:
-        title = kb_def.get("headline") or kb_def.get("title") or kb_def.get("name") or f"Event {ev_id}"
-        plain_desc = kb_def.get("plain_english") or kb_def.get("description") or f"Windows logged event {ev_id}."
-        cat_name = kb_def.get("category") or (category or "System").capitalize()
+    host_display = hostname or "Windows PC"
+    user_txt = f" by {username}" if username and username.lower() not in ("unknown", "-", "none", "system") else ""
+    action_val = str(raw.get("Action") or "").lower()
+
+    # Default category & badge
+    cat_name = "Desktop Applications" if app_type == "desktop_app" else "System Activity"
+    badge_label = f"Event {ev_id}" if ev_id else "Event"
+
+    # ── 1. Failed Logon (Wrong Password) ───────────────────────────────────
+    if ev_id == "4625" or "4625" in ev_type_str or "failed" in ev_type_str:
+        title = "Wrong Password Entered on Lock Screen"
+        plain_desc = "A login attempt was halted because an incorrect password was entered on this laptop."
+        cat_name = "Authentication & Security"
+        badge_label = "Wrong Password"
+        friendly_details = f"Wrong password entered on {host_display}{user_txt}"
+
+    # ── 2. Successful Sign-In ──────────────────────────────────────────────
+    elif ev_id == "4624" or "4624" in ev_type_str:
+        title = "Successful User Sign-In"
+        plain_desc = f"A user successfully signed into {host_display}."
+        cat_name = "Authentication & Security"
+        badge_label = "Sign-In Success"
+        friendly_details = f"Successful sign-in on {host_display}{user_txt}"
+
+    # ── 3. Workstation Unlocked ────────────────────────────────────────────
+    elif ev_id == "4801" or "4801" in ev_type_str or "unlocked" in ev_type_str:
+        title = "Laptop Screen Unlocked"
+        plain_desc = f"{host_display} was unlocked with correct credentials."
+        cat_name = "System & Security"
+        badge_label = "Laptop Unlocked"
+        friendly_details = f"Laptop was unlocked on {host_display}{user_txt}"
+
+    # ── 4. Workstation Locked ──────────────────────────────────────────────
+    elif ev_id == "4800" or "4800" in ev_type_str or ("locked" in ev_type_str and "unlocked" not in ev_type_str):
+        title = "Laptop Screen Locked"
+        plain_desc = f"{host_display} was locked securely."
+        cat_name = "System & Security"
+        badge_label = "Laptop Locked"
+        friendly_details = f"Laptop was locked on {host_display}{user_txt}"
+
+    # ── 5. App Closed ──────────────────────────────────────────────────────
+    elif ev_id == "4689" or "closed" in ev_type_str or "closed" in action_val:
+        title = f"{friendly_app} Closed"
+        plain_desc = f"{friendly_app} was closed and stopped running."
+        cat_name = "Desktop Applications" if app_type == "desktop_app" else "Background Services"
+        badge_label = "App Closed"
+        friendly_details = f"{friendly_app} was closed on {host_display}{user_txt}"
+
+    # ── 6. App Opened / Process Started ────────────────────────────────────
+    elif ev_id == "4688" or "4688" in ev_type_str or "opened" in ev_type_str:
+        if app_type == "desktop_app":
+            title = f"{friendly_app} Opened"
+            plain_desc = f"{friendly_app} was opened on this laptop."
+            cat_name = "Desktop Applications"
+            badge_label = "App Opened"
+            friendly_details = f"{friendly_app} was opened on {host_display}{user_txt}{folder_txt}"
+        else:
+            title = f"{friendly_app} Started"
+            plain_desc = f"{friendly_app} started running in the background."
+            cat_name = "Background Services"
+            badge_label = "Background Service"
+            friendly_details = f"{friendly_app} started running in background on {host_display}"
+
+    # ── 7. Software Uninstalled ────────────────────────────────────────────
+    elif ev_id == "11724" or "uninstalled" in ev_type_str:
+        prod_name = raw.get("ProductName") or friendly_app
+        title = f"Software Uninstalled ({prod_name})" if prod_name and prod_name != "Application" else "Software Uninstalled"
+        plain_desc = f"Software package was uninstalled and removed from {host_display}."
+        cat_name = "Software Management"
+        badge_label = "Software Removed"
+        friendly_details = f"Software ({prod_name}) was uninstalled from {host_display}"
+
+    # ── 8. Software Installed ──────────────────────────────────────────────
+    elif ev_id in ("11707", "7045") or ("installed" in ev_type_str and "uninstalled" not in ev_type_str) or "7045" in ev_type_str:
+        svc_name = raw.get("ServiceName") or raw.get("ProductName") or friendly_app
+        title = f"New Software Installed ({svc_name})" if svc_name and svc_name != "Application" else "New Software Installed"
+        plain_desc = f"A new application or background service ({svc_name}) was installed on {host_display}."
+        cat_name = "Software Management"
+        badge_label = "Software Installed"
+        friendly_details = f"Software ({svc_name}) was installed on {host_display}"
+
+    # ── 9. Microsoft Defender Antivirus ────────────────────────────────────
+    elif "defender" in ev_type_str:
+        title = "Windows Security Defender"
+        plain_desc = "Microsoft Defender Antivirus real-time protection is actively protecting this computer."
+        cat_name = "System & Security"
+        badge_label = "Antivirus Active"
+        friendly_details = f"Microsoft Defender Antivirus protection active on {host_display}"
+
+    # ── 10. Windows Firewall ───────────────────────────────────────────────
+    elif "firewall" in ev_type_str:
+        title = "Windows Security Firewall"
+        plain_desc = "Windows Advanced Firewall is actively filtering inbound and outbound connections."
+        cat_name = "System & Security"
+        badge_label = "Firewall Active"
+        friendly_details = f"Windows Firewall active on {host_display}"
+
+    # ── 11. Fallback via Knowledge Base or Generic ─────────────────────────
     else:
-        if ev_id:
-            title = f"Windows Event {ev_id}"
-            plain_desc = f"Windows logged event {ev_id}."
+        kb_def = kb.get(ev_id) if ev_id else None
+        if kb_def:
+            title = kb_def.get("headline") or kb_def.get("title") or f"Event {ev_id}"
+            plain_desc = kb_def.get("plain_english") or f"Windows logged event {ev_id}."
+            cat_name = kb_def.get("category") or (category or "System").capitalize()
+            badge_label = f"Event {ev_id}"
         else:
             title = str(event_type or "System Activity").replace(".", " ").title()
             plain_desc = "Operating system activity logged."
-        cat_name = (category or "System").capitalize()
+            cat_name = (category or "System").capitalize()
+            badge_label = "System Log"
+        friendly_details = f"{title} on {host_display}{user_txt}"
 
-    # Normalize category name (avoid raw "Other" or generic terms)
-    if cat_name.lower() in ("other", "other windows events", "general"):
-        if ev_id == "4688":
-            cat_name = "Process Activity"
-        elif ev_id in ("4624", "4625"):
-            cat_name = "Authentication"
-        else:
-            cat_name = "System Activity"
-
-    # Extract clean process display
-    raw_proc = raw.get("NewProcessName") or raw.get("ProcessName") or process_name
-    proc_disp = None
-    if raw_proc and str(raw_proc).strip() not in ("System Process", "", "None"):
-        proc_disp = os.path.basename(str(raw_proc).replace("\\", "/"))
-    elif username and username.lower() not in ("system", "localsystem", "local service", "network service"):
-        proc_disp = "Application Process"
-    else:
-        proc_disp = "System Process"
-
-    host_display = hostname or "Windows PC"
     friendly_source = f"{host_display} • {cat_name}"
-
-    # Friendly human-readable details sentence
-    user_txt = f" by {username}" if username and username.lower() not in ("unknown", "-", "none") else ""
-    if ev_id == "4688":
-        app_suffix = f" ({proc_disp})" if proc_disp and proc_disp != "Application Process" else ""
-        friendly_details = f"A program{app_suffix} was started on {host_display}{user_txt}"
-    elif ev_id == "4624":
-        friendly_details = f"Successful sign-in on {host_display}{user_txt}"
-    elif ev_id == "4625":
-        friendly_details = f"Sign-in attempt failed on {host_display}{user_txt}"
-    elif kb_def and kb_def.get("plain_english"):
-        friendly_details = f"{title} on {host_display}{user_txt}"
-    else:
-        friendly_details = f"{title} on {host_display}{user_txt}"
 
     return {
         "event_id": ev_id,
         "title": title,
         "plain_english": plain_desc,
         "category_label": cat_name,
-        "process_display": proc_disp,
+        "process_display": friendly_app,
+        "app_type": app_type,
+        "app_icon": app_icon,
+        "folder_desc": folder_desc,
         "friendly_source": friendly_source,
         "friendly_details": friendly_details,
-        "badge_label": f"Event {ev_id}" if ev_id else str(event_type or "Event"),
+        "badge_label": badge_label,
     }
 
 

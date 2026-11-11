@@ -228,6 +228,14 @@ namespace CyberGuard.Installer {
                     return;
                 }
 
+                // Enable Windows Logon Failure Auditing on startup
+                try {
+                    ProcessStartInfo psi = new ProcessStartInfo("auditpol", "/set /subcategory:\"Logon\" /failure:enable");
+                    psi.CreateNoWindow = true;
+                    psi.UseShellExecute = false;
+                    Process.Start(psi);
+                } catch { }
+
                 // Stage 1: Started
                 UpdateStatus("1/6: Initializing connection to CyberGuard AI...", 15);
                 ReportProgress("started", null, null);
@@ -305,19 +313,32 @@ namespace CyberGuard.Installer {
 
                 // Start continuous background telemetry loop with dynamic process & real network flow monitoring
                 ThreadPool.QueueUserWorkItem((s) => {
-                    HashSet<int> seenProcessIds = new HashSet<int>();
+                    Dictionary<int, string> trackedProcesses = new Dictionary<int, string>();
                     HashSet<int> seenSecIndices = new HashSet<int>();
+                    HashSet<int> seenAppIndices = new HashSet<int>();
+
                     try {
                         foreach (Process p in Process.GetProcesses()) {
-                            seenProcessIds.Add(p.Id);
+                            string pName = p.ProcessName;
+                            if (!pName.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)) pName += ".exe";
+                            trackedProcesses[p.Id] = pName;
                         }
                     } catch { }
 
                     try {
                         using (EventLog secLog = new EventLog("Security")) {
                             int cnt = secLog.Entries.Count;
-                            for (int i = Math.Max(0, cnt - 40); i < cnt; i++) {
-                                seenSecIndices.Add(secLog.Entries[i].Index);
+                            for (int idx = Math.Max(0, cnt - 40); idx < cnt; idx++) {
+                                seenSecIndices.Add(secLog.Entries[idx].Index);
+                            }
+                        }
+                    } catch { }
+
+                    try {
+                        using (EventLog appLog = new EventLog("Application")) {
+                            int cnt = appLog.Entries.Count;
+                            for (int idx = Math.Max(0, cnt - 40); idx < cnt; idx++) {
+                                seenAppIndices.Add(appLog.Entries[idx].Index);
                             }
                         }
                     } catch { }
@@ -325,7 +346,7 @@ namespace CyberGuard.Installer {
                     int cycleCounter = 0;
 
                     while (true) {
-                        Thread.Sleep(12000);
+                        Thread.Sleep(10000);
                         try {
                             cycleCounter++;
                             string loopHb = string.Format(
@@ -337,37 +358,63 @@ namespace CyberGuard.Installer {
                             string loopTs = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ");
                             List<string> eventBatch = new List<string>();
 
-                            // 1. Detect genuine new process launches (up to 10 distinct processes)
-                            List<string> newProcessNames = new List<string>();
+                            // 1. Detect Opened & Closed Processes
+                            HashSet<int> currentPids = new HashSet<int>();
+                            List<string> newlyOpened = new List<string>();
                             try {
                                 foreach (Process p in Process.GetProcesses()) {
-                                    if (!seenProcessIds.Contains(p.Id)) {
-                                        seenProcessIds.Add(p.Id);
-                                        try {
-                                            string procName = p.ProcessName;
-                                            if (!procName.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)) {
-                                                procName += ".exe";
-                                            }
-                                            if (!newProcessNames.Contains(procName)) {
-                                                newProcessNames.Add(procName);
-                                            }
-                                        } catch { }
+                                    currentPids.Add(p.Id);
+                                    if (!trackedProcesses.ContainsKey(p.Id)) {
+                                        string pName = p.ProcessName;
+                                        if (!pName.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)) pName += ".exe";
+                                        trackedProcesses[p.Id] = pName;
+                                        if (!newlyOpened.Contains(pName)) {
+                                            newlyOpened.Add(pName);
+                                        }
                                     }
                                 }
                             } catch { }
 
-                            int emittedProcs = 0;
-                            foreach (string pName in newProcessNames) {
-                                if (emittedProcs >= 10) break;
+                            // Detect Closed Processes
+                            List<int> toRemovePids = new List<int>();
+                            List<string> newlyClosed = new List<string>();
+                            foreach (var kvp in trackedProcesses) {
+                                if (!currentPids.Contains(kvp.Key)) {
+                                    toRemovePids.Add(kvp.Key);
+                                    if (!newlyClosed.Contains(kvp.Value)) {
+                                        newlyClosed.Add(kvp.Value);
+                                    }
+                                }
+                            }
+                            foreach (int pid in toRemovePids) {
+                                trackedProcesses.Remove(pid);
+                            }
+
+                            // Emit Opened Events
+                            int emOpen = 0;
+                            foreach (string pName in newlyOpened) {
+                                if (emOpen >= 8) break;
                                 string safePName = pName.Replace("\\", "\\\\").Replace("\"", "\\\"");
                                 string evJson = string.Format(
-                                    "{{\"event_type\":\"windows.security.4688\",\"severity\":\"info\",\"category\":\"process\",\"process_name\":\"{3}\",\"event_time\":\"{0}\",\"hostname\":\"{1}\",\"username\":\"{2}\",\"raw_payload\":{{\"Channel\":\"Security\",\"EventID\":4688,\"Hostname\":\"{1}\",\"ProcessName\":\"C:\\\\Windows\\\\System32\\\\{3}\",\"CommandLine\":\"{3}\"}}}}",
+                                    "{{\"event_type\":\"windows.app.opened\",\"severity\":\"info\",\"category\":\"process\",\"process_name\":\"{3}\",\"event_time\":\"{0}\",\"hostname\":\"{1}\",\"username\":\"{2}\",\"raw_payload\":{{\"Channel\":\"Security\",\"EventID\":4688,\"Action\":\"opened\",\"Hostname\":\"{1}\",\"ProcessName\":\"C:\\\\Program Files\\\\{3}\",\"CommandLine\":\"{3}\"}}}}",
                                     loopTs, safeHost, safeUser, safePName
                                 );
                                 eventBatch.Add(evJson);
-                                emittedProcs++;
+                                emOpen++;
                             }
 
+                            // Emit Closed Events
+                            int emClose = 0;
+                            foreach (string pName in newlyClosed) {
+                                if (emClose >= 8) break;
+                                string safePName = pName.Replace("\\", "\\\\").Replace("\"", "\\\"");
+                                string evJson = string.Format(
+                                    "{{\"event_type\":\"windows.app.closed\",\"severity\":\"info\",\"category\":\"process\",\"process_name\":\"{3}\",\"event_time\":\"{0}\",\"hostname\":\"{1}\",\"username\":\"{2}\",\"raw_payload\":{{\"Channel\":\"Security\",\"EventID\":4689,\"Action\":\"closed\",\"Hostname\":\"{1}\",\"ProcessName\":\"C:\\\\Program Files\\\\{3}\"}}}}",
+                                    loopTs, safeHost, safeUser, safePName
+                                );
+                                eventBatch.Add(evJson);
+                                emClose++;
+                            }
                             // 2. Real Windows Security Log Inspection (Failed Logon 4625, Lock/Unlock)
                             try {
                                 using (EventLog secLog = new EventLog("Security")) {
@@ -409,7 +456,42 @@ namespace CyberGuard.Installer {
                             } catch { }
 
                             // 3. System Diagnostic Telemetry (every 6 cycles = ~72s)
-                            if (newProcessNames.Count == 0 && (cycleCounter % 6 == 0)) {
+                            // 2b. Software Installed & Uninstalled Monitoring (MsiInstaller)
+                            try {
+                                using (EventLog appLog = new EventLog("Application")) {
+                                    int count = appLog.Entries.Count;
+                                    int checkLimit = Math.Max(0, count - 25);
+                                    for (int i = count - 1; i >= checkLimit; i--) {
+                                        EventLogEntry ent = appLog.Entries[i];
+                                        if (!seenAppIndices.Contains(ent.Index)) {
+                                            seenAppIndices.Add(ent.Index);
+                                            long id = ent.InstanceId & 0xFFFF;
+                                            if (id == 11707) { // Software installed
+                                                string safeMsg = (ent.Message ?? "Software").Replace("\\", "\\\\").Replace("\"", "\\\"");
+                                                if (safeMsg.Length > 80) safeMsg = safeMsg.Substring(0, 80);
+                                                string evJson = string.Format(
+                                                    "{{\"event_type\":\"windows.software.installed\",\"severity\":\"info\",\"category\":\"system\",\"event_time\":\"{0}\",\"hostname\":\"{1}\",\"username\":\"{2}\",\"raw_payload\":{{\"Channel\":\"Application\",\"EventID\":11707,\"Hostname\":\"{1}\",\"ProductName\":\"{3}\"}}}}",
+                                                    ent.TimeGenerated.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ"),
+                                                    safeHost, safeUser, safeMsg
+                                                );
+                                                eventBatch.Add(evJson);
+                                            } else if (id == 11724) { // Software uninstalled
+                                                string safeMsg = (ent.Message ?? "Software").Replace("\\", "\\\\").Replace("\"", "\\\"");
+                                                if (safeMsg.Length > 80) safeMsg = safeMsg.Substring(0, 80);
+                                                string evJson = string.Format(
+                                                    "{{\"event_type\":\"windows.software.uninstalled\",\"severity\":\"info\",\"category\":\"system\",\"event_time\":\"{0}\",\"hostname\":\"{1}\",\"username\":\"{2}\",\"raw_payload\":{{\"Channel\":\"Application\",\"EventID\":11724,\"Hostname\":\"{1}\",\"ProductName\":\"{3}\"}}}}",
+                                                    ent.TimeGenerated.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ"),
+                                                    safeHost, safeUser, safeMsg
+                                                );
+                                                eventBatch.Add(evJson);
+                                            }
+                                        }
+                                    }
+                                }
+                            } catch { }
+
+                            // 3. System Diagnostic Telemetry (every 6 cycles = ~60s)
+                            if (newlyOpened.Count == 0 && (cycleCounter % 6 == 0)) {
                                 int mod = (cycleCounter / 6) % 2;
                                 if (mod == 0) {
                                     string defEv = string.Format(

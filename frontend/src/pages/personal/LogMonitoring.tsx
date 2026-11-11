@@ -20,6 +20,16 @@ import {
   ShieldCheck,
   Shield,
   FileText,
+  Play,
+  Square,
+  Package,
+  Trash2,
+  Lock,
+  Unlock,
+  Cpu,
+  Folder,
+  Laptop,
+  User,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -39,10 +49,20 @@ interface LogEventItem {
   plain_english?: string;
   category_label?: string;
   process_display?: string;
+  app_type?: string;
+  app_icon?: string;
+  folder_desc?: string;
   severity: string;
   details: string;
   hostname?: string;
   username?: string;
+}
+
+interface ActiveAppItem {
+  name: string;
+  icon: string;
+  status: string;
+  opened_at?: string;
 }
 
 interface LogSummaryData {
@@ -51,6 +71,7 @@ interface LogSummaryData {
   privilege_escalations_24h: number;
   anomalous_events: number;
   events: LogEventItem[];
+  active_apps?: ActiveAppItem[];
   message?: string;
 }
 
@@ -102,6 +123,71 @@ export default function LogMonitoring() {
 
   const threatInFeed = summary.events.filter(e => e.severity === "high" || e.severity === "critical");
   const hasActiveThreat = threatInFeed.length > 0 || (summary.anomalous_events > 0 && summary.failed_logins_24h > 0);
+
+  const renderLifecycleBadge = (badgeLabel?: string) => {
+    const label = badgeLabel || "Event";
+    if (label.includes("Opened")) {
+      return (
+        <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 flex items-center gap-1.5 shadow-sm">
+          <Play size={10} className="fill-emerald-400 text-emerald-400" /> {label}
+        </span>
+      );
+    }
+    if (label.includes("Closed")) {
+      return (
+        <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700 flex items-center gap-1.5 shadow-sm">
+          <Square size={9} className="fill-slate-400 text-slate-400" /> {label}
+        </span>
+      );
+    }
+    if (label.includes("Installed")) {
+      return (
+        <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 flex items-center gap-1.5 shadow-sm">
+          <Package size={11} className="text-cyan-400" /> {label}
+        </span>
+      );
+    }
+    if (label.includes("Removed") || label.includes("Uninstalled")) {
+      return (
+        <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30 flex items-center gap-1.5 shadow-sm">
+          <Trash2 size={11} className="text-amber-400" /> {label}
+        </span>
+      );
+    }
+    if (label.includes("Wrong Password")) {
+      return (
+        <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/30 flex items-center gap-1.5 animate-pulse shadow-sm shadow-rose-950/30">
+          <ShieldAlert size={12} className="text-rose-400" /> {label}
+        </span>
+      );
+    }
+    if (label.includes("Locked")) {
+      return (
+        <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-sky-500/15 text-sky-300 border border-sky-500/30 flex items-center gap-1.5 shadow-sm">
+          <Lock size={11} className="text-sky-400" /> {label}
+        </span>
+      );
+    }
+    if (label.includes("Unlocked")) {
+      return (
+        <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 flex items-center gap-1.5 shadow-sm">
+          <Unlock size={11} className="text-emerald-400" /> {label}
+        </span>
+      );
+    }
+    if (label.includes("Background")) {
+      return (
+        <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-indigo-500/15 text-indigo-300 border border-indigo-500/30 flex items-center gap-1.5 shadow-sm">
+          <Cpu size={11} className="text-indigo-400" /> {label}
+        </span>
+      );
+    }
+    return (
+      <span className="text-[11px] font-mono text-cyan-400 bg-cyan-500/10 border border-cyan-500/20 px-2 py-0.5 rounded font-medium">
+        {label}
+      </span>
+    );
+  };
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
@@ -205,6 +291,71 @@ export default function LogMonitoring() {
         </div>
       )}
 
+      {/* Active Desktop Applications Panel */}
+      <Card className="bg-slate-900 border-slate-800 overflow-hidden">
+        <CardHeader className="pb-3 border-b border-slate-800/80 flex flex-row items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400">
+              <Laptop size={18} />
+            </div>
+            <div>
+              <CardTitle className="text-base text-slate-100 flex items-center gap-2">
+                Active Desktop Applications
+                <span className="flex items-center gap-1.5 text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  Live Tracking
+                </span>
+              </CardTitle>
+              <p className="text-xs text-slate-400">
+                Real-time software lifecycle monitor — tracks opened desktop apps and updates automatically when closed
+              </p>
+            </div>
+          </div>
+          <span className="text-xs font-mono text-slate-400 bg-slate-950 px-2.5 py-1 rounded border border-slate-800">
+            {summary.active_apps?.length || 0} Open Apps
+          </span>
+        </CardHeader>
+        <CardContent className="p-4">
+          {summary.active_apps && summary.active_apps.length > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+              {summary.active_apps.map((app, idx) => (
+                <div
+                  key={idx}
+                  className="flex items-center gap-3 p-3 rounded-xl bg-slate-950/70 border border-slate-800/80 hover:border-cyan-500/30 transition shadow-sm"
+                >
+                  <div className="w-10 h-10 rounded-lg bg-slate-900 border border-slate-700/60 flex items-center justify-center text-xl shrink-0 shadow-inner">
+                    {app.icon || "💻"}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <h5 className="text-xs font-bold text-slate-100 truncate">{app.name}</h5>
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                      <span className="text-[11px] text-emerald-400 font-medium">Running</span>
+                      {app.opened_at && (
+                        <>
+                          <span className="text-slate-600">•</span>
+                          <span className="text-[10px] text-slate-400 truncate">
+                            {new Date(app.opened_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="p-6 text-center rounded-xl bg-slate-950/50 border border-dashed border-slate-800">
+              <Laptop className="w-8 h-8 text-slate-600 mx-auto mb-2" />
+              <p className="text-xs font-medium text-slate-300">No active desktop software detected right now</p>
+              <p className="text-[11px] text-slate-500 mt-1 max-w-md mx-auto">
+                Open any desktop application (e.g. Google Chrome, Visual Studio Code, Notepad) on your connected laptop to see it appear live here with plain-English names.
+              </p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="bg-slate-900 border-slate-800 p-4">
@@ -238,7 +389,7 @@ export default function LogMonitoring() {
             <Input
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search event type, host..."
+              placeholder="Search app, folder, host..."
               className="bg-slate-950 border-slate-800 text-xs h-8 text-slate-200"
             />
           </div>
@@ -269,15 +420,15 @@ export default function LogMonitoring() {
 
                       {/* Unified Honest Status Badge */}
                       {log.severity === "high" || log.severity === "critical" ? (
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/30 flex items-center gap-1">
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/30 flex items-center gap-1 shadow-sm">
                           <ShieldAlert size={12} /> THREAT DETECTED
                         </span>
                       ) : log.severity === "medium" ? (
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 flex items-center gap-1">
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 flex items-center gap-1 shadow-sm">
                           <AlertTriangle size={12} /> SUSPICIOUS BEHAVIOR
                         </span>
                       ) : (
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1 shadow-sm">
                           <CheckCircle2 size={12} /> NOT DETECTED (Safe)
                         </span>
                       )}
@@ -287,19 +438,44 @@ export default function LogMonitoring() {
                       </span>
                     </div>
 
-                    <h4 className="text-[13px] font-semibold text-slate-100">
-                      {log.title || (log.event_type === "windows.security.4688" ? "A new process was started" : log.event_type)}
+                    {/* Friendly Title with App Icon */}
+                    <h4 className="text-[13px] font-semibold text-slate-100 flex items-center gap-2 flex-wrap">
+                      {log.app_icon && <span className="text-sm">{log.app_icon}</span>}
+                      <span>{log.title || log.plain_english || log.event_type}</span>
                     </h4>
 
-                    <p className="text-slate-300 text-xs leading-relaxed">
+                    {/* Tags Row: Friendly Process, Folder, User */}
+                    <div className="flex items-center gap-2 flex-wrap pt-0.5">
+                      {log.process_display && (
+                        <span className="inline-flex items-center gap-1 text-[11px] font-medium text-cyan-300 bg-cyan-950/40 px-2 py-0.5 rounded border border-cyan-800/40">
+                          <span>{log.app_icon || "💻"}</span>
+                          {log.process_display}
+                        </span>
+                      )}
+
+                      {log.folder_desc && (
+                        <span className="inline-flex items-center gap-1 text-[11px] text-slate-400 bg-slate-950 px-2 py-0.5 rounded border border-slate-800/80">
+                          <Folder size={11} className="text-amber-400/80" />
+                          {log.folder_desc}
+                        </span>
+                      )}
+
+                      {log.username && (
+                        <span className="inline-flex items-center gap-1 text-[11px] text-slate-400">
+                          <User size={11} className="text-slate-500" />
+                          {log.username}
+                        </span>
+                      )}
+                    </div>
+
+                    <p className="text-slate-300 text-xs leading-relaxed pt-0.5">
                       {log.details}
                     </p>
                   </div>
 
                   <div className="flex items-center gap-2.5 shrink-0 sm:self-center">
-                    <span className="text-[11px] font-mono text-cyan-400 bg-cyan-500/10 border border-cyan-500/20 px-2 py-1 rounded font-medium">
-                      {log.badge_label || (log.event_id ? `Event ${log.event_id}` : log.event_type)}
-                    </span>
+                    {/* Plain-English Lifecycle Badge */}
+                    {renderLifecycleBadge(log.badge_label || (log.event_id ? `Event ${log.event_id}` : log.event_type))}
 
                     {/* Interactive Re-detect Button */}
                     <Button

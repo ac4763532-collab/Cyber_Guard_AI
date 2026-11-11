@@ -12,7 +12,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
@@ -43,6 +43,7 @@ class LogSummaryResponse(BaseModel):
     privilege_escalations_24h: int
     anomalous_events: int
     events: List[dict[str, Any]]
+    active_apps: List[dict[str, Any]] = Field(default_factory=list)
     message: Optional[str] = None
 
 
@@ -159,6 +160,9 @@ def get_log_summary(
             "plain_english": summary_info["plain_english"],
             "category_label": summary_info["category_label"],
             "process_display": summary_info["process_display"],
+            "app_type": summary_info.get("app_type", "desktop_app"),
+            "app_icon": summary_info.get("app_icon", "💻"),
+            "folder_desc": summary_info.get("folder_desc", ""),
             "badge_label": summary_info["badge_label"],
             "severity": sev_val,
             "details": summary_info["friendly_details"],
@@ -173,12 +177,30 @@ def get_log_summary(
     threat_in_feed = sum(1 for e in ev_list if e.get("severity") in ("high", "critical"))
     reported_anomalies = max(anomalies, threat_in_feed)
 
+    # Compute currently active desktop apps from recent lifecycle telemetry
+    active_apps_dict: dict[str, dict[str, Any]] = {}
+    for ev_item in reversed(ev_list):
+        p_name = ev_item.get("process_display")
+        app_type = ev_item.get("app_type", "desktop_app")
+        badge = str(ev_item.get("badge_label") or "")
+        if app_type == "desktop_app" and p_name:
+            if "Closed" in badge:
+                active_apps_dict.pop(p_name, None)
+            else:
+                active_apps_dict[p_name] = {
+                    "name": p_name,
+                    "icon": ev_item.get("app_icon", "💻"),
+                    "status": "Running",
+                    "opened_at": ev_item.get("timestamp"),
+                }
+
     return LogSummaryResponse(
         total_sources=sources_count,
         failed_logins_24h=failed_logins,
         privilege_escalations_24h=priv_escalations,
         anomalous_events=reported_anomalies,
         events=ev_list,
+        active_apps=list(active_apps_dict.values()),
         message=msg,
     )
 
