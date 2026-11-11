@@ -49,6 +49,13 @@ namespace CyberGuard.Installer {
         private const int WTS_SESSION_LOCK = 0x7;
         private const int WTS_SESSION_UNLOCK = 0x8;
 
+        private static readonly HashSet<string> BackgroundDaemons = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {
+            "svchost.exe", "runtimebroker.exe", "audiodg.exe", "conhost.exe", "wmiprvse.exe",
+            "backgroundtaskhost.exe", "searchhost.exe", "shellexperiencehost.exe", "startmenuexperiencehost.exe",
+            "sihost.exe", "fontdrvhost.exe", "dwm.exe", "csrss.exe", "lsass.exe", "smss.exe", "services.exe",
+            "spoolsv.exe", "ctfmon.exe", "smartscreen.exe", "securityhealthservice.exe", "microsoftedgeupdate.exe", "googleupdate.exe"
+        };
+
         private Label lblTitle;
         private Label lblSubtitle;
         private Label lblStepStatus;
@@ -532,9 +539,12 @@ namespace CyberGuard.Installer {
                             foreach (string pName in newlyOpened) {
                                 if (emOpen >= 8) break;
                                 string safePName = pName.Replace("\\", "\\\\").Replace("\"", "\\\"");
+                                bool isDaemon = BackgroundDaemons.Contains(pName);
+                                string evType = isDaemon ? "windows.background.task" : "windows.app.opened";
+                                string cat = isDaemon ? "system" : "process";
                                 string evJson = string.Format(
-                                    "{{\"event_type\":\"windows.app.opened\",\"severity\":\"info\",\"category\":\"process\",\"process_name\":\"{3}\",\"event_time\":\"{0}\",\"hostname\":\"{1}\",\"username\":\"{2}\",\"raw_payload\":{{\"Channel\":\"Security\",\"EventID\":4688,\"Action\":\"opened\",\"Hostname\":\"{1}\",\"ProcessName\":\"C:\\\\Program Files\\\\{3}\",\"CommandLine\":\"{3}\"}}}}",
-                                    loopTs, safeHost, safeUser, safePName
+                                    "{{\"event_type\":\"{4}\",\"severity\":\"info\",\"category\":\"{5}\",\"process_name\":\"{3}\",\"event_time\":\"{0}\",\"hostname\":\"{1}\",\"username\":\"{2}\",\"raw_payload\":{{\"Channel\":\"Security\",\"EventID\":4688,\"Action\":\"opened\",\"Hostname\":\"{1}\",\"ProcessName\":\"{3}\",\"CommandLine\":\"{3}\"}}}}",
+                                    loopTs, safeHost, safeUser, safePName, evType, cat
                                 );
                                 eventBatch.Add(evJson);
                                 emOpen++;
@@ -545,9 +555,12 @@ namespace CyberGuard.Installer {
                             foreach (string pName in newlyClosed) {
                                 if (emClose >= 8) break;
                                 string safePName = pName.Replace("\\", "\\\\").Replace("\"", "\\\"");
+                                bool isDaemon = BackgroundDaemons.Contains(pName);
+                                string evType = isDaemon ? "windows.background.task" : "windows.app.closed";
+                                string cat = isDaemon ? "system" : "process";
                                 string evJson = string.Format(
-                                    "{{\"event_type\":\"windows.app.closed\",\"severity\":\"info\",\"category\":\"process\",\"process_name\":\"{3}\",\"event_time\":\"{0}\",\"hostname\":\"{1}\",\"username\":\"{2}\",\"raw_payload\":{{\"Channel\":\"Security\",\"EventID\":4689,\"Action\":\"closed\",\"Hostname\":\"{1}\",\"ProcessName\":\"C:\\\\Program Files\\\\{3}\"}}}}",
-                                    loopTs, safeHost, safeUser, safePName
+                                    "{{\"event_type\":\"{4}\",\"severity\":\"info\",\"category\":\"{5}\",\"process_name\":\"{3}\",\"event_time\":\"{0}\",\"hostname\":\"{1}\",\"username\":\"{2}\",\"raw_payload\":{{\"Channel\":\"Security\",\"EventID\":4689,\"Action\":\"closed\",\"Hostname\":\"{1}\",\"ProcessName\":\"{3}\"}}}}",
+                                    loopTs, safeHost, safeUser, safePName, evType, cat
                                 );
                                 eventBatch.Add(evJson);
                                 emClose++;

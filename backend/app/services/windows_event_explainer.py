@@ -389,6 +389,7 @@ KNOWN_APPS: Dict[str, Dict[str, str]] = {
     # Background Windows System Daemons
     "audiodg.exe": {"name": "Windows Audio Isolation Service", "type": "background_system", "icon": "🔊"},
     "svchost.exe": {"name": "Windows Service Host", "type": "background_system", "icon": "⚙️"},
+    "runtimebroker.exe": {"name": "Windows Runtime Broker", "type": "background_system", "icon": "⚙️"},
     "wmiprvse.exe": {"name": "Windows Management Service (WMI)", "type": "background_system", "icon": "⚙️"},
     "backgroundtaskhost.exe": {"name": "Windows Background Task Host", "type": "background_system", "icon": "⚙️"},
     "microsoftedgeupdate.exe": {"name": "Microsoft Edge Updater", "type": "background_system", "icon": "🔄"},
@@ -397,8 +398,16 @@ KNOWN_APPS: Dict[str, Dict[str, str]] = {
     "searchhost.exe": {"name": "Windows Search Indexer", "type": "background_system", "icon": "🔍"},
     "startmenuexperiencehost.exe": {"name": "Windows Start Menu Subsystem", "type": "background_system", "icon": "🪟"},
     "shellexperiencehost.exe": {"name": "Windows Shell Subsystem", "type": "background_system", "icon": "🪟"},
+    "sihost.exe": {"name": "Windows Shell Infrastructure Host", "type": "background_system", "icon": "🪟"},
+    "fontdrvhost.exe": {"name": "Windows Font Driver Host", "type": "background_system", "icon": "⚙️"},
     "dwm.exe": {"name": "Desktop Window Graphics Manager", "type": "background_system", "icon": "🖥️"},
     "csrss.exe": {"name": "Client Server Runtime Subsystem", "type": "background_system", "icon": "⚙️"},
+    "services.exe": {"name": "Windows Services Controller", "type": "background_system", "icon": "⚙️"},
+    "smss.exe": {"name": "Windows Session Manager Subsystem", "type": "background_system", "icon": "⚙️"},
+    "spoolsv.exe": {"name": "Windows Print Spooler", "type": "background_system", "icon": "🖨️"},
+    "ctfmon.exe": {"name": "Windows Input Subsystem", "type": "background_system", "icon": "⌨️"},
+    "smartscreen.exe": {"name": "Windows Defender SmartScreen", "type": "security_system", "icon": "🛡️"},
+    "securityhealthservice.exe": {"name": "Windows Security Health Service", "type": "security_system", "icon": "🛡️"},
     "lsass.exe": {"name": "Local Security Authority", "type": "security_system", "icon": "🛡️"},
     "msmpeng.exe": {"name": "Microsoft Defender Antivirus Engine", "type": "security_system", "icon": "🛡️"},
     "nissrv.exe": {"name": "Microsoft Defender Network Inspection", "type": "security_system", "icon": "🛡️"},
@@ -433,17 +442,26 @@ def explain_folder_path(path_str: str) -> str:
 
 
 def resolve_friendly_app_name(raw_name: Optional[str]) -> Tuple[str, str, str]:
-    """Returns (friendly_name, app_type, icon) for any executable or process name."""
+    """Returns (friendly_name, app_type, icon) for any executable or process name in plain English."""
     if not raw_name:
         return "Application", "desktop_app", "💻"
-    clean = os.path.basename(str(raw_name).replace("/", "\\")).lower()
+
+    # Robust cross-platform extraction: handle Windows backslashes even when running on Linux (Render)
+    raw_str = str(raw_name).strip()
+    clean = raw_str.replace("/", "\\").split("\\")[-1].strip().lower()
+
+    # Normalize to .exe extension for canonical dictionary lookup
     if not clean.endswith(".exe"):
-        clean += ".exe"
-    if clean in KNOWN_APPS:
-        entry = KNOWN_APPS[clean]
+        exe_key = clean + ".exe"
+    else:
+        exe_key = clean
+
+    if exe_key in KNOWN_APPS:
+        entry = KNOWN_APPS[exe_key]
         return entry["name"], entry["type"], entry["icon"]
-    # Fallback formatting: strip .exe and capitalize cleanly
-    base = clean[:-4].replace("-", " ").replace("_", " ").title()
+
+    # Clean universal fallback formatting for ANY app (e.g. my_custom_tool.exe -> My Custom Tool)
+    base = exe_key[:-4].replace("-", " ").replace("_", " ").title()
     return base, "desktop_app", "💻"
 
 
@@ -524,14 +542,21 @@ def get_friendly_event_summary(
 
     # ── 5. App Closed ──────────────────────────────────────────────────────
     elif ev_id == "4689" or "closed" in ev_type_str or "closed" in action_val:
-        title = f"{friendly_app} Closed"
-        plain_desc = f"{friendly_app} was closed and stopped running."
-        cat_name = "Desktop Applications" if app_type == "desktop_app" else "Background Services"
-        badge_label = "App Closed"
-        friendly_details = f"{friendly_app} was closed on {host_display}{user_txt}"
+        if app_type == "desktop_app":
+            title = f"{friendly_app} Closed"
+            plain_desc = f"{friendly_app} was closed and stopped running."
+            cat_name = "Desktop Applications"
+            badge_label = "App Closed"
+            friendly_details = f"{friendly_app} was closed on {host_display}{user_txt}"
+        else:
+            title = f"{friendly_app} Stopped"
+            plain_desc = f"{friendly_app} background service stopped."
+            cat_name = "Background Services"
+            badge_label = "Background Service"
+            friendly_details = f"{friendly_app} stopped on {host_display}"
 
     # ── 6. App Opened / Process Started ────────────────────────────────────
-    elif ev_id == "4688" or "4688" in ev_type_str or "opened" in ev_type_str:
+    elif ev_id == "4688" or "4688" in ev_type_str or "opened" in ev_type_str or "background" in ev_type_str:
         if app_type == "desktop_app":
             title = f"{friendly_app} Opened"
             plain_desc = f"{friendly_app} was opened on this laptop."
@@ -593,6 +618,13 @@ def get_friendly_event_summary(
             cat_name = (category or "System").capitalize()
             badge_label = "System Log"
         friendly_details = f"{title} on {host_display}{user_txt}"
+
+    # Path sanitation: Ensure NO directory path or drive letters ever appear in title
+    for suffix in (" Opened", " Closed", " Started", " Stopped"):
+        if title.endswith(suffix):
+            prefix_app = title[:-len(suffix)].replace("/", "\\").split("\\")[-1].strip()
+            title = f"{prefix_app}{suffix}"
+            break
 
     friendly_source = f"{host_display} • {cat_name}"
 

@@ -41,6 +41,16 @@ def test_resolve_friendly_app_names():
     assert custom_name == "My Custom Tool"
     assert custom_type == "desktop_app"
 
+    # RuntimeBroker with path should resolve to clean product name WITHOUT paths
+    rt_name, rt_type, _ = resolve_friendly_app_name("C:\\Program Files\\Runtimebroker.exe")
+    assert rt_name == "Windows Runtime Broker"
+    assert rt_type == "background_system"
+
+    # Notepad with or without path
+    np_name, np_type, _ = resolve_friendly_app_name("C:\\Windows\\System32\\notepad.exe")
+    assert np_name == "Notepad"
+    assert np_type == "desktop_app"
+
 
 def test_explain_folder_paths():
     assert explain_folder_path("C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe") == "Program Files (Installed Software)"
@@ -124,3 +134,40 @@ def test_friendly_event_summaries_lifecycle():
     )
     assert ev_unlocked["title"] == "Laptop Screen Unlocked"
     assert ev_unlocked["badge_label"] == "Laptop Unlocked"
+
+    # 7. Notepad Opened & Closed (real desktop app)
+    ev_np_opened = get_friendly_event_summary(
+        event_type="windows.app.opened",
+        process_name="notepad.exe",
+        hostname="DESKTOP-4DAGSCE",
+        username="Abhi chavan",
+    )
+    assert ev_np_opened["title"] == "Notepad Opened"
+    assert ev_np_opened["badge_label"] == "App Opened"
+
+    ev_np_closed = get_friendly_event_summary(
+        event_type="windows.app.closed",
+        process_name="notepad.exe",
+        hostname="DESKTOP-4DAGSCE",
+        username="Abhi chavan",
+    )
+    assert ev_np_closed["title"] == "Notepad Closed"
+    assert ev_np_closed["badge_label"] == "App Closed"
+
+    # 8. Background Daemons: NEVER show path in title and NEVER show "Svchost Opened"
+    ev_rt_closed = get_friendly_event_summary(
+        event_type="windows.app.closed",
+        raw_payload={"ProcessName": "C:\\Program Files\\Runtimebroker.exe"},
+        process_name="C:\\Program Files\\Runtimebroker.exe",
+        hostname="DESKTOP-4DAGSCE",
+    )
+    assert ev_rt_closed["title"] == "Windows Runtime Broker Stopped"
+    assert "Program Files" not in ev_rt_closed["title"]
+
+    ev_svc_opened = get_friendly_event_summary(
+        event_type="windows.app.opened",
+        process_name="svchost.exe",
+        hostname="DESKTOP-4DAGSCE",
+    )
+    assert ev_svc_opened["title"] == "Windows Service Host Started"
+    assert ev_svc_opened["title"] != "Svchost Opened"
