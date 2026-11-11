@@ -100,6 +100,9 @@ export default function LogMonitoring() {
     }, 900);
   };
 
+  const threatInFeed = summary.events.filter(e => e.severity === "high" || e.severity === "critical");
+  const hasActiveThreat = threatInFeed.length > 0 || (summary.anomalous_events > 0 && summary.failed_logins_24h > 0);
+
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-800 pb-5">
@@ -139,7 +142,7 @@ export default function LogMonitoring() {
       </div>
 
       {/* Unified Honest Status Banner */}
-      {summary.anomalous_events > 0 ? (
+      {hasActiveThreat ? (
         <div className="p-4 bg-gradient-to-r from-rose-950/70 via-slate-900 to-slate-900 border border-rose-500/40 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-lg shadow-rose-950/20">
           <div className="flex items-center gap-3.5">
             <div className="w-11 h-11 rounded-2xl bg-rose-500/20 border border-rose-500/40 flex items-center justify-center text-rose-400 shrink-0">
@@ -151,7 +154,7 @@ export default function LogMonitoring() {
                   THREAT DETECTED
                 </span>
                 <span className="text-sm font-bold text-slate-100">
-                  {summary.anomalous_events} Anomalous Event{summary.anomalous_events > 1 ? "s" : ""} Flagged
+                  {threatInFeed.length || summary.anomalous_events} Anomalous Event{(threatInFeed.length || summary.anomalous_events) > 1 ? "s" : ""} Flagged
                 </span>
               </div>
               <p className="text-xs text-slate-400 mt-1">
@@ -218,7 +221,9 @@ export default function LogMonitoring() {
         </Card>
         <Card className="bg-slate-900 border-slate-800 p-4">
           <p className="text-xs text-slate-400">Anomalous Events</p>
-          <p className="text-xl font-bold text-rose-400 mt-1">{summary.anomalous_events} flagged</p>
+          <p className={`text-xl font-bold mt-1 ${hasActiveThreat ? "text-rose-400" : "text-slate-100"}`}>
+            {hasActiveThreat ? (threatInFeed.length || summary.anomalous_events) : 0} flagged
+          </p>
         </Card>
       </div>
 

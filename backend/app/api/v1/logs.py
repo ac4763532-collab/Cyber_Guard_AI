@@ -93,10 +93,21 @@ def get_log_summary(
         )
     ).scalar() or 0
 
+    log_categories = [
+        EventCategory.AUTHENTICATION,
+        EventCategory.PROCESS,
+        EventCategory.FILE,
+        EventCategory.SYSTEM,
+        EventCategory.AUTHORIZATION,
+        EventCategory.OTHER,
+    ]
+
     anomalies = db.execute(
         select(func.count(SecurityEvent.id))
         .where(
             SecurityEvent.workspace_id == workspace.id,
+            SecurityEvent.category.in_(log_categories),
+            SecurityEvent.event_time >= since_24h,
             SecurityEvent.severity.in_([EventSeverity.HIGH, EventSeverity.CRITICAL]),
         )
     ).scalar() or 0
@@ -106,14 +117,7 @@ def get_log_summary(
             select(SecurityEvent)
             .where(
                 SecurityEvent.workspace_id == workspace.id,
-                SecurityEvent.category.in_([
-                    EventCategory.AUTHENTICATION,
-                    EventCategory.PROCESS,
-                    EventCategory.FILE,
-                    EventCategory.SYSTEM,
-                    EventCategory.AUTHORIZATION,
-                    EventCategory.OTHER,
-                ]),
+                SecurityEvent.category.in_(log_categories),
             )
             .order_by(SecurityEvent.received_at.desc())
             .limit(50)
@@ -166,11 +170,14 @@ def get_log_summary(
     if sources_count == 0 and len(ev_list) == 0:
         msg = "No log source is currently reporting events."
 
+    threat_in_feed = sum(1 for e in ev_list if e.get("severity") in ("high", "critical"))
+    reported_anomalies = max(anomalies, threat_in_feed)
+
     return LogSummaryResponse(
         total_sources=sources_count,
         failed_logins_24h=failed_logins,
         privilege_escalations_24h=priv_escalations,
-        anomalous_events=anomalies,
+        anomalous_events=reported_anomalies,
         events=ev_list,
         message=msg,
     )
