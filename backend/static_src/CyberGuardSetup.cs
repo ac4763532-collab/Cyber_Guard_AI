@@ -11,6 +11,7 @@ using System.Diagnostics;
 using System.Reflection;
 using System.Collections.Generic;
 using System.Net.NetworkInformation;
+using System.Runtime.InteropServices;
 using Microsoft.Win32;
 
 [assembly: AssemblyTitle("CyberGuard AI Endpoint Security Collector Setup")]
@@ -27,6 +28,26 @@ namespace CyberGuard.Installer {
         private string deviceId = "";
         private string enrollmentToken = "";
         private bool isSilent = false;
+
+        private string activeCollectorId = "";
+        private string activeCredential = "";
+        private string safeHost = Environment.MachineName;
+        private string safeUser = Environment.UserName;
+        private DateTime? lastLockTime = null;
+        private NotifyIcon trayIcon;
+        private ContextMenuStrip trayMenu;
+        private bool isUninstalling = false;
+
+        [DllImport("wtsapi32.dll", SetLastError = true)]
+        private static extern bool WTSRegisterSessionNotification(IntPtr hWnd, int dwFlags);
+
+        [DllImport("wtsapi32.dll", SetLastError = true)]
+        private static extern bool WTSUnRegisterSessionNotification(IntPtr hWnd);
+
+        private const int NOTIFY_FOR_THIS_SESSION = 0;
+        private const int WM_WTSSESSION_CHANGE = 0x02B1;
+        private const int WTS_SESSION_LOCK = 0x7;
+        private const int WTS_SESSION_UNLOCK = 0x8;
 
         private Label lblTitle;
         private Label lblSubtitle;
@@ -190,6 +211,111 @@ namespace CyberGuard.Installer {
                     } catch { }
                 }
             };
+
+            InitializeTray();
+        }
+
+        private void InitializeTray() {
+            try {
+                trayMenu = new ContextMenuStrip();
+                trayMenu.Items.Add("Open CyberGuard", null, (s, e) => {
+                    this.Show();
+                    this.WindowState = FormWindowState.Normal;
+                    this.BringToFront();
+                });
+                trayMenu.Items.Add("-");
+                trayMenu.Items.Add("Exit CyberGuard", null, (s, e) => {
+                    isUninstalling = true;
+                    if (trayIcon != null) {
+                        trayIcon.Visible = false;
+                        trayIcon.Dispose();
+                    }
+                    Application.Exit();
+                });
+
+                trayIcon = new NotifyIcon {
+                    Text = "CyberGuard AI Endpoint Protection (Active)",
+                    Icon = SystemIcons.Shield,
+                    ContextMenuStrip = trayMenu,
+                    Visible = true
+                };
+                trayIcon.DoubleClick += (s, e) => {
+                    this.Show();
+                    this.WindowState = FormWindowState.Normal;
+                    this.BringToFront();
+                };
+            } catch { }
+        }
+
+        protected override void OnHandleCreated(EventArgs e) {
+            base.OnHandleCreated(e);
+            try {
+                WTSRegisterSessionNotification(this.Handle, NOTIFY_FOR_THIS_SESSION);
+            } catch { }
+        }
+
+        protected override void WndProc(ref Message m) {
+            if (m.Msg == WM_WTSSESSION_CHANGE) {
+                int reason = m.WParam.ToInt32();
+                if (reason == WTS_SESSION_LOCK) {
+                    OnSessionLocked();
+                } else if (reason == WTS_SESSION_UNLOCK) {
+                    OnSessionUnlocked();
+                }
+            }
+            base.WndProc(ref m);
+        }
+
+        private void OnSessionLocked() {
+            lastLockTime = DateTime.UtcNow;
+            string ts = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ");
+            string payload = string.Format(
+                "{{\"batch_id\":\"{0}\",\"events\":[{{\"event_type\":\"windows.workstation.locked\",\"severity\":\"info\",\"category\":\"authentication\",\"event_time\":\"{1}\",\"hostname\":\"{2}\",\"username\":\"{3}\",\"raw_payload\":{{\"Channel\":\"SessionEvents\",\"EventID\":4800,\"Action\":\"locked\",\"Hostname\":\"{2}\",\"TargetUserName\":\"{3}\"}}}}]}}",
+                Guid.NewGuid().ToString(), ts, safeHost.Replace("\\", "\\\\").Replace("\"", "\\\""), safeUser.Replace("\\", "\\\\").Replace("\"", "\\\"")
+            );
+            SendAsyncEvent(payload);
+        }
+
+        private void OnSessionUnlocked() {
+            string ts = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ");
+            int lockSecs = 0;
+            if (lastLockTime.HasValue) {
+                lockSecs = (int)(DateTime.UtcNow - lastLockTime.Value).TotalSeconds;
+                lastLockTime = null;
+            }
+            string payload = string.Format(
+                "{{\"batch_id\":\"{0}\",\"events\":[{{\"event_type\":\"windows.workstation.unlocked\",\"severity\":\"info\",\"category\":\"authentication\",\"event_time\":\"{1}\",\"hostname\":\"{2}\",\"username\":\"{3}\",\"raw_payload\":{{\"Channel\":\"SessionEvents\",\"EventID\":4801,\"Action\":\"unlocked\",\"LockDurationSeconds\":{4},\"Hostname\":\"{2}\",\"TargetUserName\":\"{3}\"}}}}]}}",
+                Guid.NewGuid().ToString(), ts, safeHost.Replace("\\", "\\\\").Replace("\"", "\\\""), safeUser.Replace("\\", "\\\\").Replace("\"", "\\\""), lockSecs
+            );
+            SendAsyncEvent(payload);
+        }
+
+        private void SendAsyncEvent(string payload) {
+            if (string.IsNullOrEmpty(activeCollectorId) || string.IsNullOrEmpty(activeCredential)) return;
+            ThreadPool.QueueUserWorkItem((s) => {
+                try {
+                    PostJson(serverUrl + "/api/v1/collector/events", payload, activeCollectorId, activeCredential);
+                } catch { }
+            });
+        }
+
+        protected override void OnFormClosing(FormClosingEventArgs e) {
+            if (e.CloseReason == CloseReason.UserClosing && !isUninstalling) {
+                e.Cancel = true;
+                this.Hide();
+                if (trayIcon != null) {
+                    trayIcon.ShowBalloonTip(2000, "CyberGuard AI Protection", "CyberGuard is active in your system tray protecting your computer.", ToolTipIcon.Info);
+                }
+                return;
+            }
+            try {
+                WTSUnRegisterSessionNotification(this.Handle);
+            } catch { }
+            if (trayIcon != null) {
+                trayIcon.Visible = false;
+                trayIcon.Dispose();
+            }
+            base.OnFormClosing(e);
         }
 
         private void StartEnrollmentThread() {
@@ -280,6 +406,10 @@ namespace CyberGuard.Installer {
                     return;
                 }
                 string plaintextCredential = mCred.Groups[1].Value;
+                activeCollectorId = newCollectorId;
+                activeCredential = plaintextCredential;
+                this.safeHost = safeHost;
+                this.safeUser = safeUser;
 
                 // Save credential securely locally
                 string credPath = Path.Combine(targetDir, "credential.dat");
@@ -317,9 +447,6 @@ namespace CyberGuard.Installer {
                     safeUser
                 );
                 PostJson(serverUrl + "/api/v1/collector/events", eventBatchPayload, newCollectorId, plaintextCredential);
-
-                // Register standard user session lock/unlock listener (zero admin privileges required)
-                RegisterSessionSwitchListener(newCollectorId, plaintextCredential, safeHost, safeUser);
 
                 // Start continuous background telemetry loop with dynamic process & real network flow monitoring
                 ThreadPool.QueueUserWorkItem((s) => {
@@ -717,47 +844,6 @@ namespace CyberGuard.Installer {
             } catch (Exception ex) {
                 MessageBox.Show("Uninstall note: " + ex.Message, "CyberGuard AI", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
-        }
-
-        private void RegisterSessionSwitchListener(string collectorId, string cred, string host, string user) {
-            try {
-                Microsoft.Win32.SystemEvents.SessionSwitch += (s, e) => {
-                    try {
-                        string ts = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ");
-                        string evType = null;
-                        int eventId = 0;
-                        string action = null;
-
-                        if (e.Reason == Microsoft.Win32.SessionSwitchReason.SessionLock) {
-                            evType = "windows.workstation.locked";
-                            eventId = 4800;
-                            action = "locked";
-                        } else if (e.Reason == Microsoft.Win32.SessionSwitchReason.SessionUnlock) {
-                            evType = "windows.workstation.unlocked";
-                            eventId = 4801;
-                            action = "unlocked";
-                        }
-
-                        if (evType != null) {
-                            string evPayload = string.Format(
-                                "{{\"batch_id\":\"{0}\",\"events\":[{{\"event_type\":\"{1}\",\"severity\":\"info\",\"category\":\"authentication\",\"event_time\":\"{2}\",\"hostname\":\"{3}\",\"username\":\"{4}\",\"raw_payload\":{{\"Channel\":\"SessionEvents\",\"EventID\":{5},\"Action\":\"{6}\",\"Hostname\":\"{3}\",\"TargetUserName\":\"{4}\"}}}}]}}",
-                                Guid.NewGuid().ToString(),
-                                evType,
-                                ts,
-                                host,
-                                user,
-                                eventId,
-                                action
-                            );
-                            ThreadPool.QueueUserWorkItem((state) => {
-                                try {
-                                    PostJson(serverUrl + "/api/v1/collector/events", evPayload, collectorId, cred);
-                                } catch { }
-                            });
-                        }
-                    } catch { }
-                };
-            } catch { }
         }
 
         [STAThread]

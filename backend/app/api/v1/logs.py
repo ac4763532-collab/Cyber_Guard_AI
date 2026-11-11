@@ -121,7 +121,7 @@ def get_log_summary(
                 SecurityEvent.category.in_(log_categories),
             )
             .order_by(SecurityEvent.received_at.desc())
-            .limit(50)
+            .limit(150)
         ).scalars().all()
     )
 
@@ -141,13 +141,16 @@ def get_log_summary(
         sev_val = ev.severity.value if hasattr(ev.severity, "value") else str(ev.severity)
         is_threat = sev_val in ("high", "critical", "medium")
 
-        # Noise reduction: Deduplicate only identical recurring benign events for the SAME process/details
-        # Ensures all distinct applications and all harmful/suspicious events are permanently visible
+        # Noise reduction: Deduplicate ONLY repetitive background daemon polling (e.g. svchost)
+        # NEVER deduplicate lifecycle actions like Locked, Unlocked, Wrong Password, App Opened/Closed, Installed, Removed
+        badge = str(summary_info.get("badge_label") or "")
+        is_lifecycle_milestone = any(x in badge for x in ["Locked", "Unlocked", "Wrong Password", "Opened", "Closed", "Installed", "Removed", "Defender", "Firewall"])
+
         proc_tag = summary_info.get("process_display") or ev.process_name or summary_info.get("event_id") or "sys"
-        benign_key = f"{ev.hostname}|{proc_tag}|{summary_info['title']}|{summary_info['friendly_details']}"
-        if not is_threat and benign_key in seen_benign_keys:
+        benign_key = f"{ev.hostname}|{proc_tag}|{summary_info['title']}"
+        if not is_threat and not is_lifecycle_milestone and benign_key in seen_benign_keys:
             continue
-        if not is_threat:
+        if not is_threat and not is_lifecycle_milestone:
             seen_benign_keys.add(benign_key)
 
         ev_list.append({
