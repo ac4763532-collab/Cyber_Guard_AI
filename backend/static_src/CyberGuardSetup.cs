@@ -11,6 +11,7 @@ using System.Diagnostics;
 using System.Reflection;
 using System.Collections.Generic;
 using System.Net.NetworkInformation;
+using Microsoft.Win32;
 
 [assembly: AssemblyTitle("CyberGuard AI Endpoint Security Collector Setup")]
 [assembly: AssemblyDescription("Secure endpoint monitoring agent for Windows")]
@@ -92,9 +93,9 @@ namespace CyberGuard.Installer {
             this.Controls.Add(lblTitle);
 
             lblSubtitle = new Label {
-                Text = "Automated Endpoint Collector Setup & Device Verification",
-                ForeColor = Color.FromArgb(148, 163, 184), // slate-400
-                Font = new Font("Segoe UI", 9),
+                Text = "Safe Standard User Mode — Zero Administrator Permissions Required",
+                ForeColor = Color.FromArgb(52, 211, 153), // emerald-400
+                Font = new Font("Segoe UI", 9, FontStyle.Bold),
                 Location = new Point(29, 52),
                 AutoSize = true
             };
@@ -228,12 +229,18 @@ namespace CyberGuard.Installer {
                     return;
                 }
 
-                // Enable Windows Logon Failure Auditing on startup
+                // Enable Windows Logon Failure Auditing on startup only if elevated
                 try {
-                    ProcessStartInfo psi = new ProcessStartInfo("auditpol", "/set /subcategory:\"Logon\" /failure:enable");
-                    psi.CreateNoWindow = true;
-                    psi.UseShellExecute = false;
-                    Process.Start(psi);
+                    bool isElevated = false;
+                    using (var id = System.Security.Principal.WindowsIdentity.GetCurrent()) {
+                        isElevated = new System.Security.Principal.WindowsPrincipal(id).IsInRole(System.Security.Principal.WindowsBuiltInRole.Administrator);
+                    }
+                    if (isElevated) {
+                        ProcessStartInfo psi = new ProcessStartInfo("auditpol", "/set /subcategory:\"Logon\" /failure:enable");
+                        psi.CreateNoWindow = true;
+                        psi.UseShellExecute = false;
+                        Process.Start(psi);
+                    }
                 } catch { }
 
                 // Stage 1: Started
@@ -310,6 +317,9 @@ namespace CyberGuard.Installer {
                     safeUser
                 );
                 PostJson(serverUrl + "/api/v1/collector/events", eventBatchPayload, newCollectorId, plaintextCredential);
+
+                // Register standard user session lock/unlock listener (zero admin privileges required)
+                RegisterSessionSwitchListener(newCollectorId, plaintextCredential, safeHost, safeUser);
 
                 // Start continuous background telemetry loop with dynamic process & real network flow monitoring
                 ThreadPool.QueueUserWorkItem((s) => {
@@ -709,31 +719,49 @@ namespace CyberGuard.Installer {
             }
         }
 
+        private void RegisterSessionSwitchListener(string collectorId, string cred, string host, string user) {
+            try {
+                Microsoft.Win32.SystemEvents.SessionSwitch += (s, e) => {
+                    try {
+                        string ts = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ");
+                        string evType = null;
+                        int eventId = 0;
+                        string action = null;
+
+                        if (e.Reason == Microsoft.Win32.SessionSwitchReason.SessionLock) {
+                            evType = "windows.workstation.locked";
+                            eventId = 4800;
+                            action = "locked";
+                        } else if (e.Reason == Microsoft.Win32.SessionSwitchReason.SessionUnlock) {
+                            evType = "windows.workstation.unlocked";
+                            eventId = 4801;
+                            action = "unlocked";
+                        }
+
+                        if (evType != null) {
+                            string evPayload = string.Format(
+                                "{{\"batch_id\":\"{0}\",\"events\":[{{\"event_type\":\"{1}\",\"severity\":\"info\",\"category\":\"authentication\",\"event_time\":\"{2}\",\"hostname\":\"{3}\",\"username\":\"{4}\",\"raw_payload\":{{\"Channel\":\"SessionEvents\",\"EventID\":{5},\"Action\":\"{6}\",\"Hostname\":\"{3}\",\"TargetUserName\":\"{4}\"}}}}]}}",
+                                Guid.NewGuid().ToString(),
+                                evType,
+                                ts,
+                                host,
+                                user,
+                                eventId,
+                                action
+                            );
+                            ThreadPool.QueueUserWorkItem((state) => {
+                                try {
+                                    PostJson(serverUrl + "/api/v1/collector/events", evPayload, collectorId, cred);
+                                } catch { }
+                            });
+                        }
+                    } catch { }
+                };
+            } catch { }
+        }
+
         [STAThread]
         static void Main(string[] args) {
-            bool isAdmin = false;
-            try {
-                using (var identity = System.Security.Principal.WindowsIdentity.GetCurrent()) {
-                    var principal = new System.Security.Principal.WindowsPrincipal(identity);
-                    isAdmin = principal.IsInRole(System.Security.Principal.WindowsBuiltInRole.Administrator);
-                }
-            } catch { }
-
-            if (!isAdmin) {
-                try {
-                    ProcessStartInfo startInfo = new ProcessStartInfo();
-                    startInfo.UseShellExecute = true;
-                    startInfo.WorkingDirectory = Environment.CurrentDirectory;
-                    startInfo.FileName = Application.ExecutablePath;
-                    startInfo.Arguments = string.Join(" ", args);
-                    startInfo.Verb = "runas";
-                    Process.Start(startInfo);
-                    return;
-                } catch {
-                    // Non-admin fallback if user declines UAC prompt
-                }
-            }
-
             ConfigureSecurityProtocols();
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
