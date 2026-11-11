@@ -95,7 +95,7 @@ export default function EmailSecurity() {
   const { data: emails = [], isLoading, refetch, isFetching } = useQuery<EmailItem[]>({
     queryKey: ["email-analyses"],
     queryFn: async () => {
-      const { data } = await api.get<EmailItem[]>("/email/messages");
+      const { data } = await api.get<EmailItem[]>("/email/messages?limit=200");
       return data || [];
     },
   });

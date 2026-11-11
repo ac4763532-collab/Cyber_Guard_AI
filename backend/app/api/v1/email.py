@@ -15,7 +15,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, List, Optional
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile, status
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm.attributes import flag_modified
 from app.models.enums import AlertStatus, EventCategory, EventSeverity, SourceStatus, SourceType
@@ -23,7 +23,7 @@ from app.models.source import SecuritySource
 from app.schemas.source import SecuritySourceCreate
 from app.services import source_service, workspace_service
 from pydantic import BaseModel, Field
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.agents.base import AgentContext
@@ -277,6 +277,7 @@ async def upload_eml(
 def list_email_messages(
     db: DBDep,
     current_user: CurrentActiveUser,
+    limit: int = Query(200, ge=1, le=500),
 ) -> List[EmailListItem]:
     workspace = _get_user_workspace(db, current_user)
 
@@ -288,7 +289,7 @@ def list_email_messages(
                 SecurityEvent.category == EventCategory.EMAIL,
             )
             .order_by(SecurityEvent.received_at.desc())
-            .limit(50)
+            .limit(limit)
         ).scalars().all()
     )
 
@@ -317,8 +318,8 @@ def list_email_messages(
         sender = ev.email_address or ev.username or "unknown"
         headers_dict = raw.get("headers", {}) or norm.get("headers", {})
         recipient = headers_dict.get("To") or ev.username
-        body_text = raw.get("body", "") or ""
-        snippet = (body_text[:140] + "...") if len(body_text) > 140 else (body_text or None)
+        body_text = raw.get("body_text", "") or raw.get("body", "") or norm.get("snippet", "") or ""
+        snippet = norm.get("snippet") or ((body_text[:140] + "...") if len(body_text) > 140 else (body_text or None))
         has_att = bool(raw.get("attachments") or norm.get("attachments_count", 0) > 0)
         src = "gmail" if ev.action == "gmail_sync" else "eml_upload"
 
@@ -780,7 +781,7 @@ async def _handle_gmail_oauth_callback(
 
         # Trigger initial sync of messages if access_token available
         try:
-            await _sync_messages_from_gmail(db, workspace, user, source, access_token, max_messages=5)
+            await _sync_messages_from_gmail(db, workspace, user, source, access_token, max_messages=100)
         except Exception as sync_exc:
             logger.warning("Initial Gmail sync warning", extra={"error": str(sync_exc)[:200]})
 
@@ -844,58 +845,110 @@ async def _sync_messages_from_gmail(
     user: User,
     source: SecuritySource,
     access_token: str,
-    max_messages: int = 10,
+    max_messages: int = 100,
 ) -> int:
+    import asyncio
     import base64
     import httpx
 
+    # Remove mock/sample placeholder emails so only real emails remain
+    try:
+        sample_ids = list(
+            db.execute(
+                select(SecurityEvent.id).where(
+                    SecurityEvent.workspace_id == workspace.id,
+                    SecurityEvent.category == EventCategory.EMAIL,
+                    or_(
+                        SecurityEvent.fingerprint.like("sample-%"),
+                        SecurityEvent.email_address.in_(["billing@stripe.com", "team@cyberguard.ai", "security@paypa1-update.com"]),
+                    ),
+                )
+            ).scalars().all()
+        )
+        if sample_ids:
+            db.execute(delete(SecurityEvent).where(SecurityEvent.id.in_(sample_ids)))
+            db.commit()
+    except Exception as cleanup_err:
+        logger.debug("Sample cleanup note", extra={"err": str(cleanup_err)})
+
     headers = {"Authorization": f"Bearer {access_token}"}
-    async with httpx.AsyncClient(timeout=25.0) as client:
+    async with httpx.AsyncClient(timeout=45.0) as client:
+        # Request up to max_messages (default 100) from user's Gmail
         list_res = await client.get(
             f"https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults={max_messages}",
             headers=headers,
         )
         if list_res.status_code != 200:
-            logger.warning("Failed to list Gmail messages", extra={"status": list_res.status_code})
+            logger.warning("Failed to list Gmail messages", extra={"status": list_res.status_code, "text": list_res.text[:200]})
             return 0
 
         msg_list = list_res.json().get("messages", [])
-        synced_count = 0
+        if not msg_list:
+            return 0
 
-        for item in msg_list:
-            msg_id = item.get("id")
-            if not msg_id:
+        # Filter out already ingested messages in 1 fast query
+        msg_ids = [item.get("id") for item in msg_list if item.get("id")]
+        fp_map = {hashlib.sha256(f"gmail-{mid}".encode("utf-8")).hexdigest(): mid for mid in msg_ids}
+
+        existing_fps = set(
+            db.execute(
+                select(SecurityEvent.fingerprint).where(
+                    SecurityEvent.workspace_id == workspace.id,
+                    SecurityEvent.fingerprint.in_(list(fp_map.keys())),
+                )
+            ).scalars().all()
+        )
+        to_fetch_ids = [mid for fp, mid in fp_map.items() if fp not in existing_fps]
+
+        if not to_fetch_ids:
+            return 0
+
+        # High-speed parallel download with semaphore of 12 workers
+        semaphore = asyncio.Semaphore(12)
+
+        async def fetch_one(mid: str):
+            async with semaphore:
+                try:
+                    res = await client.get(
+                        f"https://gmail.googleapis.com/gmail/v1/users/me/messages/{mid}?format=raw",
+                        headers=headers,
+                    )
+                    if res.status_code == 200:
+                        data = res.json()
+                        return (mid, data.get("raw", ""), data.get("snippet", ""))
+                except Exception as ex:
+                    logger.debug("Fetch message warning", extra={"mid": mid, "err": str(ex)})
+                return None
+
+        tasks = [fetch_one(mid) for mid in to_fetch_ids]
+        results = await asyncio.gather(*tasks)
+
+        synced_count = 0
+        agent = EmailAnalysisAgent(config={})
+
+        for item_data in results:
+            if not item_data:
+                continue
+            msg_id, raw_b64, snippet_text = item_data
+            if not raw_b64:
                 continue
 
             fp = hashlib.sha256(f"gmail-{msg_id}".encode("utf-8")).hexdigest()
-            existing = db.execute(
-                select(SecurityEvent.id).where(
-                    SecurityEvent.workspace_id == workspace.id,
-                    SecurityEvent.fingerprint == fp,
-                )
-            ).scalar_one_or_none()
-            if existing:
-                continue
-
-            raw_res = await client.get(
-                f"https://gmail.googleapis.com/gmail/v1/users/me/messages/{msg_id}?format=raw",
-                headers=headers,
-            )
-            if raw_res.status_code != 200:
-                continue
-
-            raw_b64 = raw_res.json().get("raw", "")
-            if not raw_b64:
-                continue
 
             try:
                 raw_b64_padded = raw_b64 + "=" * (-len(raw_b64) % 4)
                 raw_bytes = base64.urlsafe_b64decode(raw_b64_padded.encode("ascii"))
                 parsed = _parse_eml_bytes(raw_bytes)
             except Exception:
-                continue
+                parsed = {
+                    "headers": {"From": "unknown@gmail.com", "Subject": "(Protected Email)"},
+                    "body_text": snippet_text or "",
+                    "body_html": "",
+                    "urls": [],
+                    "attachments": [],
+                }
 
-            headers_dict = parsed["headers"]
+            headers_dict = parsed.get("headers", {})
             from_header = headers_dict.get("From", "unknown@unknown.com")
             subject_header = headers_dict.get("Subject", "(No Subject)")
             email_match = re.search(r'[\w\.-]+@[\w\.-]+', from_header)
@@ -918,21 +971,20 @@ async def _sync_messages_from_gmail(
                 raw_payload=parsed,
                 normalized_payload={
                     "headers": headers_dict,
-                    "urls": parsed["urls"],
-                    "attachments_count": len(parsed["attachments"]),
+                    "urls": parsed.get("urls", []),
+                    "attachments_count": len(parsed.get("attachments", [])),
                     "sender": from_addr,
                     "subject": subject_header,
+                    "snippet": snippet_text or (parsed.get("body_text", "")[:140] + "..." if len(parsed.get("body_text", "")) > 140 else parsed.get("body_text", "")),
                 },
             )
             db.add(event)
             db.flush()
 
             # Run 6 email detection rules + ML Phishing Classifier
-            agent = EmailAnalysisAgent(config={})
             ctx = AgentContext(db=db, event=event, source=source, workspace_id=workspace.id)
             agent_result = agent.process(ctx)
 
-            # ML evaluation
             ml_eval = ml_engine.predict_email_phishing(
                 subject=subject_header,
                 body_text=parsed.get("body_text", "") or "",
@@ -1009,7 +1061,7 @@ async def sync_gmail(
 
     if access_token and not str(access_token).startswith("mock_"):
         try:
-            synced_count = await _sync_messages_from_gmail(db, workspace, current_user, source, access_token)
+            synced_count = await _sync_messages_from_gmail(db, workspace, current_user, source, access_token, max_messages=100)
             msg = f"Successfully synchronized {synced_count} email(s) from Gmail via Google OAuth." if synced_count > 0 else "Gmail inbox checked. No new unanalyzed emails found."
             return {
                 "status": "success",
