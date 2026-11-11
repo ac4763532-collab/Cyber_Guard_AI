@@ -31,6 +31,7 @@ import {
   FileText,
   Code,
   Terminal,
+  Download,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
@@ -320,6 +321,35 @@ export default function DeviceDetails() {
           </Button>
         </div>
       </div>
+
+      {/* Prominent Installer Download Banner if Device is Not Connected */}
+      {!device.collector_connected && (
+        <Card className="bg-gradient-to-r from-cyan-950/40 via-slate-900 to-slate-950 border border-cyan-500/30 p-4">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 rounded-lg bg-cyan-500/20 text-cyan-400 shrink-0">
+                <Download size={22} />
+              </div>
+              <div>
+                <h4 className="text-sm font-bold text-slate-100">
+                  Collector Not Installed on this Device
+                </h4>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  To start streaming security logs and monitoring threats, download and run the installer on this machine.
+                </p>
+              </div>
+            </div>
+            <Button
+              size="sm"
+              onClick={() => setIsWizardOpen(true)}
+              className="bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold shrink-0 flex items-center gap-1.5 shadow-md shadow-cyan-500/20"
+            >
+              <Download size={15} />
+              Download & Connect Device
+            </Button>
+          </div>
+        </Card>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card className="bg-slate-900 border-slate-800 p-4">

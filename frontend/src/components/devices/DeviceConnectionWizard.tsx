@@ -262,9 +262,12 @@ export function DeviceConnectionWizard({
       // Auto-download companion config file for zero-click Windows setup
       if (os === "windows" && deviceData?.enrollment_token) {
         try {
+          const serverUrl =
+            (import.meta.env.VITE_API_URL || "").replace(/\/api\/v1\/?$/, "") ||
+            window.location.origin;
           const configJson = JSON.stringify(
             {
-              server_url: "http://127.0.0.1:8000",
+              server_url: serverUrl,
               device_id: id,
               enrollment_token: deviceData.enrollment_token,
             },
@@ -312,9 +315,9 @@ export function DeviceConnectionWizard({
 
   return (
     <Modal open={isOpen} onOpenChange={handleClose}>
-      <ModalContent className="max-w-2xl bg-slate-900 border-slate-800 text-slate-100 p-0 overflow-hidden shadow-2xl">
-        {/* ── Wizard Header & Step Tracker ────────────────────────────── */}
-        <div className="bg-slate-950 border-b border-slate-800 px-6 py-5">
+      <ModalContent className="max-w-2xl w-[95vw] sm:w-full max-h-[92vh] flex flex-col bg-slate-900 border-slate-800 text-slate-100 p-0 shadow-2xl overflow-hidden rounded-2xl">
+        {/* ── Wizard Header & Step Tracker (Sticky Top) ────────────────────────────── */}
+        <div className="shrink-0 bg-slate-950 border-b border-slate-800 px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2.5">
               <div className="p-2 rounded-lg bg-cyan-500/10 border border-cyan-500/20 text-cyan-400">
@@ -374,8 +377,8 @@ export function DeviceConnectionWizard({
           </div>
         </div>
 
-        {/* ── Wizard Screen Content ───────────────────────────────────── */}
-        <div className="p-6">
+        {/* ── Wizard Screen Content (Scrollable Middle) ───────────────────────────────────── */}
+        <div className="flex-1 overflow-y-auto min-h-0 p-5 sm:p-6 space-y-6 overscroll-contain">
           {/* ================================================================ */}
           {/* SCREEN 1: CHOOSE DEVICE                                          */}
           {/* ================================================================ */}
@@ -464,6 +467,31 @@ export function DeviceConnectionWizard({
                 />
               </div>
 
+              {/* Direct Download & Continue Action Card */}
+              <div className="p-4 rounded-xl bg-gradient-to-r from-cyan-950/40 via-slate-900 to-slate-950 border border-cyan-500/30 flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-3 rounded-xl bg-cyan-500/20 text-cyan-400 shrink-0">
+                    <Download size={22} />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-bold text-slate-100">
+                      Step 1 of 2: Download {os === "windows" ? "Windows Setup (.exe)" : "Linux Script (.sh)"}
+                    </h4>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      Generate your pairing token and start downloading the background collector.
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  className="w-full sm:w-auto bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold px-5 py-2.5 shadow-lg shadow-cyan-500/20 shrink-0 flex items-center justify-center gap-2"
+                  onClick={() => registerMutation.mutate()}
+                  isLoading={registerMutation.isPending}
+                >
+                  <Download size={16} />
+                  Continue to Download &rarr;
+                </Button>
+              </div>
+
               <div className="p-3.5 rounded-lg bg-slate-950 border border-slate-800 flex items-start gap-3">
                 <Info size={16} className="text-cyan-400 mt-0.5 shrink-0" />
                 <p className="text-xs text-slate-400 leading-relaxed">
@@ -541,8 +569,19 @@ export function DeviceConnectionWizard({
                   isLoading={isDownloading}
                 >
                   <Download size={18} />
-                  Download CyberGuard for {os === "windows" ? "Windows" : "Linux"}
+                  Download CyberGuard for {os === "windows" ? "Windows (.exe)" : "Linux (.sh)"}
                 </Button>
+
+                <div className="text-center pt-1">
+                  <button
+                    type="button"
+                    onClick={handleDownloadInstaller}
+                    className="text-xs text-cyan-400 hover:text-cyan-300 underline font-medium inline-flex items-center gap-1.5"
+                  >
+                    <Download size={13} />
+                    Click here if download does not start automatically
+                  </button>
+                </div>
               </div>
 
               {/* 3 Simple Instructions */}
@@ -924,7 +963,7 @@ export function DeviceConnectionWizard({
         </div>
 
         {/* ── Wizard Footer Navigation ────────────────────────────────── */}
-        <div className="bg-slate-950 border-t border-slate-800 px-6 py-4 flex items-center justify-between">
+        <div className="shrink-0 bg-slate-950 border-t border-slate-800 px-6 py-4 flex items-center justify-between">
           {screen === 1 && (
             <>
               <Button variant="ghost" size="sm" onClick={handleClose}>
