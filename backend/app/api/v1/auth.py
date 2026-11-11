@@ -177,14 +177,21 @@ def _send_email_via_http(to_email: str, subject: str, html_content: str, text_co
             return False, f"Resend HTTP request failed: {str(e)}"
 
     # 2. Brevo (https://brevo.com)
-    brevo_key = os.getenv("BREVO_API_KEY") or (
-        settings.BREVO_API_KEY.get_secret_value() if hasattr(settings.BREVO_API_KEY, "get_secret_value") else str(settings.BREVO_API_KEY)
-    ) or ""
-    brevo_key = brevo_key.strip().strip("\"'")
+    brevo_key = (
+        os.getenv("BREVO_API_KEY")
+        or (settings.BREVO_API_KEY.get_secret_value() if hasattr(settings.BREVO_API_KEY, "get_secret_value") else str(settings.BREVO_API_KEY))
+        or ""
+    ).strip().strip("\"'").strip()
     if brevo_key:
         try:
+            sender_email = (settings.EMAIL_FROM_ADDRESS or "").strip().strip("\"'")
+            if not sender_email or "@" not in sender_email or any(sender_email.lower().endswith(d) for d in [".local", ".ai", "cyberguard.ai", "cyberguard.local"]):
+                sender_email = (settings.SMTP_USERNAME or "").strip().strip("\"'")
+            if not sender_email or "@" not in sender_email:
+                sender_email = "apchavan047@gmail.com"
+
             payload = {
-                "sender": {"name": settings.EMAIL_FROM_NAME or "CyberGuard AI", "email": settings.EMAIL_FROM_ADDRESS or "security@cyberguard.ai"},
+                "sender": {"name": settings.EMAIL_FROM_NAME or "CyberGuard AI", "email": sender_email},
                 "to": [{"email": to_email}],
                 "subject": subject,
                 "htmlContent": html_content,
@@ -200,7 +207,9 @@ def _send_email_via_http(to_email: str, subject: str, html_content: str, text_co
                     logger.info("Email dispatched successfully via Brevo HTTPS API to %s", to_email)
                     return True, "Email dispatched via Brevo HTTPS API"
                 else:
-                    return False, f"Brevo API ({res.status_code}): {res.text[:120]}"
+                    err_snippet = res.text[:250]
+                    logger.warning("Brevo API error for %s (HTTP %s): %s", to_email, res.status_code, err_snippet)
+                    return False, f"Brevo API ({res.status_code}): {err_snippet}"
         except Exception as e:
             return False, f"Brevo HTTP request failed: {str(e)}"
 
