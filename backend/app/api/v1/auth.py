@@ -139,13 +139,19 @@ def _send_email_via_http(to_email: str, subject: str, html_content: str, text_co
     import httpx
 
     # 1. Resend (https://resend.com)
-    resend_key = os.getenv("RESEND_API_KEY") or (
-        settings.RESEND_API_KEY.get_secret_value() if hasattr(settings.RESEND_API_KEY, "get_secret_value") else str(settings.RESEND_API_KEY)
-    ) or ""
-    resend_key = resend_key.strip().strip("\"'")
+    resend_key = (
+        os.getenv("RESEND_API_KEY")
+        or os.getenv("RESEND_KEY")
+        or (settings.RESEND_API_KEY.get_secret_value() if hasattr(settings.RESEND_API_KEY, "get_secret_value") else str(settings.RESEND_API_KEY))
+        or ""
+    ).strip().strip("\"'").strip()
     if resend_key:
         try:
-            from_addr = settings.EMAIL_FROM_ADDRESS if "@" in settings.EMAIL_FROM_ADDRESS and not settings.EMAIL_FROM_ADDRESS.endswith(".local") else "onboarding@resend.dev"
+            custom_from = (settings.EMAIL_FROM_ADDRESS or "").strip().strip("\"'")
+            if custom_from and "@" in custom_from and not any(custom_from.lower().endswith(d) for d in [".local", "gmail.com", "googlemail.com", "cyberguard.ai", "cyberguard.local"]):
+                from_addr = custom_from
+            else:
+                from_addr = "onboarding@resend.dev"
             payload = {
                 "from": f"{settings.EMAIL_FROM_NAME or 'CyberGuard AI'} <{from_addr}>",
                 "to": [to_email],
@@ -163,8 +169,11 @@ def _send_email_via_http(to_email: str, subject: str, html_content: str, text_co
                     logger.info("Email dispatched successfully via Resend HTTPS API to %s", to_email)
                     return True, "Email dispatched via Resend HTTPS API"
                 else:
-                    return False, f"Resend API ({res.status_code}): {res.text[:120]}"
+                    err_snippet = res.text[:200]
+                    logger.warning("Resend API rejected email to %s (HTTP %s): %s", to_email, res.status_code, err_snippet)
+                    return False, f"Resend API ({res.status_code}): {err_snippet}"
         except Exception as e:
+            logger.error("Resend HTTP request failed for %s: %s", to_email, e)
             return False, f"Resend HTTP request failed: {str(e)}"
 
     # 2. Brevo (https://brevo.com)
@@ -245,6 +254,8 @@ def _send_registration_email(to_email: str, code: str, user_name: str | None = N
     sent_http, msg_http = _send_email_via_http(to_email, f"CyberGuard AI — Your Registration Verification Code: {code}", html_content, f"Your CyberGuard AI verification code is {code}. Valid for 15 minutes.")
     if sent_http:
         return True, msg_http
+    if msg_http != "NO_HTTP_PROVIDER":
+        return False, msg_http
 
     # 2. Try SMTP
     if smtp_host and smtp_user and smtp_pass:
@@ -799,6 +810,8 @@ def _send_recovery_email(to_email: str, code: str, user_name: str | None = None)
     sent_http, msg_http = _send_email_via_http(to_email, f"CyberGuard AI — Your Recovery Code: {code}", html_content, f"Your CyberGuard AI recovery code is {code}. Valid for 15 minutes.")
     if sent_http:
         return True, msg_http
+    if msg_http != "NO_HTTP_PROVIDER":
+        return False, msg_http
 
     # 2. Try SMTP
     if smtp_host and smtp_user and smtp_pass:
@@ -1021,6 +1034,57 @@ def reset_password_endpoint(
 
     logger.info("Password successfully recovered and updated", extra={"user_id": str(user.id), "email": email})
     return {"status": "ok", "message": "Password updated successfully. You can now log in with your new password."}
+
+
+# ============================================================================
+# EMAIL DIAGNOSTICS & TEST ENDPOINTS
+# ============================================================================
+
+@router.get("/email/status", summary="Check email delivery configuration status")
+def email_status_endpoint() -> dict[str, Any]:
+    resend_key = (
+        os.getenv("RESEND_API_KEY")
+        or os.getenv("RESEND_KEY")
+        or (settings.RESEND_API_KEY.get_secret_value() if hasattr(settings.RESEND_API_KEY, "get_secret_value") else str(settings.RESEND_API_KEY))
+        or ""
+    ).strip().strip("\"'").strip()
+    
+    brevo_key = (
+        os.getenv("BREVO_API_KEY")
+        or (settings.BREVO_API_KEY.get_secret_value() if hasattr(settings.BREVO_API_KEY, "get_secret_value") else str(settings.BREVO_API_KEY))
+        or ""
+    ).strip().strip("\"'").strip()
+
+    smtp_host = (settings.SMTP_HOST or "").strip().strip("\"'").strip()
+    smtp_user = (settings.SMTP_USERNAME or "").strip().strip("\"'").strip()
+
+    return {
+        "status": "ok",
+        "resend_configured": bool(resend_key),
+        "resend_key_prefix": f"{resend_key[:6]}..." if len(resend_key) > 6 else ("empty" if not resend_key else "set"),
+        "brevo_configured": bool(brevo_key),
+        "smtp_configured": bool(smtp_host and smtp_user),
+        "smtp_host": smtp_host,
+        "smtp_user": smtp_user,
+        "email_from_address": settings.EMAIL_FROM_ADDRESS,
+        "active_provider": "resend" if resend_key else ("brevo" if brevo_key else ("smtp" if smtp_host else "none")),
+    }
+
+
+class EmailTestRequest(BaseModel):
+    email: str
+
+
+@router.post("/email/test", summary="Send a test email to verify live delivery")
+def email_test_endpoint(body: EmailTestRequest) -> dict[str, Any]:
+    test_code = f"{secrets.randbelow(1000000):06d}"
+    sent, detail = _send_recovery_email(body.email.lower().strip(), test_code, user_name="Security Admin")
+    return {
+        "success": sent,
+        "detail": detail,
+        "recipient": body.email.lower().strip(),
+        "test_code": test_code,
+    }
 
 
 __all__ = ["router"]

@@ -116,7 +116,7 @@ export default function Login() {
       });
       if (res.data?.preview_code) {
         setDevRecoveryCode(res.data.preview_code);
-        toast.info("Server Notice: SMTP not configured. Test recovery code shown below.", { duration: 6000 });
+        toast.info(res.data?.dev_hint || "Test recovery code shown on screen.", { duration: 7000 });
       } else {
         setDevRecoveryCode(null);
         toast.success(res.data?.message || "Verification code sent to your email!");

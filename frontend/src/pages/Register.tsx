@@ -83,7 +83,7 @@ export default function Register() {
 
       if (res.data?.preview_code) {
         setDevCode(res.data.preview_code);
-        toast.info("Server Notice: SMTP not configured. Test OTP shown below.", { duration: 6000 });
+        toast.info(res.data?.dev_hint || "Test OTP code shown on screen.", { duration: 7000 });
       } else {
         setDevCode(null);
         toast.success(res.data?.message || "Verification code sent to your email!");
