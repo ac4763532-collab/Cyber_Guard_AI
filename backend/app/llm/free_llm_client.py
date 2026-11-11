@@ -30,8 +30,8 @@ class FreeLLMClient:
         self,
         gemini_api_key: Optional[str] = None,
         groq_api_key: Optional[str] = None,
-        gemini_model: str = "gemini-flash-lite-latest",
-        groq_model: str = "qwen/qwen3.8-27b",
+        gemini_model: str = "gemini-1.5-flash",
+        groq_model: str = "llama-3.3-70b-versatile",
         timeout: float = 20.0,
     ):
         self.gemini_key = (gemini_api_key or os.getenv("GEMINI_API_KEY", "")).strip().strip('"').strip("'")
@@ -42,13 +42,15 @@ class FreeLLMClient:
 
     @property
     def is_configured(self) -> bool:
-        """True if at least one cloud provider has an API key configured."""
-        return bool(self.gemini_key or self.groq_key)
+        """True if at least one cloud provider has a valid API key configured."""
+        has_gemini = bool(self.gemini_key and self.gemini_key.startswith("AIza"))
+        has_groq = bool(self.groq_key and self.groq_key.startswith("gsk_"))
+        return has_gemini or has_groq
 
     def explain(self, system_prompt: str, user_prompt: str, max_tokens: int = 600) -> str:
         """
         Produce a concise, grounded security explanation.
-        Tries Gemini first, falls back to Groq automatically.
+        Tries Gemini first (if valid key), falls back to Groq automatically.
         """
         messages = [
             {"role": "system", "content": system_prompt},
@@ -60,23 +62,25 @@ class FreeLLMClient:
         """
         Executes chat completion with automatic failover across providers.
         """
-        # 1. Try Gemini Primary
-        if self.gemini_key:
+        # 1. Try Gemini Primary (only if key is real Google AI Studio key)
+        if self.gemini_key and self.gemini_key.startswith("AIza"):
             try:
                 res = self._call_gemini(messages, max_tokens, temperature)
-                if res:
+                if res and not res.startswith("[AI analysis"):
                     return res
             except Exception as exc:
                 logger.warning("Gemini primary call failed, triggering Groq fallback", extra={"error": str(exc)[:200]})
 
-        # 2. Try Groq Fallback
-        if self.groq_key:
+        # 2. Try Groq Fallback (ultra-fast LPU)
+        if self.groq_key and self.groq_key.startswith("gsk_"):
             try:
                 res = self._call_groq(messages, max_tokens, temperature)
-                if res:
+                if res and not res.startswith("[AI analysis"):
                     return res
             except Exception as exc:
                 logger.error("Groq fallback call failed", extra={"error": str(exc)[:200]})
+
+        return ""
 
         # 3. Graceful degradation
         return (
