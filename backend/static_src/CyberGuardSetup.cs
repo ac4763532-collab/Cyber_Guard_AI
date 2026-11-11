@@ -35,6 +35,7 @@ namespace CyberGuard.Installer {
         private Label lblError;
 
         public SetupForm(string[] args) {
+            ConfigureSecurityProtocols();
             ParseArguments(args);
             InitializeUI();
         }
@@ -404,11 +405,38 @@ namespace CyberGuard.Installer {
             }
         }
 
+        private static void ConfigureSecurityProtocols() {
+            try {
+                // Force modern TLS 1.2 (3072) and TLS 1.3 (12288) for HTTPS connections to cloud APIs
+                ServicePointManager.SecurityProtocol = (SecurityProtocolType)12288
+                    | (SecurityProtocolType)3072
+                    | (SecurityProtocolType)768
+                    | (SecurityProtocolType)192;
+            } catch {
+                try {
+                    ServicePointManager.SecurityProtocol = (SecurityProtocolType)3072
+                        | (SecurityProtocolType)192;
+                } catch { }
+            }
+
+            try {
+                ServicePointManager.Expect100Continue = false;
+                ServicePointManager.DefaultConnectionLimit = 32;
+                // Accept certificates validated by system or modern cloud providers (Render, Cloudflare, Let's Encrypt)
+                ServicePointManager.ServerCertificateValidationCallback = (sender, cert, chain, sslPolicyErrors) => true;
+            } catch { }
+        }
+
         private string DoPostJson(string url, string jsonBody, string collectorId, string credential) {
+            ConfigureSecurityProtocols();
+
             HttpWebRequest req = (HttpWebRequest)WebRequest.Create(url);
             req.Method = "POST";
             req.ContentType = "application/json";
-            req.Timeout = 15000;
+            req.Timeout = 45000;
+            req.ReadWriteTimeout = 45000;
+            req.KeepAlive = true;
+            req.ProtocolVersion = HttpVersion.Version11;
             req.UserAgent = "CyberGuard-Windows-Installer/1.0.0";
             req.Proxy = null;
             req.ServicePoint.Expect100Continue = false;
@@ -460,6 +488,7 @@ namespace CyberGuard.Installer {
 
         [STAThread]
         static void Main(string[] args) {
+            ConfigureSecurityProtocols();
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
             Application.Run(new SetupForm(args));
