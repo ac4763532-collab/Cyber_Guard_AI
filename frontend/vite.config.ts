@@ -86,7 +86,7 @@ export default defineConfig({
   // ── Production build ──────────────────────────────────────────────────
   build: {
     outDir: "dist",
-    sourcemap: "hidden",      // external .map files, no inline bundle comment
+    sourcemap: false,         // no production source maps
     minify: "esbuild",
     target: "es2020",         // modern browsers only — React 18, optional chaining, etc.
 

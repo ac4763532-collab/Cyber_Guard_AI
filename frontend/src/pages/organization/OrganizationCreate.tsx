@@ -23,6 +23,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Card, CardContent } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
+import { SEO } from "@/components/common/SEO";
 import { cn } from "@/lib/utils";
 
 const organizationSchema = z.object({
@@ -237,7 +238,12 @@ export default function OrganizationCreate() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center py-12 px-4">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center py-12 px-4 transition-colors font-sans">
+      <SEO
+        title="Create Organization Workspace — CyberGuard AI"
+        description="Set up your enterprise cybersecurity organization workspace, configure company security policies, and invite your response team."
+        canonicalPath="/organization/create"
+      />
       <div className="w-full max-w-3xl">
         {/* ── Header ─────────────────────────────────────────────────────── */}
         <div className="text-center mb-8">

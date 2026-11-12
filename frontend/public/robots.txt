@@ -1,0 +1,27 @@
+# https://www.robotstxt.org/robotstxt.html
+User-agent: *
+Allow: /
+Allow: /features
+Allow: /how-it-works
+Allow: /solutions
+Allow: /pricing
+Allow: /about
+Allow: /terms
+Allow: /privacy
+Allow: /select-account
+Allow: /login
+Allow: /register
+Allow: /analyst/register
+Allow: /organization/create
+
+# Disallow authenticated private workspace portals
+Disallow: /api/
+Disallow: /admin/
+Disallow: /personal/
+Disallow: /analyst/dashboard
+Disallow: /analyst/cases
+Disallow: /organization/dashboard
+Disallow: /organization/rooms
+
+# Host & Sitemap
+Sitemap: https://cyberguard-api-7z5k.onrender.com/sitemap.xml

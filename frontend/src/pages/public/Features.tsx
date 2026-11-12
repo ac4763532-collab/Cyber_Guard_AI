@@ -26,6 +26,7 @@ import { Button } from "@/components/ui/Button";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/Card";
 import PublicNavbar from "@/components/public/PublicNavbar";
 import PublicFooter from "@/components/public/PublicFooter";
+import { SEO } from "@/components/common/SEO";
 
 const agents = [
   {
@@ -82,7 +83,12 @@ export default function Features() {
   const navigate = useNavigate();
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 flex flex-col font-sans">
+    <div className="min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 flex flex-col font-sans transition-colors">
+      <SEO
+        title="AI Security Agents & Features — CyberGuard AI"
+        description="Explore the eight specialist AI agents powering CyberGuard AI: email threat analysis, syslog telemetry, network flow inspection, IOC correlation, and automated containment."
+        canonicalPath="/features"
+      />
       <PublicNavbar />
 
       <main className="flex-1 mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-12">

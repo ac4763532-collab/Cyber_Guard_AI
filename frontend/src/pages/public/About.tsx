@@ -11,12 +11,18 @@ import { Button } from "@/components/ui/Button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
 import PublicNavbar from "@/components/public/PublicNavbar";
 import PublicFooter from "@/components/public/PublicFooter";
+import { SEO } from "@/components/common/SEO";
 
 export default function About() {
   const navigate = useNavigate();
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 flex flex-col font-sans">
+    <div className="min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 flex flex-col font-sans transition-colors">
+      <SEO
+        title="About Us & Zero-Trust Mission — CyberGuard AI"
+        description="Learn about CyberGuard AI's mission to eliminate security alert fatigue and bridge the talent gap between independent security analysts and enterprise organizations."
+        canonicalPath="/about"
+      />
       <PublicNavbar />
 
       <main className="flex-1 mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-12">

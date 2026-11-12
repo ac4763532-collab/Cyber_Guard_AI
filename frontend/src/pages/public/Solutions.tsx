@@ -26,6 +26,7 @@ import { Button } from "@/components/ui/Button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
 import PublicNavbar from "@/components/public/PublicNavbar";
 import PublicFooter from "@/components/public/PublicFooter";
+import { SEO } from "@/components/common/SEO";
 import { cn } from "@/lib/utils";
 
 const solutions = [
@@ -88,7 +89,12 @@ export default function Solutions() {
     : solutions.filter(s => s.id === activeTab);
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 flex flex-col font-sans">
+    <div className="min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 flex flex-col font-sans transition-colors">
+      <SEO
+        title="Cybersecurity Solutions for Individuals, Analysts & Enterprises — CyberGuard AI"
+        description="Explore purpose-built solutions for personal device defense, freelance security analyst operations, and enterprise fleet protection."
+        canonicalPath="/solutions"
+      />
       <PublicNavbar />
 
       <main className="flex-1 mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-12">

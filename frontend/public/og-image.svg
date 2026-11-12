@@ -1,0 +1,90 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1200" y2="630" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#030712" />
+      <stop offset="50%" stop-color="#0b1329" />
+      <stop offset="100%" stop-color="#020617" />
+    </linearGradient>
+    <linearGradient id="brandGrad" x1="0" y1="0" x2="600" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#06b6d4" />
+      <stop offset="50%" stop-color="#3b82f6" />
+      <stop offset="100%" stop-color="#10b981" />
+    </linearGradient>
+    <linearGradient id="shieldGrad" x1="0" y1="0" x2="120" y2="140" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#22d3ee" />
+      <stop offset="100%" stop-color="#059669" />
+    </linearGradient>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="60" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1200" height="630" fill="url(#bg)" />
+
+  <!-- Cyber Grid Subtle Background -->
+  <g opacity="0.08" stroke="#06b6d4" stroke-width="1">
+    <line x1="0" y1="105" x2="1200" y2="105" />
+    <line x1="0" y1="210" x2="1200" y2="210" />
+    <line x1="0" y1="315" x2="1200" y2="315" />
+    <line x1="0" y1="420" x2="1200" y2="420" />
+    <line x1="0" y1="525" x2="1200" y2="525" />
+    <line x1="200" y1="0" x2="200" y2="630" />
+    <line x1="400" y1="0" x2="400" y2="630" />
+    <line x1="600" y1="0" x2="600" y2="630" />
+    <line x1="800" y1="0" x2="800" y2="630" />
+    <line x1="1000" y1="0" x2="1000" y2="630" />
+  </g>
+
+  <!-- Ambient Glow Orbs -->
+  <circle cx="200" cy="180" r="160" fill="#06b6d4" opacity="0.12" filter="url(#glow)" />
+  <circle cx="1000" cy="420" r="180" fill="#3b82f6" opacity="0.1" filter="url(#glow)" />
+
+  <!-- Shield Icon Frame -->
+  <g transform="translate(100, 100)">
+    <rect width="90" height="90" rx="22" fill="#0f172a" stroke="#06b6d4" stroke-width="2" stroke-opacity="0.4" />
+    <path d="M45 20L65 28V46C65 60 56 71 45 75C34 71 25 60 25 46V28L45 20Z" fill="url(#shieldGrad)" fill-opacity="0.25" stroke="url(#shieldGrad)" stroke-width="2.5" />
+    <circle cx="45" cy="44" r="5" fill="#22d3ee" />
+    <path d="M45 49V58" stroke="#22d3ee" stroke-width="3" stroke-linecap="round" />
+  </g>
+
+  <!-- Logo and Platform Tagline -->
+  <text x="210" y="145" font-family="Inter, system-ui, sans-serif" font-size="34" font-weight="900" fill="#f8fafc" letter-spacing="3">
+    CYBER<tspan fill="#22d3ee">GUARD</tspan> AI
+  </text>
+  <text x="212" y="175" font-family="Inter, system-ui, sans-serif" font-size="14" font-weight="700" fill="#94a3b8" letter-spacing="4">
+    AUTONOMOUS DEFENSE PLATFORM
+  </text>
+
+  <!-- Hero Headline -->
+  <text x="100" y="290" font-family="Inter, system-ui, sans-serif" font-size="54" font-weight="900" fill="#ffffff" letter-spacing="-1">
+    Intelligent Cybersecurity.
+  </text>
+  <text x="100" y="360" font-family="Inter, system-ui, sans-serif" font-size="54" font-weight="900" fill="url(#brandGrad)" letter-spacing="-1">
+    One Unified Defense Engine.
+  </text>
+
+  <!-- Subheadline -->
+  <text x="100" y="430" font-family="Inter, system-ui, sans-serif" font-size="20" font-weight="400" fill="#94a3b8" letter-spacing="0.2">
+    Multi-Agent Threat Intelligence • Endpoint Telemetry Sensors • Verified SOC Analysts
+  </text>
+
+  <!-- Footer Tags / Badges -->
+  <g transform="translate(100, 490)">
+    <rect width="180" height="42" rx="12" fill="#0e1726" stroke="#1e293b" />
+    <text x="90" y="26" font-family="Inter, system-ui, sans-serif" font-size="14" font-weight="600" fill="#38bdf8" text-anchor="middle">
+      Personal Security
+    </text>
+
+    <rect x="200" width="200" height="42" rx="12" fill="#0e1726" stroke="#1e293b" />
+    <text x="300" y="26" font-family="Inter, system-ui, sans-serif" font-size="14" font-weight="600" fill="#34d399" text-anchor="middle">
+      Analyst Workbench
+    </text>
+
+    <rect x="420" width="220" height="42" rx="12" fill="#0e1726" stroke="#1e293b" />
+    <text x="530" y="26" font-family="Inter, system-ui, sans-serif" font-size="14" font-weight="600" fill="#818cf8" text-anchor="middle">
+      Enterprise Containment
+    </text>
+  </g>
+</svg>

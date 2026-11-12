@@ -8,10 +8,16 @@ import { ArrowLeft, ShieldCheck } from "lucide-react";
 import PublicNavbar from "@/components/public/PublicNavbar";
 import PublicFooter from "@/components/public/PublicFooter";
 import { Button } from "@/components/ui/Button";
+import { SEO } from "@/components/common/SEO";
 
 export function Terms() {
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 flex flex-col font-sans">
+    <div className="min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 flex flex-col font-sans transition-colors">
+      <SEO
+        title="Terms of Service — CyberGuard AI"
+        description="Review the terms and conditions governing the use of the CyberGuard AI cybersecurity platform."
+        canonicalPath="/terms"
+      />
       <PublicNavbar />
       <main className="flex-1 mx-auto max-w-4xl px-4 py-12 space-y-8">
         <Link to="/" className="inline-flex items-center gap-1.5 text-xs text-cyan-600 dark:text-cyan-400 hover:underline">
@@ -47,7 +53,12 @@ export function Terms() {
 
 export function Privacy() {
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 flex flex-col font-sans">
+    <div className="min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 flex flex-col font-sans transition-colors">
+      <SEO
+        title="Privacy Policy — Data Protection & Privacy — CyberGuard AI"
+        description="Learn how CyberGuard AI protects your forensic data, sensor telemetry, and personal identity with zero-trust encryption."
+        canonicalPath="/privacy"
+      />
       <PublicNavbar />
       <main className="flex-1 mx-auto max-w-4xl px-4 py-12 space-y-8">
         <Link to="/" className="inline-flex items-center gap-1.5 text-xs text-cyan-600 dark:text-cyan-400 hover:underline">

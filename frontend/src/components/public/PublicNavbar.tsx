@@ -12,6 +12,7 @@ import { useState } from "react";
 import { Link, NavLink, useNavigate } from "react-router-dom";
 import { ShieldCheck, Menu, X, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { cn } from "@/lib/utils";
 
 export const publicNavLinks = [
@@ -71,6 +72,7 @@ export function PublicNavbar() {
 
         {/* ── Desktop Auth Actions ──────────────────────────────────── */}
         <div className="hidden sm:flex items-center gap-3">
+          <ThemeToggle />
           <Button
             variant="ghost"
             size="sm"
@@ -91,6 +93,7 @@ export function PublicNavbar() {
 
         {/* ── Mobile Menu Trigger ───────────────────────────────────── */}
         <div className="flex sm:hidden items-center gap-2">
+          <ThemeToggle />
           <Button
             variant="primary"
             size="sm"

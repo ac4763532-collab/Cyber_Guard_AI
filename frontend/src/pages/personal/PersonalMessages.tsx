@@ -172,30 +172,30 @@ export default function PersonalMessages() {
   };
 
   return (
-    <div className="h-[calc(100vh-8rem)] flex gap-4 animate-in fade-in duration-300 font-sans">
+    <div className="h-[calc(100vh-8.5rem)] flex gap-4 animate-in fade-in duration-300 font-sans">
       
       {/* ── Left Sidebar (Conversations Roster) ───────────────────────── */}
-      <div className="w-80 flex flex-col bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shrink-0">
-        <div className="p-4 border-b border-slate-800 space-y-3">
+      <div className="w-80 flex flex-col bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shrink-0 shadow-sm transition-colors">
+        <div className="p-4 border-b border-slate-200 dark:border-slate-800 space-y-3 bg-slate-50/50 dark:bg-slate-950/20">
           <div className="flex items-center justify-between">
-            <h2 className="font-bold text-slate-100 text-sm flex items-center gap-2">
-              <MessageSquare size={16} className="text-cyan-400" />
+            <h2 className="font-bold text-slate-900 dark:text-slate-100 text-sm flex items-center gap-2">
+              <MessageSquare size={16} className="text-cyan-500" />
               Direct Messages
             </h2>
             <Button
               variant="ghost"
               size="sm"
               onClick={() => refetchContacts()}
-              className="h-7 w-7 p-0 text-slate-400 hover:text-slate-200"
+              className="h-7 w-7 p-0 text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
               title="Refresh messages"
             >
               <RefreshCw size={13} />
             </Button>
           </div>
-          <div className="bg-slate-950/80 border border-slate-800/80 rounded-lg p-2">
-            <p className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Logged In As</p>
-            <p className="text-xs text-cyan-400 font-mono font-medium truncate mt-0.5">
-              {user?.public_user_id || "loading..."}
+          <div className="bg-slate-100 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800/80 rounded-lg p-2.5">
+            <p className="text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider font-semibold">Your Security ID</p>
+            <p className="text-xs text-cyan-600 dark:text-cyan-400 font-mono font-bold truncate mt-0.5">
+              {user?.public_user_id || "Generating..."}
             </p>
           </div>
 
@@ -203,23 +203,23 @@ export default function PersonalMessages() {
             <Input
               value={targetInput}
               onChange={(e) => setTargetInput(e.target.value)}
-              placeholder="Enter User ID (slug)..."
+              placeholder="Search or enter Security ID..."
               leftIcon={<Search size={13} />}
-              className="bg-slate-950 border-slate-800 text-xs h-8 text-slate-200"
+              className="bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-xs h-8 text-slate-900 dark:text-slate-100"
             />
-            <Button type="submit" size="sm" className="bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold px-2.5 h-8 shrink-0">
+            <Button type="submit" size="sm" className="bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold px-2.5 h-8 shrink-0 shadow-xs">
               <Plus size={14} />
             </Button>
           </form>
         </div>
 
-        <div className="flex-1 overflow-y-auto divide-y divide-slate-800/60 p-2 space-y-1">
+        <div className="flex-1 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800/60 p-2 space-y-1">
           {contacts.length === 0 ? (
             <div className="text-center py-12 px-4">
-              <User className="w-8 h-8 text-slate-700 mx-auto mb-2" />
-              <p className="text-xs font-semibold text-slate-400">No conversations yet</p>
-              <p className="text-[11px] text-slate-500 mt-1">
-                Enter an analyst or colleague's public User ID above to start an authorized conversation.
+              <User className="w-8 h-8 text-slate-400 dark:text-slate-700 mx-auto mb-2" />
+              <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">No conversations yet</p>
+              <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">
+                Enter an analyst or colleague's Security ID above to initiate an encrypted direct session.
               </p>
             </div>
           ) : (
@@ -230,18 +230,20 @@ export default function PersonalMessages() {
                   key={c.user_id}
                   onClick={() => handleSelectContact(c.public_user_id)}
                   className={`p-3 rounded-xl cursor-pointer transition flex items-center justify-between ${
-                    isSelected ? "bg-cyan-500/10 border border-cyan-500/40 shadow-sm" : "hover:bg-slate-800/50"
+                    isSelected
+                      ? "bg-cyan-500/10 border border-cyan-500/40 shadow-xs text-slate-900 dark:text-slate-100"
+                      : "hover:bg-slate-100 dark:hover:bg-slate-800/50 text-slate-700 dark:text-slate-300"
                   }`}
                 >
                   <div className="space-y-0.5 max-w-[190px]">
-                    <p className="text-xs font-bold text-slate-200 truncate">{c.full_name}</p>
-                    <p className="text-[10px] text-cyan-400/90 font-mono truncate">@{c.public_user_id}</p>
+                    <p className="text-xs font-bold truncate">{c.full_name}</p>
+                    <p className="text-[10px] text-slate-500 dark:text-cyan-400/90 font-mono truncate">ID: {c.public_user_id}</p>
                     {c.last_message && (
-                      <p className="text-[11px] text-slate-400 truncate mt-1">{c.last_message}</p>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-1">{c.last_message}</p>
                     )}
                   </div>
                   {c.unread_count > 0 && (
-                    <span className="h-5 w-5 rounded-full bg-cyan-500 text-slate-950 font-bold text-[10px] flex items-center justify-center">
+                    <span className="h-5 w-5 rounded-full bg-cyan-500 text-slate-950 font-bold text-[10px] flex items-center justify-center shrink-0">
                       {c.unread_count}
                     </span>
                   )}
@@ -253,49 +255,51 @@ export default function PersonalMessages() {
       </div>
 
       {/* ── Main Chat Window ─────────────────────────────────────────── */}
-      <div className="flex-1 flex flex-col bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden">
+      <div className="flex-1 flex flex-col bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm transition-colors">
         {/* Header */}
-        <div className="p-4 border-b border-slate-800 bg-slate-950/60 flex items-center justify-between">
+        <div className="p-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-950/60 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center text-cyan-400 font-bold text-sm">
+            <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-cyan-600 dark:text-cyan-400 font-bold text-sm shadow-xs">
               <User size={18} />
             </div>
             <div>
-              <h3 className="font-bold text-sm text-slate-100 flex items-center gap-2">
-                <span>{activeContact?.full_name || activeRecipient || "Select a Conversation"}</span>
+              <h3 className="font-bold text-sm text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                <span>{activeContact?.full_name || "Direct Peer"}</span>
                 {activeRecipient && (
-                  <span className="font-mono text-xs text-cyan-400">(@{activeRecipient})</span>
+                  <span className="font-mono text-xs text-slate-500 dark:text-cyan-400 bg-slate-100 dark:bg-slate-800/80 px-2 py-0.5 rounded">
+                    ID: {activeRecipient}
+                  </span>
                 )}
-                {activeRecipient && <ShieldCheck size={14} className="text-emerald-400" />}
+                {activeRecipient && <ShieldCheck size={14} className="text-emerald-500" />}
               </h3>
-              <p className="text-[11px] text-slate-400 flex items-center gap-1.5 mt-0.5">
-                <Lock size={11} className="text-cyan-400" />
-                {activeRecipient ? "End-to-end authorized channel — scoped exclusively to this peer" : "No active peer selected"}
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-1.5 mt-0.5">
+                <Lock size={11} className="text-cyan-500 dark:text-cyan-400" />
+                {activeRecipient ? "Authorized peer channel — scoped exclusively to this session" : "No active peer selected"}
               </p>
             </div>
           </div>
         </div>
 
         {/* Message Stream */}
-        <div className="flex-1 p-5 overflow-y-auto space-y-4 bg-slate-950/40">
+        <div className="flex-1 p-5 overflow-y-auto space-y-4 bg-slate-50/30 dark:bg-slate-950/40">
           {!activeRecipient ? (
             <div className="h-full flex flex-col items-center justify-center text-center p-8">
-              <MessageSquare className="w-10 h-10 text-slate-700 mb-2" />
-              <p className="text-sm font-bold text-slate-300">No Active Chat</p>
+              <MessageSquare className="w-10 h-10 text-slate-300 dark:text-slate-700 mb-2" />
+              <p className="text-sm font-bold text-slate-700 dark:text-slate-300">No Active Chat</p>
               <p className="text-xs text-slate-500 mt-1 max-w-sm">
-                Select an existing conversation on the left or enter a public User ID to start messaging.
+                Select an existing conversation on the left or enter a Security ID to begin messaging.
               </p>
             </div>
           ) : isMessagesLoading ? (
             <div className="h-full flex items-center justify-center text-xs text-slate-500">
-              Loading encrypted conversation history...
+              Loading secure conversation history...
             </div>
           ) : messageHistory.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-center p-8">
-              <MessageSquare className="w-10 h-10 text-slate-700 mb-2" />
-              <p className="text-sm font-bold text-slate-300">Beginning of Conversation</p>
+              <MessageSquare className="w-10 h-10 text-slate-300 dark:text-slate-700 mb-2" />
+              <p className="text-sm font-bold text-slate-700 dark:text-slate-300">Beginning of Conversation</p>
               <p className="text-xs text-slate-500 mt-1 max-w-sm">
-                No messages exchanged with <span className="text-cyan-400 font-mono">@{activeRecipient}</span> yet. Send your first message below.
+                No messages exchanged with <span className="text-cyan-600 dark:text-cyan-400 font-mono">{activeContact?.full_name || activeRecipient}</span> yet. Send your first message below.
               </p>
             </div>
           ) : (
@@ -315,18 +319,18 @@ export default function PersonalMessages() {
                     <div className="flex flex-col items-end max-w-[80%] sm:max-w-md">
                       {/* Identity & Timestamp Header */}
                       <div className="flex items-center gap-1.5 mb-1 px-1">
-                        <span className="text-[11px] font-bold text-cyan-400">You</span>
+                        <span className="text-[11px] font-bold text-cyan-600 dark:text-cyan-400">You</span>
                         <span className="text-[10px] text-slate-400 font-mono">{msg.timestamp}</span>
                       </div>
 
                       {/* Message Bubble: Cyan */}
-                      <div className="p-3.5 rounded-2xl rounded-tr-xs bg-gradient-to-br from-cyan-500 to-cyan-600 text-slate-950 font-medium text-xs leading-relaxed shadow-lg shadow-cyan-950/20">
+                      <div className="p-3.5 rounded-2xl rounded-tr-xs bg-gradient-to-br from-cyan-500 to-cyan-600 text-slate-950 font-medium text-xs leading-relaxed shadow-sm">
                         <p className="whitespace-pre-wrap break-words">{msg.body}</p>
                       </div>
 
                       {/* Read status */}
-                      <div className="flex items-center gap-1 mt-1 px-1 text-[10px] text-slate-400">
-                        <CheckCheck size={12} className={msg.is_read ? "text-cyan-400" : "text-slate-400"} />
+                      <div className="flex items-center gap-1 mt-1 px-1 text-[10px] text-slate-500 dark:text-slate-400">
+                        <CheckCheck size={12} className={msg.is_read ? "text-cyan-500" : "text-slate-400"} />
                         <span>{msg.is_read ? "Read" : "Sent"}</span>
                       </div>
                     </div>
@@ -335,36 +339,32 @@ export default function PersonalMessages() {
               } else {
                 // ── RECEIVER (INCOMING) -> LEFT SIDE ──
                 const displayName = msg.sender_name || activeContact?.full_name || "Analyst";
-                const displaySlug = msg.sender_public_id || activeRecipient;
 
                 return (
                   <div key={msg.id} className="flex justify-start w-full">
                     <div className="flex flex-col items-start max-w-[80%] sm:max-w-md">
                       {/* Identity & Timestamp Header */}
                       <div className="flex items-center gap-2 mb-1 px-1">
-                        <div className="w-5 h-5 rounded-full bg-slate-800 border border-cyan-500/40 flex items-center justify-center text-[10px] font-bold text-cyan-400">
+                        <div className="w-5 h-5 rounded-full bg-slate-200 dark:bg-slate-800 border border-cyan-500/40 flex items-center justify-center text-[10px] font-bold text-cyan-600 dark:text-cyan-400">
                           {displayName.charAt(0).toUpperCase()}
                         </div>
-                        <span className="text-[11px] font-bold text-slate-200">
+                        <span className="text-[11px] font-bold text-slate-800 dark:text-slate-200">
                           {displayName}
-                        </span>
-                        <span className="text-[10px] font-mono text-cyan-400/80">
-                          @{displaySlug}
                         </span>
                         <span className="text-[10px] text-slate-400 font-mono">
                           {msg.timestamp}
                         </span>
                       </div>
 
-                      {/* Message Bubble: Dark Slate */}
-                      <div className="p-3.5 rounded-2xl rounded-tl-xs bg-slate-800/90 border border-slate-700/80 text-slate-100 text-xs leading-relaxed shadow-lg shadow-black/30">
+                      {/* Message Bubble: Neutral Card */}
+                      <div className="p-3.5 rounded-2xl rounded-tl-xs bg-white dark:bg-slate-800/95 border border-slate-200 dark:border-slate-700/80 text-slate-800 dark:text-slate-100 text-xs leading-relaxed shadow-sm">
                         <p className="whitespace-pre-wrap break-words">{msg.body}</p>
                       </div>
 
                       {/* Peer badge */}
-                      <div className="flex items-center gap-1 mt-1 px-1 text-[10px] text-slate-400">
-                        <ShieldCheck size={11} className="text-emerald-400" />
-                        <span>Verified Channel</span>
+                      <div className="flex items-center gap-1 mt-1 px-1 text-[10px] text-slate-500 dark:text-slate-400">
+                        <ShieldCheck size={11} className="text-emerald-500" />
+                        <span>Verified Security Channel</span>
                       </div>
                     </div>
                   </div>
@@ -376,19 +376,19 @@ export default function PersonalMessages() {
         </div>
 
         {/* Input Bar */}
-        <div className="p-3 border-t border-slate-800 bg-slate-950/80">
+        <div className="p-3 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950/80">
           <form onSubmit={handleSend} className="flex gap-2">
             <Input
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
-              placeholder={activeRecipient ? `Message @${activeRecipient}...` : "Select a recipient first"}
+              placeholder={activeRecipient ? `Type a secure message to ${activeContact?.full_name || 'peer'}...` : "Select a recipient first"}
               disabled={!activeRecipient || isSending}
-              className="bg-slate-900 border-slate-800 text-xs h-10 text-slate-200"
+              className="bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-xs h-10 text-slate-900 dark:text-slate-100"
             />
             <Button
               type="submit"
               disabled={!activeRecipient || !inputText.trim() || isSending}
-              className="bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold px-4 h-10"
+              className="bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold px-4 h-10 shadow-xs"
             >
               <Send size={14} />
             </Button>

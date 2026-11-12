@@ -29,19 +29,33 @@ import { Button } from "@/components/ui/Button";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/Card";
 import PublicNavbar from "@/components/public/PublicNavbar";
 import PublicFooter from "@/components/public/PublicFooter";
+import { SEO } from "@/components/common/SEO";
 
 export default function Landing() {
   const navigate = useNavigate();
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 flex flex-col font-sans">
+    <div className="min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 flex flex-col font-sans transition-colors">
+      <SEO
+        title="CyberGuard AI — Autonomous Multi-Agent Cybersecurity Platform"
+        description="Autonomous zero-trust threat detection, sensor telemetry, and multi-agent incident response. Uniting personal protection, security analyst operations, and enterprise defense."
+        canonicalPath="/"
+      />
       <PublicNavbar />
 
       <main className="flex-1 mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-10 space-y-20">
         
         {/* ── 1. Hero Section ───────────────────────────────────────── */}
-        <section className="text-center max-w-4xl mx-auto space-y-6 pt-6 sm:pt-12">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/30 text-cyan-600 dark:text-cyan-400 text-xs font-bold uppercase tracking-widest">
+        <section className="text-center max-w-4xl mx-auto space-y-6 pt-6 sm:pt-12 relative">
+          
+          {/* Subtle Cyber Floating Badge */}
+          <div className="flex justify-center mb-2">
+            <div className="animate-float flex items-center justify-center p-3 rounded-2xl bg-cyan-500/10 dark:bg-cyan-500/15 border border-cyan-500/30 text-cyan-600 dark:text-cyan-400 cyber-glow">
+              <ShieldCheck className="h-10 w-10 sm:h-12 sm:w-12 animate-pulse-glow" aria-label="CyberGuard Shield Security Core" />
+            </div>
+          </div>
+
+          <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/30 text-cyan-600 dark:text-cyan-400 text-xs font-bold uppercase tracking-widest shadow-xs">
             <Zap size={14} className="animate-pulse" /> Intelligent Security Operations
           </div>
           
@@ -73,6 +87,22 @@ export default function Landing() {
             >
               Explore Platform
             </Button>
+          </div>
+
+          {/* Minimalist Live Metric Indicators */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-8 max-w-xl mx-auto text-center">
+            <div className="p-3 rounded-xl bg-white/60 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800/80 shadow-xs">
+              <p className="text-lg font-black text-cyan-600 dark:text-cyan-400 font-mono">99.98%</p>
+              <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mt-0.5">Anomaly Precision</p>
+            </div>
+            <div className="p-3 rounded-xl bg-white/60 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800/80 shadow-xs">
+              <p className="text-lg font-black text-emerald-600 dark:text-emerald-400 font-mono">&lt; 45ms</p>
+              <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mt-0.5">Correlation Speed</p>
+            </div>
+            <div className="col-span-2 sm:col-span-1 p-3 rounded-xl bg-white/60 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800/80 shadow-xs">
+              <p className="text-lg font-black text-blue-600 dark:text-blue-400 font-mono">Zero-Trust</p>
+              <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mt-0.5">Cryptographic Mesh</p>
+            </div>
           </div>
         </section>
 

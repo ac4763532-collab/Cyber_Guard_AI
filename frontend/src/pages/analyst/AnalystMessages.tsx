@@ -190,29 +190,29 @@ export default function AnalystMessages() {
   };
 
   return (
-    <div className="h-[calc(100vh-8rem)] flex gap-4 animate-in fade-in duration-300 font-sans">
+    <div className="h-[calc(100vh-8.5rem)] flex gap-4 animate-in fade-in duration-300 font-sans">
       
       {/* ── Left Sidebar (Conversations Roster) ───────────────────────── */}
-      <div className="w-80 flex flex-col bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shrink-0">
-        <div className="p-4 border-b border-slate-800 space-y-3">
+      <div className="w-80 flex flex-col bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shrink-0 shadow-sm transition-colors">
+        <div className="p-4 border-b border-slate-200 dark:border-slate-800 space-y-3 bg-slate-50/50 dark:bg-slate-950/20">
           <div className="flex items-center justify-between">
-            <h2 className="font-bold text-slate-100 text-sm flex items-center gap-2">
-              <Briefcase size={16} className="text-emerald-400" />
+            <h2 className="font-bold text-slate-900 dark:text-slate-100 text-sm flex items-center gap-2">
+              <Briefcase size={16} className="text-emerald-500" />
               Case Communications
             </h2>
             <Button
               variant="ghost"
               size="sm"
               onClick={() => refetchContacts()}
-              className="h-7 w-7 p-0 text-slate-400 hover:text-slate-200"
+              className="h-7 w-7 p-0 text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
               title="Refresh contacts"
             >
               <RefreshCw size={13} />
             </Button>
           </div>
-          <div className="bg-slate-950/80 border border-slate-800/80 rounded-lg p-2">
-            <p className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Active Analyst</p>
-            <p className="text-xs text-emerald-400 font-mono font-medium truncate mt-0.5">
+          <div className="bg-slate-100 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800/80 rounded-lg p-2.5">
+            <p className="text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider font-semibold">Active Analyst Security ID</p>
+            <p className="text-xs text-emerald-600 dark:text-emerald-400 font-mono font-bold truncate mt-0.5">
               {user?.public_user_id || "analyst-session"}
             </p>
           </div>
@@ -222,26 +222,26 @@ export default function AnalystMessages() {
             <Input
               value={targetInput}
               onChange={(e) => setTargetInput(e.target.value)}
-              placeholder="Enter User ID (slug)..."
+              placeholder="Search or enter Security ID..."
               leftIcon={<Search size={13} />}
-              className="h-8 text-xs bg-slate-950 border-slate-800"
+              className="h-8 text-xs bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100"
             />
-            <Button type="submit" size="sm" className="h-8 px-2.5 bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-bold shrink-0">
+            <Button type="submit" size="sm" className="h-8 px-2.5 bg-emerald-600 hover:bg-emerald-500 text-white dark:text-slate-950 font-bold shrink-0 shadow-xs">
               <Plus size={14} />
             </Button>
           </form>
         </div>
 
         {/* Contacts list */}
-        <div className="flex-1 overflow-y-auto divide-y divide-slate-800/60 p-2 space-y-1">
+        <div className="flex-1 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800/60 p-2 space-y-1">
           {loadingContacts ? (
             <div className="p-8 text-center"><Spinner label="Loading contacts..." /></div>
           ) : contacts.length === 0 ? (
             <div className="p-6 text-center text-slate-500 text-xs">
-              <Inbox size={28} className="mx-auto mb-2 text-slate-600" />
-              <p className="font-medium text-slate-400">No active conversations</p>
-              <p className="text-[10px] text-slate-600 mt-1">
-                Enter a client's User ID above or wait for users to message you from their portal.
+              <Inbox size={28} className="mx-auto mb-2 text-slate-400 dark:text-slate-600" />
+              <p className="font-medium text-slate-700 dark:text-slate-300">No active conversations</p>
+              <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">
+                Enter a client's Security ID above or wait for users to message you from their portal.
               </p>
             </div>
           ) : (
@@ -252,25 +252,27 @@ export default function AnalystMessages() {
                 <div 
                   key={contact.id} 
                   className={`p-3 rounded-xl cursor-pointer transition ${
-                    isActive ? "bg-emerald-500/10 border border-emerald-500/40 shadow-sm" : "hover:bg-slate-800/50"
+                    isActive
+                      ? "bg-emerald-500/10 border border-emerald-500/40 shadow-xs text-slate-900 dark:text-slate-100"
+                      : "hover:bg-slate-100 dark:hover:bg-slate-800/50 text-slate-700 dark:text-slate-300"
                   }`}
                   onClick={() => setSelectedSlug(contact.user_slug)}
                 >
                   <div className="flex items-center justify-between">
-                    <span className="font-semibold text-xs text-slate-200 truncate">{contact.name}</span>
-                    <span className="text-[10px] text-slate-500 shrink-0 ml-2">
+                    <span className="font-semibold text-xs truncate">{contact.name}</span>
+                    <span className="text-[10px] text-slate-400 shrink-0 ml-2">
                       {contact.last_message_at ? new Date(contact.last_message_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ""}
                     </span>
                   </div>
                   <div className="flex items-center justify-between mt-0.5">
-                    <p className="text-[11px] font-mono text-cyan-400">@{contact.user_slug}</p>
+                    <p className="text-[10px] text-slate-500 dark:text-emerald-400 font-mono">ID: {contact.user_slug}</p>
                     {contact.unread_count > 0 && (
-                      <span className="px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-emerald-500 text-slate-950">
+                      <span className="px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-emerald-500 text-slate-950 shrink-0">
                         {contact.unread_count}
                       </span>
                     )}
                   </div>
-                  <p className="text-xs text-slate-400 truncate mt-1">
+                  <p className="text-xs text-slate-500 dark:text-slate-400 truncate mt-1">
                     {contact.last_message || "No messages yet"}
                   </p>
                 </div>
@@ -281,41 +283,43 @@ export default function AnalystMessages() {
       </div>
 
       {/* ── Right Panel (Active Conversation) ────────────────────────── */}
-      <div className="flex-1 flex flex-col bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden">
+      <div className="flex-1 flex flex-col bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm transition-colors">
         {activeContact ? (
           <>
             {/* Conversation Header */}
-            <div className="h-16 border-b border-slate-800 px-6 flex items-center justify-between bg-slate-950/60 shrink-0">
+            <div className="h-16 border-b border-slate-200 dark:border-slate-800 px-6 flex items-center justify-between bg-slate-50/60 dark:bg-slate-950/60 shrink-0">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center text-emerald-400 font-bold text-sm">
+                <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-emerald-600 dark:text-emerald-400 font-bold text-sm shadow-xs">
                   <User size={18} />
                 </div>
                 <div>
-                  <h3 className="font-bold text-slate-100 text-sm flex items-center gap-2">
+                  <h3 className="font-bold text-slate-900 dark:text-slate-100 text-sm flex items-center gap-2">
                     <span>{activeContact.name}</span>
-                    <span className="font-mono text-xs text-cyan-400">(@{activeContact.user_slug})</span>
-                    <ShieldCheck size={14} className="text-emerald-400" />
+                    <span className="font-mono text-xs text-slate-500 dark:text-emerald-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded">
+                      ID: {activeContact.user_slug}
+                    </span>
+                    <ShieldCheck size={14} className="text-emerald-500" />
                   </h3>
-                  <span className="text-xs text-slate-400 font-medium capitalize flex items-center gap-1.5 mt-0.5">
-                    <Lock size={11} className="text-emerald-400" /> Secure peer channel with client
+                  <span className="text-xs text-slate-500 dark:text-slate-400 font-medium capitalize flex items-center gap-1.5 mt-0.5">
+                    <Lock size={11} className="text-emerald-500" /> Secure peer channel with client
                   </span>
                 </div>
               </div>
-              <span className="text-xs text-slate-400 flex items-center gap-1.5 font-mono">
-                <Lock size={12} className="text-emerald-400" /> Authorized Scoped Session
+              <span className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1.5 font-mono">
+                <Lock size={12} className="text-emerald-500" /> Authorized Scoped Session
               </span>
             </div>
 
             {/* Messages Feed */}
-            <div className="flex-1 overflow-y-auto p-5 space-y-4 bg-slate-950/40">
+            <div className="flex-1 overflow-y-auto p-5 space-y-4 bg-slate-50/30 dark:bg-slate-950/40">
               {loadingMessages ? (
                 <div className="h-full flex items-center justify-center"><Spinner label="Loading conversation..." /></div>
               ) : messages.length === 0 ? (
-                <div className="h-full flex flex-col items-center justify-center text-slate-500 text-xs text-center">
-                  <MessageSquare size={36} className="mx-auto text-slate-600 mb-2" />
-                  <p className="text-slate-400 font-medium">No messages exchanged yet</p>
-                  <p className="text-slate-600 mt-1 max-w-sm">
-                    Send a message below to start communicating with @{activeContact.user_slug}.
+                <div className="h-full flex flex-col items-center justify-center text-slate-400 text-xs text-center">
+                  <MessageSquare size={36} className="mx-auto text-slate-300 dark:text-slate-600 mb-2" />
+                  <p className="text-slate-700 dark:text-slate-300 font-medium">No messages exchanged yet</p>
+                  <p className="text-slate-500 mt-1 max-w-sm">
+                    Send a message below to start communicating with {activeContact.name}.
                   </p>
                 </div>
               ) : (
@@ -329,18 +333,18 @@ export default function AnalystMessages() {
                         <div className="flex flex-col items-end max-w-[80%] sm:max-w-md">
                           {/* Identity & Timestamp Header */}
                           <div className="flex items-center gap-1.5 mb-1 px-1">
-                            <span className="text-[11px] font-bold text-emerald-400">You (Analyst)</span>
+                            <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400">You (Analyst)</span>
                             <span className="text-[10px] text-slate-400 font-mono">{m.timestamp}</span>
                           </div>
 
                           {/* Message Bubble: Emerald */}
-                          <div className="p-3.5 rounded-2xl rounded-tr-xs bg-gradient-to-br from-emerald-600 to-emerald-500 text-slate-950 font-medium text-xs leading-relaxed shadow-lg shadow-emerald-950/20">
+                          <div className="p-3.5 rounded-2xl rounded-tr-xs bg-gradient-to-br from-emerald-600 to-emerald-500 text-white dark:text-slate-950 font-medium text-xs leading-relaxed shadow-sm">
                             <p className="whitespace-pre-wrap break-words">{m.body}</p>
                           </div>
 
                           {/* Status Indicator */}
-                          <div className="flex items-center gap-1 mt-1 px-1 text-[10px] text-slate-400">
-                            <CheckCheck size={12} className={m.is_read ? "text-emerald-400" : "text-slate-400"} />
+                          <div className="flex items-center gap-1 mt-1 px-1 text-[10px] text-slate-500 dark:text-slate-400">
+                            <CheckCheck size={12} className={m.is_read ? "text-emerald-500" : "text-slate-400"} />
                             <span>{m.is_read ? "Read" : "Sent"}</span>
                           </div>
                         </div>
@@ -349,35 +353,31 @@ export default function AnalystMessages() {
                   } else {
                     // ── RECEIVER (INCOMING) -> LEFT SIDE ──
                     const displayName = m.sender_name || activeContact.name || "Client";
-                    const displaySlug = m.sender_public_id || activeContact.user_slug;
 
                     return (
                       <div key={m.id} className="flex justify-start w-full">
                         <div className="flex flex-col items-start max-w-[80%] sm:max-w-md">
                           {/* Identity & Timestamp Header */}
                           <div className="flex items-center gap-2 mb-1 px-1">
-                            <div className="w-5 h-5 rounded-full bg-slate-800 border border-emerald-500/40 flex items-center justify-center text-[10px] font-bold text-emerald-400">
+                            <div className="w-5 h-5 rounded-full bg-slate-200 dark:bg-slate-800 border border-emerald-500/40 flex items-center justify-center text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
                               {displayName.charAt(0).toUpperCase()}
                             </div>
-                            <span className="text-[11px] font-bold text-slate-200">
+                            <span className="text-[11px] font-bold text-slate-800 dark:text-slate-200">
                               {displayName}
-                            </span>
-                            <span className="text-[10px] font-mono text-cyan-400/80">
-                              @{displaySlug}
                             </span>
                             <span className="text-[10px] text-slate-400 font-mono">
                               {m.timestamp}
                             </span>
                           </div>
 
-                          {/* Message Bubble: Dark Slate */}
-                          <div className="p-3.5 rounded-2xl rounded-tl-xs bg-slate-800/90 border border-slate-700/80 text-slate-100 text-xs leading-relaxed shadow-lg shadow-black/30">
+                          {/* Message Bubble: Neutral Card */}
+                          <div className="p-3.5 rounded-2xl rounded-tl-xs bg-white dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700/80 text-slate-800 dark:text-slate-100 text-xs leading-relaxed shadow-sm">
                             <p className="whitespace-pre-wrap break-words">{m.body}</p>
                           </div>
 
                           {/* Client verification status */}
-                          <div className="flex items-center gap-1 mt-1 px-1 text-[10px] text-slate-400">
-                            <ShieldCheck size={11} className="text-cyan-400" />
+                          <div className="flex items-center gap-1 mt-1 px-1 text-[10px] text-slate-500 dark:text-slate-400">
+                            <ShieldCheck size={11} className="text-cyan-500" />
                             <span>Client Session</span>
                           </div>
                         </div>
@@ -390,29 +390,29 @@ export default function AnalystMessages() {
             </div>
 
             {/* Input Bar */}
-            <form onSubmit={handleSend} className="p-4 border-t border-slate-800 bg-slate-950/60 flex gap-2 shrink-0">
+            <form onSubmit={handleSend} className="p-4 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950/60 flex gap-2 shrink-0">
               <Input
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                placeholder={`Send message to @${activeContact.user_slug}...`}
-                className="bg-slate-900 border-slate-800 text-xs"
+                placeholder={`Type a secure response to ${activeContact.name}...`}
+                className="bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-xs text-slate-900 dark:text-slate-100"
                 disabled={sendMutation.isPending}
               />
               <Button 
                 type="submit" 
                 isLoading={sendMutation.isPending} 
                 disabled={!input.trim() || sendMutation.isPending}
-                className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold px-4"
+                className="bg-emerald-600 hover:bg-emerald-500 text-white dark:text-slate-950 font-bold px-4 shadow-xs"
               >
                 <Send size={14} />
               </Button>
             </form>
           </>
         ) : (
-          <div className="h-full flex flex-col items-center justify-center text-slate-500 text-sm">
-            <Briefcase size={40} className="text-slate-600 mb-2" />
-            <p className="text-slate-300 font-medium">Select or start a conversation</p>
-            <p className="text-xs text-slate-500 mt-1">Enter a client User ID on the left to coordinate on security incidents.</p>
+          <div className="h-full flex flex-col items-center justify-center text-slate-400 text-sm">
+            <Briefcase size={40} className="text-slate-300 dark:text-slate-600 mb-2" />
+            <p className="text-slate-700 dark:text-slate-300 font-medium">Select or start a conversation</p>
+            <p className="text-xs text-slate-500 mt-1">Enter a client Security ID on the left to coordinate on security incidents.</p>
           </div>
         )}
       </div>

@@ -42,7 +42,7 @@ export default function ApplicationStatus() {
             <span className="text-amber-400 font-bold flex items-center gap-1"><Clock size={14} /> Pending Administrator</span>
           </div>
           <div className="flex items-center justify-between p-2 bg-slate-950/60 rounded">
-            <span className="text-slate-300">Analyst Slug Issuance</span>
+            <span className="text-slate-300">Analyst Security Credential Issuance</span>
             <span className="text-cyan-400 font-mono">Issued upon verification</span>
           </div>
         </div>

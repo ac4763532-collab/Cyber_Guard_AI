@@ -217,7 +217,7 @@ export default function RoomWorkspace() {
                   <div key={member.id} className="flex items-center justify-between text-xs p-2 rounded-lg bg-slate-950 border border-slate-800">
                     <div>
                       <p className="font-semibold text-slate-200">{member.name}</p>
-                      <p className="text-[10px] text-cyan-400 font-mono">@{member.user_slug}</p>
+                      <p className="text-[10px] text-cyan-400 font-mono">ID: {member.user_slug}</p>
                     </div>
                     <span className="text-[10px] uppercase font-bold text-slate-500">{member.role}</span>
                   </div>

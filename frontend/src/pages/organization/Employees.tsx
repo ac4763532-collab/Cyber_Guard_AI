@@ -147,7 +147,7 @@ export default function Employees() {
       <div className="relative">
         <Search className="w-4 h-4 absolute left-3 top-3 text-slate-500" />
         <Input
-          placeholder="Filter employees by name, email, or public slug..."
+          placeholder="Filter employees by name, email, or security ID..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           className="pl-9 bg-slate-950 border-slate-800 text-slate-200 text-sm"
@@ -164,7 +164,7 @@ export default function Employees() {
               <thead className="bg-slate-950/80 text-slate-400 border-b border-slate-800 font-bold uppercase tracking-wider">
                 <tr>
                   <th className="py-3 px-4">Employee</th>
-                  <th className="py-3 px-4">Public Slug ID</th>
+                  <th className="py-3 px-4">Security ID</th>
                   <th className="py-3 px-4">Clearance Role</th>
                   <th className="py-3 px-4">Enrolled Endpoints</th>
                   <th className="py-3 px-4">Compliance Status</th>

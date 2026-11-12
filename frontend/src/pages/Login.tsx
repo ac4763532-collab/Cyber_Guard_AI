@@ -41,6 +41,7 @@ import {
   ModalTitle,
   ModalDescription,
 } from "@/components/ui/Modal";
+import { SEO } from "@/components/common/SEO";
 
 type PortalType = "individual" | "analyst" | "organizer";
 
@@ -303,7 +304,12 @@ export default function Login() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50 p-4 dark:bg-slate-950 font-sans">
+    <div className="flex min-h-screen items-center justify-center bg-slate-50 p-4 dark:bg-slate-950 font-sans transition-colors">
+      <SEO
+        title="Sign In to Workspace — CyberGuard AI"
+        description="Authenticate securely to your CyberGuard AI workspace portal (Individual Protection, Security Analyst, or Organization)."
+        canonicalPath="/login"
+      />
       <div className="w-full max-w-md">
         
         {/* ── Brand Header ────────────────────────────────────────────── */}

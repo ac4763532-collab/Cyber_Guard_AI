@@ -50,6 +50,8 @@ import {
 import { useAuth } from "@/auth/AuthProvider";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/Button";
+import { ThemeToggle } from "@/components/ui/ThemeToggle";
+import { Breadcrumbs } from "@/components/common/Breadcrumbs";
 import { toast } from "sonner";
 import {
   Modal,
@@ -110,7 +112,6 @@ export function AppShell() {
   const { user, logout, switchRole } = useAuth();
   const navigate = useNavigate();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [isDarkMode, setIsDarkMode] = useState(true);
   const [copiedId, setCopiedId] = useState(false);
   const [showRoleModal, setShowRoleModal] = useState(false);
   const [isSwitchingRole, setIsSwitchingRole] = useState(false);
@@ -146,22 +147,17 @@ export function AppShell() {
     roleBadgeClass = "bg-blue-500/10 text-blue-400 border-blue-500/30";
   }
 
-  const toggleDarkMode = () => {
-    setIsDarkMode(!isDarkMode);
-    document.documentElement.classList.toggle("dark");
-  };
-
   const copyPublicId = () => {
     if (user?.public_user_id) {
       navigator.clipboard.writeText(user.public_user_id);
       setCopiedId(true);
-      toast.success("User ID copied to clipboard!");
+      toast.success("Security ID copied to clipboard!");
       setTimeout(() => setCopiedId(false), 2000);
     }
   };
 
   return (
-    <div className="flex h-screen w-full bg-slate-950 text-slate-100 overflow-hidden font-sans">
+    <div className="flex h-screen w-full bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 overflow-hidden font-sans transition-colors">
       
       {/* ── Mobile Sidebar Overlay ─────────────────────────────────────── */}
       {isMobileMenuOpen && (
@@ -174,55 +170,55 @@ export function AppShell() {
       {/* ── Sidebar ────────────────────────────────────────────────────── */}
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-50 w-72 flex-col border-r border-slate-800 bg-slate-900/95 backdrop-blur-md transition-transform duration-200 ease-in-out lg:static lg:flex lg:translate-x-0",
+          "fixed inset-y-0 left-0 z-50 w-72 flex-col border-r border-slate-200 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md transition-all duration-200 ease-in-out lg:static lg:flex lg:translate-x-0",
           isMobileMenuOpen ? "flex translate-x-0" : "hidden -translate-x-full lg:flex"
         )}
       >
         {/* Brand Header */}
-        <div className="flex h-20 items-center justify-between border-b border-slate-800/80 px-6">
+        <div className="flex h-20 items-center justify-between border-b border-slate-200/80 dark:border-slate-800/80 px-6">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 shadow-[0_0_15px_rgba(6,182,212,0.25)]">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-600 dark:text-cyan-400 shadow-[0_0_15px_rgba(6,182,212,0.25)]">
               <ShieldCheck className="h-6 w-6" />
             </div>
             <div>
-              <span className="text-lg font-black tracking-wider text-slate-100">
-                CYBER<span className="text-cyan-400">GUARD</span>
+              <span className="text-lg font-black tracking-wider text-slate-900 dark:text-slate-100">
+                CYBER<span className="text-cyan-600 dark:text-cyan-400">GUARD</span>
               </span>
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400">
                 AI Defense Platform
               </p>
             </div>
           </div>
         </div>
 
-        {/* User Identity & Public Slug Badge */}
-        <div className="p-4 border-b border-slate-800/60 bg-slate-950/40">
+        {/* User Identity & Security ID Badge */}
+        <div className="p-4 border-b border-slate-200/60 dark:border-slate-800/60 bg-slate-100/60 dark:bg-slate-950/40">
           <div className="flex items-center justify-between mb-2">
             <span className={cn("text-[11px] font-semibold px-2 py-0.5 rounded-full border uppercase tracking-wider", roleBadgeClass)}>
               {roleTitle}
             </span>
             <button
               onClick={() => setShowRoleModal(true)}
-              className="text-[10px] font-bold text-cyan-400 hover:text-cyan-300 flex items-center gap-1 hover:underline transition"
+              className="text-[10px] font-bold text-cyan-600 dark:text-cyan-400 hover:text-cyan-500 dark:hover:text-cyan-300 flex items-center gap-1 hover:underline transition"
               title="Switch Workspace Portal"
             >
               <Layers size={11} /> Switch
             </button>
           </div>
 
-          <div className="flex items-center justify-between bg-slate-900 border border-slate-800 rounded-lg p-2.5">
+          <div className="flex items-center justify-between bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-2.5 shadow-sm">
             <div className="truncate pr-2">
-              <p className="text-[11px] text-slate-400">Public User ID</p>
-              <p className="font-mono text-xs font-bold text-cyan-300 truncate">
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">Security ID</p>
+              <p className="font-mono text-xs font-bold text-cyan-600 dark:text-cyan-300 truncate">
                 {user?.public_user_id || "Generating..."}
               </p>
             </div>
             <button
               onClick={copyPublicId}
-              title="Copy User ID"
-              className="p-1.5 rounded-md text-slate-400 hover:text-cyan-400 hover:bg-slate-800 transition"
+              title="Copy Security ID"
+              className="p-1.5 rounded-md text-slate-400 hover:text-cyan-500 dark:hover:text-cyan-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
             >
-              {copiedId ? <Check size={15} className="text-emerald-400" /> : <Copy size={15} />}
+              {copiedId ? <Check size={15} className="text-emerald-500" /> : <Copy size={15} />}
             </button>
           </div>
         </div>
@@ -283,17 +279,17 @@ export function AppShell() {
       <div className="flex flex-1 flex-col overflow-hidden">
         
         {/* Topbar */}
-        <header className="flex h-16 shrink-0 items-center justify-between border-b border-slate-800 bg-slate-900/80 px-4 backdrop-blur-md lg:px-8">
+        <header className="flex h-16 shrink-0 items-center justify-between border-b border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 px-4 backdrop-blur-md lg:px-8 transition-colors">
           <div className="flex items-center gap-3">
             <button
-              className="rounded-md p-2 text-slate-400 hover:bg-slate-800 lg:hidden"
+              className="rounded-md p-2 text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800 lg:hidden"
               onClick={() => setIsMobileMenuOpen(true)}
             >
               <Menu size={20} />
             </button>
-            <div className="hidden sm:flex items-center gap-2 text-xs text-slate-400">
+            <div className="hidden sm:flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
               <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
-              <span>Defense Engine Active</span>
+              <span className="font-medium">Defense Engine Active</span>
             </div>
           </div>
 
@@ -304,7 +300,7 @@ export function AppShell() {
                 variant="outline"
                 size="sm"
                 onClick={() => navigate("/personal/rooms")}
-                className="hidden sm:flex items-center gap-2 text-xs border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/10"
+                className="hidden sm:flex items-center gap-2 text-xs border-cyan-500/30 text-cyan-600 dark:text-cyan-400 hover:bg-cyan-500/10"
               >
                 <DoorOpen size={14} />
                 Join Room
@@ -314,25 +310,19 @@ export function AppShell() {
             {/* Quick Portal Switcher Button */}
             <button
               onClick={() => setShowRoleModal(true)}
-              className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-800/80 hover:bg-slate-800 text-slate-300 hover:text-cyan-400 border border-slate-700 hover:border-cyan-500/40 transition shadow-sm"
+              className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800/80 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 hover:text-cyan-600 dark:hover:text-cyan-400 border border-slate-200 dark:border-slate-700 transition shadow-sm"
               title="Switch Workspace Portal"
             >
-              <Layers size={13} className="text-cyan-400" />
-              <span>Portal: <strong className="capitalize text-slate-100">{role === "organizer" || role === "org_admin" ? "Organization" : role}</strong></span>
+              <Layers size={13} className="text-cyan-500 dark:text-cyan-400" />
+              <span>Portal: <strong className="capitalize text-slate-900 dark:text-slate-100">{role === "organizer" || role === "org_admin" ? "Organization" : role}</strong></span>
             </button>
 
-            {/* Dark Mode Toggle */}
-            <button
-              onClick={toggleDarkMode}
-              className="rounded-full p-2 text-slate-400 hover:bg-slate-800 hover:text-cyan-400 transition"
-              title="Toggle Dark Mode"
-            >
-              {isDarkMode ? <Sun size={18} /> : <Moon size={18} />}
-            </button>
+            {/* Dark / Light Mode Switch */}
+            <ThemeToggle />
 
             {/* User Chip */}
-            <div className="flex items-center gap-2 border-l border-slate-800 pl-3">
-              <span className="text-xs font-semibold text-slate-300 hidden md:inline">
+            <div className="flex items-center gap-2 border-l border-slate-200 dark:border-slate-800 pl-3">
+              <span className="text-xs font-semibold text-slate-700 dark:text-slate-300 hidden md:inline">
                 {user?.full_name || user?.email}
               </span>
             </div>
@@ -340,8 +330,9 @@ export function AppShell() {
         </header>
 
         {/* Content Area */}
-        <main className="flex-1 overflow-y-auto bg-slate-950 p-4 sm:p-6 lg:p-8">
+        <main className="flex-1 overflow-y-auto bg-slate-50 dark:bg-slate-950 p-4 sm:p-6 lg:p-8 transition-colors">
           <div className="mx-auto max-w-7xl">
+            <Breadcrumbs />
             <Outlet />
           </div>
         </main>

@@ -17,6 +17,7 @@ import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/Ca
 import { cn } from "@/lib/utils";
 import PublicNavbar from "@/components/public/PublicNavbar";
 import PublicFooter from "@/components/public/PublicFooter";
+import { SEO } from "@/components/common/SEO";
 
 interface AccountCardProps {
   label: string;
@@ -67,7 +68,12 @@ export default function UserSelection() {
   const continueDisabled = !selected || !termsAccepted;
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 flex flex-col font-sans">
+    <div className="min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 flex flex-col font-sans transition-colors">
+      <SEO
+        title="Select Account Workspace — CyberGuard AI"
+        description="Select your CyberGuard AI account type: Individual Protection, Verified Security Analyst, or Enterprise Organization."
+        canonicalPath="/select-account"
+      />
       <PublicNavbar />
 
       <main className="flex-1 mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 py-10">

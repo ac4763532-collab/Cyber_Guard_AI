@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.sitemaps.org/schemas/sitemap/0.9
+        http://www.sitemaps.org/schemas/sitemap/0.9/sitemap.xsd">
+
+  <url>
+    <loc>https://cyberguard-api-7z5k.onrender.com/</loc>
+    <lastmod>2026-11-12T17:00:00+00:00</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>1.00</priority>
+  </url>
+
+  <url>
+    <loc>https://cyberguard-api-7z5k.onrender.com/features</loc>
+    <lastmod>2026-11-12T17:00:00+00:00</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.90</priority>
+  </url>
+
+  <url>
+    <loc>https://cyberguard-api-7z5k.onrender.com/how-it-works</loc>
+    <lastmod>2026-11-12T17:00:00+00:00</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.85</priority>
+  </url>
+
+  <url>
+    <loc>https://cyberguard-api-7z5k.onrender.com/solutions</loc>
+    <lastmod>2026-11-12T17:00:00+00:00</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.85</priority>
+  </url>
+
+  <url>
+    <loc>https://cyberguard-api-7z5k.onrender.com/pricing</loc>
+    <lastmod>2026-11-12T17:00:00+00:00</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.80</priority>
+  </url>
+
+  <url>
+    <loc>https://cyberguard-api-7z5k.onrender.com/about</loc>
+    <lastmod>2026-11-12T17:00:00+00:00</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.70</priority>
+  </url>
+
+  <url>
+    <loc>https://cyberguard-api-7z5k.onrender.com/select-account</loc>
+    <lastmod>2026-11-12T17:00:00+00:00</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.80</priority>
+  </url>
+
+  <url>
+    <loc>https://cyberguard-api-7z5k.onrender.com/register</loc>
+    <lastmod>2026-11-12T17:00:00+00:00</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.75</priority>
+  </url>
+
+  <url>
+    <loc>https://cyberguard-api-7z5k.onrender.com/analyst/register</loc>
+    <lastmod>2026-11-12T17:00:00+00:00</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.75</priority>
+  </url>
+
+  <url>
+    <loc>https://cyberguard-api-7z5k.onrender.com/organization/create</loc>
+    <lastmod>2026-11-12T17:00:00+00:00</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.75</priority>
+  </url>
+
+  <url>
+    <loc>https://cyberguard-api-7z5k.onrender.com/login</loc>
+    <lastmod>2026-11-12T17:00:00+00:00</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.60</priority>
+  </url>
+
+  <url>
+    <loc>https://cyberguard-api-7z5k.onrender.com/terms</loc>
+    <lastmod>2026-11-12T17:00:00+00:00</lastmod>
+    <changefreq>yearly</changefreq>
+    <priority>0.40</priority>
+  </url>
+
+  <url>
+    <loc>https://cyberguard-api-7z5k.onrender.com/privacy</loc>
+    <lastmod>2026-11-12T17:00:00+00:00</lastmod>
+    <changefreq>yearly</changefreq>
+    <priority>0.40</priority>
+  </url>
+
+</urlset>

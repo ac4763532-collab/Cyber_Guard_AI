@@ -1,0 +1,29 @@
+# CyberGuard AI — Autonomous Multi-Agent Cybersecurity Platform
+
+> CyberGuard AI unites real-time endpoint telemetry sensors, multi-agent AI threat correlation, verified cybersecurity analyst investigations, and organizational containment war-rooms into a unified defense engine.
+
+## Overview
+- Platform Name: CyberGuard AI
+- Description: Enterprise-grade autonomous cybersecurity platform for individual users, security analysts, and enterprise organizations.
+- Primary Technologies: Python FastAPI, SQLAlchemy 2.0, PostgreSQL, React 18, Vite, TypeScript, Tailwind CSS, TanStack Query.
+- License: Proprietary & Commercial Security Platform.
+
+## Core Capabilities
+- Multi-Agent Defense Engine: Autonomous detection for unauthorized logins, persistence mechanisms, ransomware, brute-force anomalies, and malicious processes.
+- Personal Workspace: Telemetry for personal devices (Windows, Linux, macOS), Gmail/email forensics, real-time log ingestion, network inspection, and direct communication with verified analysts.
+- Analyst Workspace: Investigation workbench, case management, digital evidence library with cryptographic SHA-256 validation, forensic AI reports, and service marketplace.
+- Organization Workspace: Collaborative incident rooms, employee posture tracking, automated breach containment, and targeted security operations.
+
+## Key URLs
+- Homepage: https://cyberguard-api-7z5k.onrender.com/
+- Features & Architecture: https://cyberguard-api-7z5k.onrender.com/features
+- How It Works: https://cyberguard-api-7z5k.onrender.com/how-it-works
+- Solutions: https://cyberguard-api-7z5k.onrender.com/solutions
+- Pricing: https://cyberguard-api-7z5k.onrender.com/pricing
+- About & Mission: https://cyberguard-api-7z5k.onrender.com/about
+- API Health Endpoint: https://cyberguard-api-7z5k.onrender.com/api/v1/health
+
+## Security & Privacy Guidelines
+- Zero Mock Data: All metrics, telemetry, cases, and logs represent genuine persistent database records.
+- End-to-End Scoped Channels: Direct messaging and case communications are strictly isolated per peer session.
+- Cryptographic Verification: All forensic evidence items are indexed with immutable SHA-256 hashes.

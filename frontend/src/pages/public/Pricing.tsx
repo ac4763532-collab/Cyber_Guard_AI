@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/Button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
 import PublicNavbar from "@/components/public/PublicNavbar";
 import PublicFooter from "@/components/public/PublicFooter";
+import { SEO } from "@/components/common/SEO";
 
 const plans = [
   {
@@ -72,7 +73,12 @@ export default function Pricing() {
   const navigate = useNavigate();
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 flex flex-col font-sans">
+    <div className="min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 flex flex-col font-sans transition-colors">
+      <SEO
+        title="Predictable Cybersecurity Plans & Pricing — CyberGuard AI"
+        description="Transparent security pricing: Free tier for individual device protection, competitive compensation for analysts, and scalable enterprise defense."
+        canonicalPath="/pricing"
+      />
       <PublicNavbar />
 
       <main className="flex-1 mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-12">

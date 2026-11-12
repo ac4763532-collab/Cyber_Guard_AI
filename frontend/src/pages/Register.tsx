@@ -20,6 +20,7 @@ import { useAuth } from "@/auth/AuthProvider";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { SEO } from "@/components/common/SEO";
 
 const registerSchema = z
   .object({
@@ -168,7 +169,12 @@ export default function Register() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50 p-4 dark:bg-slate-950 font-sans">
+    <div className="flex min-h-screen items-center justify-center bg-slate-50 p-4 dark:bg-slate-950 font-sans transition-colors">
+      <SEO
+        title="Create Account — CyberGuard AI"
+        description="Create your CyberGuard AI account with verified 2FA multi-step onboarding and enter your zero-trust defense workspace."
+        canonicalPath="/register"
+      />
       <div className="w-full max-w-lg">
         
         {/* ── Brand Header ────────────────────────────────────────────── */}

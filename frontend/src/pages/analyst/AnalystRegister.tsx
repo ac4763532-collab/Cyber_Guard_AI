@@ -24,6 +24,7 @@ import { api } from "@/lib/api";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Card, CardContent } from "@/components/ui/Card";
+import { SEO } from "@/components/common/SEO";
 import { cn } from "@/lib/utils";
 
 const analystSchema = z.object({
@@ -292,7 +293,12 @@ export default function AnalystRegister() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center py-12 px-4">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center py-12 px-4 transition-colors font-sans">
+      <SEO
+        title="Security Analyst Registration & Verification — CyberGuard AI"
+        description="Register as an accredited security analyst with CyberGuard AI. Join our vetted investigation network, examine digital forensics, and earn on incident retainers."
+        canonicalPath="/analyst/register"
+      />
       <div className="w-full max-w-3xl">
         {/* ── Header ─────────────────────────────────────────────────────── */}
         <div className="text-center mb-8">
