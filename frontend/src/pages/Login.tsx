@@ -200,7 +200,13 @@ export default function Login() {
         }
       }
     } catch (error: any) {
-      toast.error(error.message || "Invalid email or password.");
+      const detail = error?.response?.data?.detail;
+      const msg = typeof detail === "string" 
+        ? detail 
+        : (Array.isArray(detail) && detail[0]?.msg 
+            ? detail[0].msg 
+            : (error?.response?.data?.error?.message || error?.message || "Invalid email or password."));
+      toast.error(msg);
     } finally {
       setIsSubmitting(false);
     }

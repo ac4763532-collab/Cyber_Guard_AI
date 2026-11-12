@@ -79,6 +79,7 @@ from typing import Any, Optional
 from fastapi import APIRouter, HTTPException, Request, status
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
+from sqlalchemy import select
 from app.models.user import User
 from app.services import user_service, workspace_service
 
@@ -95,7 +96,7 @@ from app.core.exceptions import (
 )
 from app.core.logging import get_logger
 from app.core.security import extract_subject
-from app.models.enums import UserStatus
+from app.models.enums import UserStatus, AnalystVerificationStatus
 from app.schemas.auth import (
     LoginRequest,
     RefreshRequest,
@@ -565,7 +566,8 @@ def login(
                         certifications=[{"name": "Security Analyst"}],
                         verification_documents=[],
                     )
-                    profile.verified = True
+                    profile.verification_status = AnalystVerificationStatus.VERIFIED
+                    profile.available_for_hire = True
                     db.add(profile)
 
     tokens = build_token_response(
@@ -712,7 +714,8 @@ def switch_role(
                 certifications=[{"name": "Security Analyst"}],
                 verification_documents=[],
             )
-            profile.verified = True
+            profile.verification_status = AnalystVerificationStatus.VERIFIED
+            profile.available_for_hire = True
             db.add(profile)
 
     tokens = build_token_response(

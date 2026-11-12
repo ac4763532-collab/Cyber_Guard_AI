@@ -79,6 +79,8 @@ const router = createBrowserRouter([
   { path: "/individuals", element: <Navigate to="/register?type=individual" replace /> },
   { path: "/analysts", element: <Navigate to="/analyst/register" replace /> },
   { path: "/organizations", element: <Navigate to="/organization/create" replace /> },
+  { path: "/analyst/login", element: <Navigate to="/login?portal=analyst" replace /> },
+  { path: "/organization/login", element: <Navigate to="/login?portal=organizer" replace /> },
 
   // ── 2. INDIVIDUAL WORKSPACE (Role: 'individual') ──────────────────────────────
   {
