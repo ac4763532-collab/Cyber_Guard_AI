@@ -32,10 +32,12 @@ class DirectMessageItem(BaseModel):
     id: str
     sender_id: str
     sender_public_id: Optional[str] = None
+    sender_name: Optional[str] = None
     recipient_id: str
     recipient_public_id: Optional[str] = None
     body: str
     is_me: bool
+    is_mine: bool = False
     is_read: bool
     created_at: str
     timestamp: str
@@ -47,8 +49,11 @@ class SendDirectMessageRequest(BaseModel):
 
 class ContactItem(BaseModel):
     user_id: str
+    id: Optional[str] = None
     public_user_id: str
+    user_slug: Optional[str] = None
     full_name: str
+    name: Optional[str] = None
     email: str
     role: str
     last_message: Optional[str] = None
@@ -121,8 +126,11 @@ def list_contacts(
         results.append(
             ContactItem(
                 user_id=str(user.id),
+                id=str(user.id),
                 public_user_id=user.public_user_id or "user",
+                user_slug=user.public_user_id or "user",
                 full_name=user.full_name or user.email.split("@")[0],
+                name=user.full_name or user.email.split("@")[0],
                 email=user.email,
                 role=getattr(user, "role", "individual"),
                 last_message=meta["last_message"],
@@ -173,10 +181,12 @@ def get_conversation_history(
             id=str(m.id),
             sender_id=str(m.sender_id),
             sender_public_id=current_user.public_user_id if m.sender_id == current_user.id else other_user.public_user_id,
+            sender_name=(current_user.full_name or current_user.public_user_id) if m.sender_id == current_user.id else (other_user.full_name or other_user.public_user_id),
             recipient_id=str(m.recipient_id),
             recipient_public_id=other_user.public_user_id if m.sender_id == current_user.id else current_user.public_user_id,
             body=m.body,
             is_me=(m.sender_id == current_user.id),
+            is_mine=(m.sender_id == current_user.id),
             is_read=m.is_read,
             created_at=m.created_at.isoformat(),
             timestamp=m.created_at.strftime("%I:%M %p"),
@@ -210,10 +220,12 @@ def send_direct_message(
         id=str(msg.id),
         sender_id=str(msg.sender_id),
         sender_public_id=current_user.public_user_id,
+        sender_name=current_user.full_name or current_user.public_user_id,
         recipient_id=str(msg.recipient_id),
         recipient_public_id=other_user.public_user_id,
         body=msg.body,
         is_me=True,
+        is_mine=True,
         is_read=False,
         created_at=msg.created_at.isoformat(),
         timestamp=msg.created_at.strftime("%I:%M %p"),

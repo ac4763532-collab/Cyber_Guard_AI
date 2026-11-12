@@ -67,10 +67,10 @@ export default function PersonalMessages() {
   const { data: contacts = [], refetch: refetchContacts } = useQuery<ContactItem[]>({
     queryKey: ["direct-message-contacts"],
     queryFn: async () => {
-      const res = await api.get<ContactItem[]>("/direct-messages/contacts");
-      return res.data || [];
+      const res = await api.get<any>("/direct-messages/contacts");
+      return Array.isArray(res.data) ? res.data : (res.data?.contacts || []);
     },
-    refetchInterval: 15_000,
+    refetchInterval: 5_000,
   });
 
   // Select first contact if none selected and contacts exist
@@ -99,8 +99,9 @@ export default function PersonalMessages() {
   const handleStartConversation = (e: React.FormEvent) => {
     e.preventDefault();
     if (!targetInput.trim()) return;
-    setActiveRecipient(targetInput.trim());
-    toast.info(`Opened conversation with ${targetInput.trim()}`);
+    const clean = targetInput.trim().replace(/^@/, "");
+    setActiveRecipient(clean);
+    toast.info(`Opened conversation with @${clean}`);
   };
 
   const handleSend = async (e: React.FormEvent) => {
