@@ -36,17 +36,64 @@ const ACCESS_TOKEN_KEY = "cg_access_token";
 const REFRESH_TOKEN_KEY = "cg_refresh_token";
 
 export const tokenStore = {
-  getAccess: () => localStorage.getItem(ACCESS_TOKEN_KEY),
-  getRefresh: () => localStorage.getItem(REFRESH_TOKEN_KEY),
+  getAccess: (): string | null => {
+    // 1. Check tab-scoped sessionStorage first to support independent multi-tab logins (e.g. User in Tab 1, Analyst in Tab 2)
+    try {
+      const sessionToken = sessionStorage.getItem(ACCESS_TOKEN_KEY);
+      if (sessionToken) return sessionToken;
+    } catch {
+      // In private browsing mode sessionStorage might throw
+    }
+
+    // 2. Fallback to localStorage for persistence across new tabs/restarts
+    try {
+      const localToken = localStorage.getItem(ACCESS_TOKEN_KEY);
+      if (localToken) {
+        try { sessionStorage.setItem(ACCESS_TOKEN_KEY, localToken); } catch {}
+        return localToken;
+      }
+    } catch {}
+
+    return null;
+  },
+
+  getRefresh: (): string | null => {
+    try {
+      const sessionRefresh = sessionStorage.getItem(REFRESH_TOKEN_KEY);
+      if (sessionRefresh) return sessionRefresh;
+    } catch {}
+
+    try {
+      const localRefresh = localStorage.getItem(REFRESH_TOKEN_KEY);
+      if (localRefresh) {
+        try { sessionStorage.setItem(REFRESH_TOKEN_KEY, localRefresh); } catch {}
+        return localRefresh;
+      }
+    } catch {}
+
+    return null;
+  },
   
   set: (access: string, refresh: string) => {
-    localStorage.setItem(ACCESS_TOKEN_KEY, access);
-    localStorage.setItem(REFRESH_TOKEN_KEY, refresh);
+    try {
+      sessionStorage.setItem(ACCESS_TOKEN_KEY, access);
+      sessionStorage.setItem(REFRESH_TOKEN_KEY, refresh);
+    } catch {}
+    try {
+      localStorage.setItem(ACCESS_TOKEN_KEY, access);
+      localStorage.setItem(REFRESH_TOKEN_KEY, refresh);
+    } catch {}
   },
   
   clear: () => {
-    localStorage.removeItem(ACCESS_TOKEN_KEY);
-    localStorage.removeItem(REFRESH_TOKEN_KEY);
+    try {
+      sessionStorage.removeItem(ACCESS_TOKEN_KEY);
+      sessionStorage.removeItem(REFRESH_TOKEN_KEY);
+    } catch {}
+    try {
+      localStorage.removeItem(ACCESS_TOKEN_KEY);
+      localStorage.removeItem(REFRESH_TOKEN_KEY);
+    } catch {}
   },
 };
 

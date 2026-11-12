@@ -101,12 +101,18 @@ export default function PersonalMessages() {
     refetchInterval: 5_000,
   });
 
-  // Select first contact if none selected and contacts exist
+  // Select first contact if none selected or if previous contact does not exist for this account
   useEffect(() => {
-    if (!activeRecipient && contacts.length > 0 && contacts[0]) {
-      const firstSlug = contacts[0].public_user_id;
-      setActiveRecipient(firstSlug);
-      setSearchParams({ user: firstSlug });
+    if (contacts.length > 0 && contacts[0]) {
+      const exists = contacts.some(
+        (c) => c.public_user_id.toLowerCase() === activeRecipient.toLowerCase() ||
+               (c.user_slug && c.user_slug.toLowerCase() === activeRecipient.toLowerCase())
+      );
+      if (!activeRecipient || !exists) {
+        const firstSlug = contacts[0].public_user_id;
+        setActiveRecipient(firstSlug);
+        setSearchParams({ user: firstSlug });
+      }
     }
   }, [contacts, activeRecipient, setSearchParams]);
 
@@ -294,11 +300,12 @@ export default function PersonalMessages() {
             </div>
           ) : (
             messageHistory.map((msg) => {
-              // Strict sender determination:
-              // Outgoing message (sent by logged-in user) -> RIGHT side
-              // Incoming message (sent by recipient analyst/user) -> LEFT side
+              // Strict sender determination based on logged-in user profile & public user ID
               const isOutgoing = Boolean(
-                msg.is_me ?? msg.is_mine ?? (user?.id && String(msg.sender_id) === String(user.id))
+                (user?.public_user_id && msg.sender_public_id && msg.sender_public_id.toLowerCase() === user.public_user_id.toLowerCase()) ||
+                (user?.id && String(msg.sender_id) === String(user.id)) ||
+                msg.is_me ||
+                msg.is_mine
               );
 
               if (isOutgoing) {

@@ -552,8 +552,8 @@ def login(
     if target_role == "organization":
         target_role = "organizer"
 
-    # If the user selected the analyst portal OR already has an AnalystProfile, ensure analyst role
-    if target_role == "analyst" or (analyst_profile is not None and target_role not in ("organizer", "org_admin")):
+    # Respect the portal role the user is logging into
+    if target_role == "analyst":
         user.role = "analyst"
         if not analyst_profile:
             profile = AnalystProfile.build_application(
@@ -574,8 +574,10 @@ def login(
             analyst_profile.available_for_hire = True
     elif target_role in ("organizer", "org_admin"):
         user.role = target_role
-    elif target_role == "individual" and not analyst_profile:
+    elif target_role == "individual":
         user.role = "individual"
+    elif analyst_profile is not None:
+        user.role = "analyst"
 
     tokens = build_token_response(
         user_id=user.id,

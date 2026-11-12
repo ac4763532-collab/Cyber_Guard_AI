@@ -87,10 +87,16 @@ export default function AnalystMessages() {
     refetchInterval: 5000,
   });
 
-  // Auto-select first contact if none chosen yet
+  // Auto-select first contact if none chosen yet or if previous contact does not exist for this analyst
   useEffect(() => {
-    if (!selectedSlug && contacts.length > 0 && contacts[0]) {
-      setSelectedSlug(contacts[0].user_slug);
+    if (contacts.length > 0 && contacts[0]) {
+      const exists = contacts.some(
+        (c) => c.user_slug.toLowerCase() === selectedSlug.toLowerCase() ||
+               c.public_user_id.toLowerCase() === selectedSlug.toLowerCase()
+      );
+      if (!selectedSlug || !exists) {
+        setSelectedSlug(contacts[0].user_slug);
+      }
     }
   }, [contacts, selectedSlug]);
 
@@ -129,7 +135,12 @@ export default function AnalystMessages() {
         recipient_id: String(m.recipient_id),
         recipient_public_id: m.recipient_public_id,
         body: m.body,
-        is_mine: Boolean(m.is_mine ?? m.is_me ?? (user?.id && String(m.sender_id) === String(user.id))),
+        is_mine: Boolean(
+          (user?.public_user_id && m.sender_public_id && m.sender_public_id.toLowerCase() === user.public_user_id.toLowerCase()) ||
+          (user?.id && String(m.sender_id) === String(user.id)) ||
+          m.is_mine ||
+          m.is_me
+        ),
         is_read: Boolean(m.is_read),
         created_at: m.created_at,
         timestamp: m.timestamp || new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),

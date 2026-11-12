@@ -129,8 +129,8 @@ def list_contacts(
 
     contacts_map: dict[uuid.UUID, dict[str, Any]] = {}
     for s_id, r_id, created, body in subquery:
-        other_id = r_id if s_id == current_user.id else s_id
-        if other_id == current_user.id:
+        other_id = r_id if str(s_id) == str(current_user.id) else s_id
+        if str(other_id) == str(current_user.id):
             continue
         if other_id not in contacts_map:
             contacts_map[other_id] = {
@@ -231,18 +231,24 @@ def get_conversation_history(
 
     result: List[DirectMessageItem] = []
     for m in messages:
-        is_me = (m.sender_id == current_user.id)
+        sender_is_current = (str(m.sender_id) == str(current_user.id))
+        sender_user = current_user if sender_is_current else other_user
+        recipient_user = other_user if sender_is_current else current_user
+
+        sender_prof = curr_prof if sender_is_current else other_prof
+        sender_display_name = (sender_prof.display_name if sender_prof and sender_prof.display_name else None) or sender_user.full_name or sender_user.public_user_id
+
         result.append(
             DirectMessageItem(
                 id=str(m.id),
                 sender_id=str(m.sender_id),
-                sender_public_id=current_user.public_user_id if is_me else other_user.public_user_id,
-                sender_name=curr_name if is_me else other_name,
+                sender_public_id=sender_user.public_user_id,
+                sender_name=sender_display_name,
                 recipient_id=str(m.recipient_id),
-                recipient_public_id=other_user.public_user_id if is_me else current_user.public_user_id,
+                recipient_public_id=recipient_user.public_user_id,
                 body=m.body,
-                is_me=is_me,
-                is_mine=is_me,
+                is_me=sender_is_current,
+                is_mine=sender_is_current,
                 is_read=m.is_read,
                 created_at=m.created_at.isoformat(),
                 timestamp=m.created_at.strftime("%I:%M %p"),
