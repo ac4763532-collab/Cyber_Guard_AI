@@ -83,7 +83,7 @@ from app.models.user import User
 from app.services import user_service, workspace_service
 
 
-from app.api.deps import CurrentUser, DBDep
+from app.api.deps import CurrentUser, CurrentActiveUser, DBDep
 from app.core.config import settings
 from app.auth.jwt import (
     build_token_response,

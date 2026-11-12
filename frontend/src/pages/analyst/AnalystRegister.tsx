@@ -13,12 +13,14 @@
 
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Shield, UserCheck, FileText, Mail, Lock, Eye, EyeOff, ChevronRight, CheckCircle, AlertCircle, Loader2 } from "lucide-react";
+import { Shield, UserCheck, FileText, Mail, Lock, Eye, EyeOff, ChevronRight, CheckCircle, AlertCircle, Loader2, KeyRound } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { toast } from "sonner";
 
+import { useAuth } from "@/auth/AuthProvider";
+import { api } from "@/lib/api";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Card, CardContent } from "@/components/ui/Card";
@@ -72,12 +74,28 @@ const STEPS = [
   { id: 3, label: "Verification", description: "Submit verification documents" },
 ];
 
+/** Pull a readable message out of an API error (FastAPI `detail` or CyberGuard error envelope). */
+function apiErrorMessage(error: any, fallback: string): string {
+  const detail = error?.response?.data?.detail;
+  if (typeof detail === "string") return detail;
+  if (Array.isArray(detail) && detail[0]?.msg) return detail[0].msg;
+  return error?.response?.data?.error?.message || error?.message || fallback;
+}
+
 export default function AnalystRegister() {
   const navigate = useNavigate();
+  const { register: registerUser } = useAuth();
   const [currentStep, setCurrentStep] = useState(1);
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [verificationFile, setVerificationFile] = useState<File | null>(null);
+  // Email OTP state (backend: /auth/register/initiate → /auth/register/verify-code)
+  const [codeSent, setCodeSent] = useState(false);
+  const [emailVerified, setEmailVerified] = useState(false);
+  const [verificationCode, setVerificationCode] = useState("");
+  // Set once /auth/register succeeds, so a failed /analysts/apply can be retried
+  // without trying to create the account a second time.
+  const [accountCreated, setAccountCreated] = useState(false);
 
   const form = useForm<AnalystFormValues>({
     resolver: zodResolver(analystSchema),
@@ -139,12 +157,68 @@ export default function AnalystRegister() {
 
     // Trigger validation for all fields in current step
     form.trigger(fieldsToValidate).then(isValid => {
-      if (isValid) {
-        if (currentStep < 3) {
-          setCurrentStep(currentStep + 1);
+      if (!isValid) return;
+      // Step 1 cannot be left until the email is verified with the 6-digit code.
+      if (currentStep === 1 && !emailVerified) {
+        if (codeSent) {
+          verifyEmailCode();
+        } else {
+          sendEmailCode();
         }
+        return;
+      }
+      if (currentStep < 3) {
+        setCurrentStep(currentStep + 1);
       }
     });
+  };
+
+  const sendEmailCode = async () => {
+    const { email, password, fullName } = form.getValues();
+    setIsSubmitting(true);
+    try {
+      const res = await api.post("/auth/register/initiate", {
+        email: email.trim().toLowerCase(),
+        password,
+        full_name: fullName.trim(),
+        role: "analyst",
+      });
+      setCodeSent(true);
+      setVerificationCode("");
+      toast.success(res.data?.message || "Verification code sent to your email.");
+    } catch (error: any) {
+      toast.error(apiErrorMessage(error, "Could not send the verification code."));
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const verifyEmailCode = async () => {
+    const code = verificationCode.trim();
+    if (code.length !== 6) {
+      toast.error("Please enter the 6-digit verification code.");
+      return;
+    }
+    setIsSubmitting(true);
+    try {
+      await api.post("/auth/register/verify-code", {
+        email: form.getValues("email").trim().toLowerCase(),
+        code,
+      });
+      setEmailVerified(true);
+      toast.success("Email verified.");
+      setCurrentStep(2);
+    } catch (error: any) {
+      toast.error(apiErrorMessage(error, "Invalid verification code."));
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const changeEmail = () => {
+    setCodeSent(false);
+    setEmailVerified(false);
+    setVerificationCode("");
   };
 
   const prevStep = () => {
@@ -153,17 +227,59 @@ export default function AnalystRegister() {
     }
   };
 
-  const handleSubmit = async (_values: AnalystFormValues) => {
+  const handleSubmit = async (values: AnalystFormValues) => {
+    if (!emailVerified) {
+      toast.error("Please verify your email first.");
+      setCurrentStep(1);
+      return;
+    }
+
     setIsSubmitting(true);
-
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // 1. Create the account (stores tokens, so the next call is authenticated).
+      if (!accountCreated) {
+        try {
+          await registerUser(
+            values.email.trim().toLowerCase(),
+            values.password,
+            values.fullName.trim(),
+            "analyst",
+          );
+          setAccountCreated(true);
+        } catch (error: any) {
+          toast.error(apiErrorMessage(error, "Could not create your account."));
+          return;
+        }
+      }
 
-      toast.success("Registration submitted! Verification typically takes 24-48 hours.");
-      navigate("/select-account");
-    } catch (error) {
-      toast.error("Registration failed. Please try again.");
+      // 2. Create the analyst profile.
+      const title = values.title.trim();
+      const company = values.company?.trim();
+      const headline = (company ? `${title} at ${company}` : title).slice(0, 200);
+      const certifications = (values.certifications || "")
+        .split(",")
+        .map(c => c.trim())
+        .filter(Boolean);
+
+      const { data: profile } = await api.post("/analysts/apply", {
+        display_name: values.fullName.trim(),
+        headline,
+        specializations: values.specializations,
+        certifications,
+        bio: values.bio?.trim() || undefined,
+      });
+
+      if (profile?.verification_status === "verified" || profile?.verified) {
+        toast.success("Analyst account created and verified. Welcome to CyberGuard AI.");
+      } else {
+        toast.success("Analyst account created. Your profile is pending verification.");
+      }
+      navigate("/analyst/dashboard", { replace: true });
+    } catch (error: any) {
+      toast.error(
+        apiErrorMessage(error, "Your account was created, but the analyst profile could not be saved.") +
+          " Press Submit to try again.",
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -249,6 +365,7 @@ export default function AnalystRegister() {
                     label="Full Name"
                     placeholder="John Smith"
                     {...form.register("fullName")}
+                    readOnly={codeSent}
                     error={form.formState.errors.fullName?.message}
                     leftIcon={<UserCheck className="w-5 h-5" />}
                   />
@@ -258,6 +375,7 @@ export default function AnalystRegister() {
                     type="email"
                     placeholder="analyst@company.com"
                     {...form.register("email")}
+                    readOnly={codeSent}
                     error={form.formState.errors.email?.message}
                     leftIcon={<Mail className="w-5 h-5" />}
                   />
@@ -269,6 +387,7 @@ export default function AnalystRegister() {
                         type={showPassword ? "text" : "password"}
                         placeholder="••••••••••••"
                         {...form.register("password")}
+                        readOnly={codeSent}
                         error={form.formState.errors.password?.message}
                         leftIcon={<Lock className="w-5 h-5" />}
                       />
@@ -290,9 +409,67 @@ export default function AnalystRegister() {
                     type={showPassword ? "text" : "password"}
                     placeholder="••••••••••••"
                     {...form.register("confirmPassword")}
+                    readOnly={codeSent}
                     error={form.formState.errors.confirmPassword?.message}
                     leftIcon={<Lock className="w-5 h-5" />}
                   />
+
+                  {/* Email verification code */}
+                  {codeSent && (
+                    <div className="mt-2 p-4 rounded-lg border border-brand-500/30 bg-brand-500/5 space-y-3">
+                      {emailVerified ? (
+                        <div className="flex items-center gap-2 text-sm text-emerald-600 dark:text-emerald-400">
+                          <CheckCircle className="w-5 h-5" />
+                          Email verified for {form.getValues("email")}.
+                        </div>
+                      ) : (
+                        <>
+                          <div className="flex items-start gap-2">
+                            <KeyRound className="w-5 h-5 text-brand-500 mt-0.5" />
+                            <p className="text-sm text-slate-600 dark:text-slate-300">
+                              We sent a 6-digit code to{" "}
+                              <span className="font-semibold">{form.getValues("email")}</span>.
+                              It expires in 15 minutes. Check your spam folder if it doesn't arrive.
+                            </p>
+                          </div>
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            maxLength={6}
+                            placeholder="000000"
+                            value={verificationCode}
+                            onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, ""))}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                e.preventDefault();
+                                verifyEmailCode();
+                              }
+                            }}
+                            autoFocus
+                            aria-label="6-digit verification code"
+                            className="w-full text-center text-2xl font-mono tracking-widest px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-brand-500"
+                          />
+                        </>
+                      )}
+                      {!accountCreated && (
+                        <div className="flex justify-between text-xs">
+                          <button type="button" onClick={changeEmail} className="text-slate-500 hover:text-slate-700 dark:hover:text-slate-300">
+                            &larr; Change details
+                          </button>
+                          {!emailVerified && (
+                            <button
+                              type="button"
+                              onClick={sendEmailCode}
+                              disabled={isSubmitting}
+                              className="text-brand-500 hover:underline font-medium"
+                            >
+                              Resend code
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -492,8 +669,15 @@ export default function AnalystRegister() {
                 </Button>
                 <div className="flex gap-3">
                   {currentStep < 3 ? (
-                    <Button type="button" onClick={nextStep} rightIcon={<ChevronRight className="w-4 h-4" />}>
-                      Continue
+                    <Button
+                      type="button"
+                      onClick={nextStep}
+                      isLoading={isSubmitting}
+                      rightIcon={<ChevronRight className="w-4 h-4" />}
+                    >
+                      {currentStep === 1 && !emailVerified
+                        ? (codeSent ? "Verify Code" : "Send Verification Code")
+                        : "Continue"}
                     </Button>
                   ) : (
                     <Button type="submit" isLoading={isSubmitting} rightIcon={<Loader2 className="w-4 h-4 animate-spin" />}>
