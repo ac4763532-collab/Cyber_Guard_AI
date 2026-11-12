@@ -89,6 +89,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // ── Login action ──────────────────────────────────────────────────────
   const login = async (email: string, password: string, targetRole?: string) => {
+    // Wipe previous cached session queries to prevent cross-account leakage
+    queryClient.clear();
+
     // 1. Get tokens (passing target_role if specified)
     const { data: tokens } = await api.post<TokenResponse>("/auth/login", {
       email,
@@ -107,6 +110,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // ── Switch Workspace Role action ──────────────────────────────────────
   const switchRole = async (newRole: string) => {
+    queryClient.clear();
     const { data: tokens } = await api.post<TokenResponse>("/auth/switch-role", {
       role: newRole,
     });
@@ -119,6 +123,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // ── Register action ───────────────────────────────────────────────────
   const register = async (email: string, password: string, fullName?: string, role?: string) => {
+    queryClient.clear();
     // 1. Create account + get tokens
     const { data: tokens } = await api.post<TokenResponse>("/auth/register", {
       email,

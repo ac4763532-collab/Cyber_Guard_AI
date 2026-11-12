@@ -3,6 +3,9 @@
  * ============================================================================
  * Case communications and direct conversations between verified analysts
  * and authorized case participants/clients backed by persistent database storage.
+ * Messages are strictly isolated per peer conversation with clear sender identity:
+ * - Sent messages: RIGHT side (Emerald) with "You (Analyst)" & timestamp.
+ * - Received messages: LEFT side (Dark Slate) with Client Name, @ID & timestamp.
  */
 
 import { useState, useEffect, useRef } from "react";
@@ -17,13 +20,13 @@ import {
   Search, 
   Plus, 
   RefreshCw,
-  CheckCheck
+  CheckCheck,
+  ShieldCheck
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Spinner } from "@/components/ui/Spinner";
 import { api } from "@/lib/api";
-import { formatRelativeTime } from "@/lib/utils";
 import { useAuth } from "@/auth/AuthProvider";
 import { toast } from "sonner";
 
@@ -41,10 +44,13 @@ interface Contact {
 interface MessageItem {
   id: string;
   sender_id: string;
+  sender_public_id?: string;
   sender_name: string;
   recipient_id: string;
+  recipient_public_id?: string;
   body: string;
   is_mine: boolean;
+  is_read?: boolean;
   created_at: string;
   timestamp?: string;
 }
@@ -57,13 +63,13 @@ export default function AnalystMessages() {
   const [input, setInput] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // 1. Load conversation contacts
+  // 1. Load conversation contacts scoped by the logged-in analyst
   const { 
     data: contacts = [], 
     isLoading: loadingContacts, 
     refetch: refetchContacts 
   } = useQuery<Contact[]>({
-    queryKey: ["analyst-contacts"],
+    queryKey: ["analyst-contacts", user?.id],
     queryFn: async () => {
       const res = await api.get<any>("/direct-messages/contacts");
       const list = Array.isArray(res.data) ? res.data : (res.data?.contacts || []);
@@ -88,7 +94,10 @@ export default function AnalystMessages() {
     }
   }, [contacts, selectedSlug]);
 
-  const activeContact = contacts.find((c) => c.user_slug === selectedSlug) || (
+  const activeContact = contacts.find(
+    (c) => c.user_slug.toLowerCase() === selectedSlug.toLowerCase() ||
+           c.public_user_id.toLowerCase() === selectedSlug.toLowerCase()
+  ) || (
     selectedSlug ? {
       id: selectedSlug,
       name: selectedSlug,
@@ -101,26 +110,29 @@ export default function AnalystMessages() {
     } : null
   );
 
-  // 2. Load conversation history with active contact
+  // 2. Load conversation history strictly for the selected peer
   const { 
     data: messages = [], 
     isLoading: loadingMessages, 
     refetch: refetchMessages 
   } = useQuery<MessageItem[]>({
-    queryKey: ["analyst-messages", selectedSlug],
+    queryKey: ["analyst-messages", user?.id, selectedSlug],
     queryFn: async () => {
       if (!selectedSlug) return [];
-      const res = await api.get<any>(`/direct-messages/${selectedSlug}`);
+      const res = await api.get<any>(`/direct-messages/${encodeURIComponent(selectedSlug)}`);
       const list = Array.isArray(res.data) ? res.data : (res.data?.messages || []);
       return list.map((m: any) => ({
         id: String(m.id),
         sender_id: String(m.sender_id),
+        sender_public_id: m.sender_public_id,
         sender_name: m.sender_name || m.sender_public_id || "User",
         recipient_id: String(m.recipient_id),
+        recipient_public_id: m.recipient_public_id,
         body: m.body,
-        is_mine: m.is_mine ?? m.is_me ?? (user?.id ? String(m.sender_id) === String(user.id) : false),
+        is_mine: Boolean(m.is_mine ?? m.is_me ?? (user?.id && String(m.sender_id) === String(user.id))),
+        is_read: Boolean(m.is_read),
         created_at: m.created_at,
-        timestamp: m.timestamp,
+        timestamp: m.timestamp || new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       }));
     },
     enabled: Boolean(selectedSlug),
@@ -134,7 +146,7 @@ export default function AnalystMessages() {
   const sendMutation = useMutation({
     mutationFn: async (bodyText: string) => {
       if (!selectedSlug) throw new Error("No contact selected");
-      const { data } = await api.post(`/direct-messages/${selectedSlug}`, {
+      const { data } = await api.post(`/direct-messages/${encodeURIComponent(selectedSlug)}`, {
         body: bodyText,
       });
       return data;
@@ -143,8 +155,8 @@ export default function AnalystMessages() {
       setInput("");
       refetchMessages();
       refetchContacts();
-      queryClient.invalidateQueries({ queryKey: ["analyst-messages", selectedSlug] });
-      queryClient.invalidateQueries({ queryKey: ["analyst-contacts"] });
+      queryClient.invalidateQueries({ queryKey: ["analyst-messages", user?.id, selectedSlug] });
+      queryClient.invalidateQueries({ queryKey: ["analyst-contacts", user?.id] });
     },
     onError: (err: any) => {
       toast.error(err?.response?.data?.detail || err?.message || "Failed to send message");
@@ -153,7 +165,7 @@ export default function AnalystMessages() {
 
   const handleSend = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!input.trim() || !selectedSlug) return;
+    if (!input.trim() || !selectedSlug || sendMutation.isPending) return;
     sendMutation.mutate(input.trim());
   };
 
@@ -187,14 +199,19 @@ export default function AnalystMessages() {
               <RefreshCw size={13} />
             </Button>
           </div>
-          <p className="text-[11px] text-slate-400">Direct encrypted channels with clients & victims</p>
+          <div className="bg-slate-950/80 border border-slate-800/80 rounded-lg p-2">
+            <p className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Active Analyst</p>
+            <p className="text-xs text-emerald-400 font-mono font-medium truncate mt-0.5">
+              {user?.public_user_id || "analyst-session"}
+            </p>
+          </div>
 
           {/* Quick search / Start conversation */}
           <form onSubmit={handleStartNewChat} className="flex gap-1.5">
             <Input
               value={targetInput}
               onChange={(e) => setTargetInput(e.target.value)}
-              placeholder="Enter User ID (e.g. user-001)"
+              placeholder="Enter User ID (slug)..."
               leftIcon={<Search size={13} />}
               className="h-8 text-xs bg-slate-950 border-slate-800"
             />
@@ -205,7 +222,7 @@ export default function AnalystMessages() {
         </div>
 
         {/* Contacts list */}
-        <div className="flex-1 overflow-y-auto divide-y divide-slate-800/60">
+        <div className="flex-1 overflow-y-auto divide-y divide-slate-800/60 p-2 space-y-1">
           {loadingContacts ? (
             <div className="p-8 text-center"><Spinner label="Loading contacts..." /></div>
           ) : contacts.length === 0 ? (
@@ -218,17 +235,20 @@ export default function AnalystMessages() {
             </div>
           ) : (
             contacts.map((contact) => {
-              const isActive = activeContact?.user_slug === contact.user_slug;
+              const isActive = selectedSlug.toLowerCase() === contact.user_slug.toLowerCase() ||
+                               selectedSlug.toLowerCase() === contact.public_user_id.toLowerCase();
               return (
                 <div 
                   key={contact.id} 
-                  className={`p-3 cursor-pointer transition ${isActive ? "bg-slate-800/80 border-l-2 border-emerald-400" : "hover:bg-slate-800/30"}`}
+                  className={`p-3 rounded-xl cursor-pointer transition ${
+                    isActive ? "bg-emerald-500/10 border border-emerald-500/40 shadow-sm" : "hover:bg-slate-800/50"
+                  }`}
                   onClick={() => setSelectedSlug(contact.user_slug)}
                 >
                   <div className="flex items-center justify-between">
                     <span className="font-semibold text-xs text-slate-200 truncate">{contact.name}</span>
                     <span className="text-[10px] text-slate-500 shrink-0 ml-2">
-                      {contact.last_message_at ? formatRelativeTime(contact.last_message_at) : ""}
+                      {contact.last_message_at ? new Date(contact.last_message_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ""}
                     </span>
                   </div>
                   <div className="flex items-center justify-between mt-0.5">
@@ -254,21 +274,29 @@ export default function AnalystMessages() {
         {activeContact ? (
           <>
             {/* Conversation Header */}
-            <div className="h-16 border-b border-slate-800 px-6 flex items-center justify-between bg-slate-950/40 shrink-0">
-              <div>
-                <h3 className="font-bold text-slate-100 text-sm flex items-center gap-2">
-                  <span>{activeContact.name}</span>
-                  <span className="font-mono text-xs text-cyan-400">(@{activeContact.user_slug})</span>
-                </h3>
-                <span className="text-xs text-emerald-400 font-medium capitalize">{activeContact.role}</span>
+            <div className="h-16 border-b border-slate-800 px-6 flex items-center justify-between bg-slate-950/60 shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center text-emerald-400 font-bold text-sm">
+                  <User size={18} />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-100 text-sm flex items-center gap-2">
+                    <span>{activeContact.name}</span>
+                    <span className="font-mono text-xs text-cyan-400">(@{activeContact.user_slug})</span>
+                    <ShieldCheck size={14} className="text-emerald-400" />
+                  </h3>
+                  <span className="text-xs text-slate-400 font-medium capitalize flex items-center gap-1.5 mt-0.5">
+                    <Lock size={11} className="text-emerald-400" /> Secure peer channel with client
+                  </span>
+                </div>
               </div>
               <span className="text-xs text-slate-400 flex items-center gap-1.5 font-mono">
-                <Lock size={12} className="text-emerald-400" /> Secure Scoped Channel
+                <Lock size={12} className="text-emerald-400" /> Authorized Scoped Session
               </span>
             </div>
 
             {/* Messages Feed */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-4">
+            <div className="flex-1 overflow-y-auto p-5 space-y-4 bg-slate-950/40">
               {loadingMessages ? (
                 <div className="h-full flex items-center justify-center"><Spinner label="Loading conversation..." /></div>
               ) : messages.length === 0 ? (
@@ -280,42 +308,89 @@ export default function AnalystMessages() {
                   </p>
                 </div>
               ) : (
-                messages.map((m) => (
-                  <div key={m.id} className={`flex ${m.is_mine ? "justify-end" : "justify-start"}`}>
-                    <div
-                      className={`max-w-md rounded-2xl p-3.5 text-xs ${
-                        m.is_mine
-                          ? "bg-emerald-600 text-slate-950 font-medium shadow-md shadow-emerald-950/20"
-                          : "bg-slate-950 border border-slate-800 text-slate-200"
-                      }`}
-                    >
-                      <div className="flex items-center justify-between gap-4 mb-1">
-                        <span className={`text-[10px] font-bold ${m.is_mine ? "text-slate-950" : "text-cyan-400 font-mono"}`}>
-                          {m.is_mine ? "You" : m.sender_name}
-                        </span>
-                        <span className={`text-[10px] ${m.is_mine ? "text-slate-900/80" : "text-slate-500"}`}>
-                          {m.timestamp || (m.created_at ? formatRelativeTime(m.created_at) : "")}
-                        </span>
+                messages.map((m) => {
+                  const isOutgoing = m.is_mine;
+
+                  if (isOutgoing) {
+                    // ── SENDER (OUTGOING) -> RIGHT SIDE ──
+                    return (
+                      <div key={m.id} className="flex justify-end w-full">
+                        <div className="flex flex-col items-end max-w-[80%] sm:max-w-md">
+                          {/* Identity & Timestamp Header */}
+                          <div className="flex items-center gap-1.5 mb-1 px-1">
+                            <span className="text-[11px] font-bold text-emerald-400">You (Analyst)</span>
+                            <span className="text-[10px] text-slate-400 font-mono">{m.timestamp}</span>
+                          </div>
+
+                          {/* Message Bubble: Emerald */}
+                          <div className="p-3.5 rounded-2xl rounded-tr-xs bg-gradient-to-br from-emerald-600 to-emerald-500 text-slate-950 font-medium text-xs leading-relaxed shadow-lg shadow-emerald-950/20">
+                            <p className="whitespace-pre-wrap break-words">{m.body}</p>
+                          </div>
+
+                          {/* Status Indicator */}
+                          <div className="flex items-center gap-1 mt-1 px-1 text-[10px] text-slate-400">
+                            <CheckCheck size={12} className={m.is_read ? "text-emerald-400" : "text-slate-400"} />
+                            <span>{m.is_read ? "Read" : "Sent"}</span>
+                          </div>
+                        </div>
                       </div>
-                      <p className="break-words leading-relaxed whitespace-pre-wrap">{m.body}</p>
-                    </div>
-                  </div>
-                ))
+                    );
+                  } else {
+                    // ── RECEIVER (INCOMING) -> LEFT SIDE ──
+                    const displayName = m.sender_name || activeContact.name || "Client";
+                    const displaySlug = m.sender_public_id || activeContact.user_slug;
+
+                    return (
+                      <div key={m.id} className="flex justify-start w-full">
+                        <div className="flex flex-col items-start max-w-[80%] sm:max-w-md">
+                          {/* Identity & Timestamp Header */}
+                          <div className="flex items-center gap-2 mb-1 px-1">
+                            <div className="w-5 h-5 rounded-full bg-slate-800 border border-emerald-500/40 flex items-center justify-center text-[10px] font-bold text-emerald-400">
+                              {displayName.charAt(0).toUpperCase()}
+                            </div>
+                            <span className="text-[11px] font-bold text-slate-200">
+                              {displayName}
+                            </span>
+                            <span className="text-[10px] font-mono text-cyan-400/80">
+                              @{displaySlug}
+                            </span>
+                            <span className="text-[10px] text-slate-400 font-mono">
+                              {m.timestamp}
+                            </span>
+                          </div>
+
+                          {/* Message Bubble: Dark Slate */}
+                          <div className="p-3.5 rounded-2xl rounded-tl-xs bg-slate-800/90 border border-slate-700/80 text-slate-100 text-xs leading-relaxed shadow-lg shadow-black/30">
+                            <p className="whitespace-pre-wrap break-words">{m.body}</p>
+                          </div>
+
+                          {/* Client verification status */}
+                          <div className="flex items-center gap-1 mt-1 px-1 text-[10px] text-slate-400">
+                            <ShieldCheck size={11} className="text-cyan-400" />
+                            <span>Client Session</span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  }
+                })
               )}
               <div ref={messagesEndRef} />
             </div>
 
             {/* Input Bar */}
-            <form onSubmit={handleSend} className="p-4 border-t border-slate-800 bg-slate-950/40 flex gap-2 shrink-0">
+            <form onSubmit={handleSend} className="p-4 border-t border-slate-800 bg-slate-950/60 flex gap-2 shrink-0">
               <Input
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                placeholder={`Send encrypted message to @${activeContact.user_slug}...`}
+                placeholder={`Send message to @${activeContact.user_slug}...`}
                 className="bg-slate-900 border-slate-800 text-xs"
+                disabled={sendMutation.isPending}
               />
               <Button 
                 type="submit" 
                 isLoading={sendMutation.isPending} 
+                disabled={!input.trim() || sendMutation.isPending}
                 className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold px-4"
               >
                 <Send size={14} />
