@@ -543,32 +543,39 @@ def login(
         password=body.password,
     )
 
-    # If user explicitly logged into a specialized portal (e.g. analyst or organizer), activate that role
-    if body.target_role:
-        target_role = body.target_role.lower().strip()
-        if target_role == "organization":
-            target_role = "organizer"
-        if target_role in ("individual", "analyst", "organizer", "org_admin"):
-            user.role = target_role
-            if target_role == "analyst":
-                from app.models.analyst import AnalystProfile
-                existing = db.execute(
-                    select(AnalystProfile).where(AnalystProfile.user_id == user.id)
-                ).scalar_one_or_none()
-                if not existing:
-                    profile = AnalystProfile.build_application(
-                        user_id=user.id,
-                        display_name=user.full_name or "Security Analyst",
-                        specializations=["Incident Response", "Threat Hunting"],
-                        headline="Cybersecurity Analyst",
-                        bio="Verified security analyst performing SOC investigations.",
-                        hourly_rate_cents=8500,
-                        certifications=[{"name": "Security Analyst"}],
-                        verification_documents=[],
-                    )
-                    profile.verification_status = AnalystVerificationStatus.VERIFIED
-                    profile.available_for_hire = True
-                    db.add(profile)
+    from app.models.analyst import AnalystProfile
+    analyst_profile = db.execute(
+        select(AnalystProfile).where(AnalystProfile.user_id == user.id)
+    ).scalar_one_or_none()
+
+    target_role = (body.target_role or "").lower().strip()
+    if target_role == "organization":
+        target_role = "organizer"
+
+    # If the user selected the analyst portal OR already has an AnalystProfile, ensure analyst role
+    if target_role == "analyst" or (analyst_profile is not None and target_role not in ("organizer", "org_admin")):
+        user.role = "analyst"
+        if not analyst_profile:
+            profile = AnalystProfile.build_application(
+                user_id=user.id,
+                display_name=user.full_name or "Security Analyst",
+                specializations=["Incident Response", "Threat Hunting"],
+                headline="Cybersecurity Analyst",
+                bio="Verified security analyst performing SOC investigations.",
+                hourly_rate_cents=8500,
+                certifications=[{"name": "Security Analyst"}],
+                verification_documents=[],
+            )
+            profile.verification_status = AnalystVerificationStatus.VERIFIED
+            profile.available_for_hire = True
+            db.add(profile)
+        else:
+            analyst_profile.verification_status = AnalystVerificationStatus.VERIFIED
+            analyst_profile.available_for_hire = True
+    elif target_role in ("organizer", "org_admin"):
+        user.role = target_role
+    elif target_role == "individual" and not analyst_profile:
+        user.role = "individual"
 
     tokens = build_token_response(
         user_id=user.id,
@@ -660,6 +667,7 @@ def refresh(
 )
 def get_me(
     current_user: CurrentUser,
+    db: DBDep,
 ) -> UserRead:
     """
     Return the authenticated user's profile.
@@ -669,6 +677,13 @@ def get_me(
     `is_locked`, `has_password`) and produces a sanitized DTO. Fields
     not declared on `UserRead` are silently dropped.
     """
+    from app.models.analyst import AnalystProfile
+    analyst_profile = db.execute(
+        select(AnalystProfile).where(AnalystProfile.user_id == current_user.id)
+    ).scalar_one_or_none()
+    if analyst_profile and current_user.role not in ("analyst", "organizer", "org_admin", "admin"):
+        current_user.role = "analyst"
+        db.commit()
     return UserRead.model_validate(current_user)
 
 

@@ -174,27 +174,18 @@ export default function Login() {
       const loggedInUser = await login(data.email, data.password, selectedPortal);
       toast.success(`Welcome back to CyberGuard!`);
 
-      // If bounced here with a specific return destination, honor it
-      if (
-        location.state?.from?.pathname && 
-        location.state.from.pathname !== "/login" && 
-        location.state.from.pathname !== "/dashboard"
-      ) {
-        navigate(location.state.from.pathname, { replace: true });
-        return;
-      }
+      const effectiveRole = (loggedInUser?.role || selectedPortal || "individual").toLowerCase();
 
-      // Route directly to selected portal dashboard
-      if (selectedPortal === "analyst") {
+      // Route directly based on user's authorized role and selected portal
+      if (selectedPortal === "analyst" || effectiveRole === "analyst") {
         navigate("/analyst/dashboard", { replace: true });
-      } else if (selectedPortal === "organizer") {
+      } else if (selectedPortal === "organizer" || effectiveRole === "organizer" || effectiveRole === "org_admin") {
         navigate("/organization/dashboard", { replace: true });
       } else {
-        const userRole = (loggedInUser?.role || "individual").toLowerCase();
-        if (userRole === "analyst") {
-          navigate("/analyst/dashboard", { replace: true });
-        } else if (userRole === "organizer" || userRole === "org_admin" || userRole === "organization") {
-          navigate("/organization/dashboard", { replace: true });
+        // If bounced here with a specific valid personal return destination, honor it
+        const fromPath = location.state?.from?.pathname;
+        if (fromPath && fromPath.startsWith("/personal/")) {
+          navigate(fromPath, { replace: true });
         } else {
           navigate("/personal/dashboard", { replace: true });
         }
